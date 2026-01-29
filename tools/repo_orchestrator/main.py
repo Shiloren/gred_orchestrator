@@ -46,6 +46,13 @@ from tools.repo_orchestrator.services.git_service import GitService
 from tools.repo_orchestrator.services.snapshot_service import SnapshotService
 from tools.repo_orchestrator.services.system_service import SystemService
 
+# --- CONSTANTS ---
+ERR_REPO_NOT_FOUND = "Repo no encontrado"
+ERR_REPO_OUT_OF_BASE = "Repo fuera de la base permitida"
+ERR_PATH_NOT_FILE = "Path is not a file."
+ERR_FILE_TOO_LARGE = "File too large."
+TRUNCATED_MARKER = "\n# ... [TRUNCATED] ...\n"
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     # Startup: Ensure snapshot dir exists and start cleanup task
@@ -245,9 +252,9 @@ async def get_active_repo(token: str = Depends(verify_token), rl: None = Depends
 async def open_repo(path: str = Query(...), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
     repo_path = Path(path).resolve()
     if not str(repo_path).startswith(str(REPO_ROOT_DIR)):
-        raise HTTPException(status_code=400, detail="Repo fuera de la base permitida")
+        raise HTTPException(status_code=400, detail=ERR_REPO_OUT_OF_BASE)
     if not repo_path.exists():
-        raise HTTPException(status_code=404, detail="Repo no encontrado")
+        raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
     
     # TD-004: Decoupled open_repo (Server-only/Agnostic)
     # No longer attempts to spawn GUI processes like explorer.exe
@@ -259,9 +266,9 @@ async def open_repo(path: str = Query(...), token: str = Depends(verify_token), 
 async def select_repo(path: str = Query(...), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
     repo_path = Path(path).resolve()
     if not str(repo_path).startswith(str(REPO_ROOT_DIR)):
-        raise HTTPException(status_code=400, detail="Repo fuera de la base permitida")
+        raise HTTPException(status_code=400, detail=ERR_REPO_OUT_OF_BASE)
     if not repo_path.exists():
-        raise HTTPException(status_code=404, detail="Repo no encontrado")
+        raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
         
     registry = load_repo_registry()
     registry["active_repo"] = str(repo_path)
@@ -314,9 +321,9 @@ async def stop_service(token: str = Depends(verify_token), rl: None = Depends(ch
 async def vitaminize_repo(path: str = Query(...), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
     repo_path = Path(path).resolve()
     if not str(repo_path).startswith(str(REPO_ROOT_DIR)):
-        raise HTTPException(status_code=400, detail="Repo fuera de la base permitida")
+        raise HTTPException(status_code=400, detail=ERR_REPO_OUT_OF_BASE)
     if not repo_path.exists():
-        raise HTTPException(status_code=404, detail="Repo no encontrado")
+        raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
         
     created = _vitaminize_repo(repo_path)
     
@@ -332,28 +339,14 @@ async def vitaminize_repo(path: str = Query(...), token: str = Depends(verify_to
         "active_repo": str(repo_path)
     }
 
-@app.get("/tree")
-async def get_tree(path: str = ".", max_depth: int = Query(3, le=6), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
-    base_dir = get_active_repo_dir()
-    target = validate_path(path, base_dir)
-    if not target.is_dir():
-        raise HTTPException(status_code=400, detail="Path is not a directory.")
-
-    if ALLOWLIST_REQUIRE:
-        allowed_paths = get_allowed_paths(base_dir)
-        files = []
-        for allowed_path in allowed_paths:
-            if str(allowed_path).startswith(str(target)):
-                rel_path = allowed_path.relative_to(target)
-                files.append(str(rel_path))
-        return {"files": sorted(set(files)), "truncated": False}
-    
+def _walk_tree(target: Path, max_depth: int) -> list[str]:
     result = []
     base_parts = len(target.parts)
     for root, dirs, files in os.walk(target):
         current_path = Path(root)
         depth = len(current_path.parts) - base_parts
-        if depth > max_depth: continue
+        if depth > max_depth:
+            continue
         dirs[:] = [
             d for d in dirs
             if not d.startswith('.') and d not in ["node_modules", ".venv", ".git", "dist", "build", *SEARCH_EXCLUDE_DIRS]
@@ -362,8 +355,27 @@ async def get_tree(path: str = ".", max_depth: int = Query(3, le=6), token: str 
             file_path = current_path / f
             if file_path.suffix in ALLOWED_EXTENSIONS:
                 result.append(str(file_path.relative_to(target)))
-                if len(result) >= 2000: return {"files": result, "truncated": True}
-    return {"files": result, "truncated": False}
+                if len(result) >= 2000:
+                    return result
+    return result
+
+@app.get("/tree")
+async def get_tree(path: str = ".", max_depth: int = Query(3, le=6), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    base_dir = get_active_repo_dir()
+    target = validate_path(path, base_dir)
+    if not target.is_dir():
+        raise HTTPException(status_code=400, detail="Path is not a directory.")
+
+    if ALLOWLIST_REQUIRE:
+        from tools.repo_orchestrator.security import get_allowed_paths, serialize_allowlist
+        allowed_paths = get_allowed_paths(base_dir)
+        files = [str(p.relative_to(target)) for p in allowed_paths if str(p).startswith(str(target))]
+        return {"files": sorted(set(files)), "truncated": False}
+    
+    # Use run_in_executor to avoid blocking the event loop with os.walk
+    loop = asyncio.get_running_loop()
+    files = await loop.run_in_executor(None, _walk_tree, target, max_depth)
+    return {"files": files, "truncated": len(files) >= 2000}
 
 @app.get("/file", response_class=PlainTextResponse)
 async def get_file(path: str, start_line: int = Query(1, ge=1), end_line: int = Query(MAX_LINES, ge=1), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
@@ -385,13 +397,14 @@ async def get_file(path: str, start_line: int = Query(1, ge=1), end_line: int = 
     
     if end_line - start_line + 1 > MAX_LINES:
         end_line = start_line + MAX_LINES - 1
-        truncated_marker = f"\n# ... [TRUNCATED] ...\n"
-    else: truncated_marker = ""
+        truncated_marker = TRUNCATED_MARKER
+    else:
+        truncated_marker = ""
     
     content = "".join(lines[max(0, start_line-1):end_line])
     content = redact_sensitive_data(content)
     if len(content.encode('utf-8')) > MAX_BYTES:
-        content = content[:MAX_BYTES] + "\n# ... [TRUNCATED] ...\n"
+        content = content[:MAX_BYTES] + TRUNCATED_MARKER
     else: content += truncated_marker
     
     audit_log(path, f"{start_line}-{end_line}", hashlib.sha256(content.encode()).hexdigest(), operation="READ_SNAPSHOT", actor=token)
@@ -426,7 +439,7 @@ async def get_diff(base: str = "main", head: str = "HEAD", token: str = Depends(
     try:
         stdout = GitService.get_diff(base_dir, base, head)
         content = redact_sensitive_data(stdout)
-        if len(content.encode('utf-8')) > MAX_BYTES: content = content[:MAX_BYTES] + "\n# ... [TRUNCATED] ...\n"
+        if len(content.encode('utf-8')) > MAX_BYTES: content = content[:MAX_BYTES] + TRUNCATED_MARKER
         return content
     except Exception as e:
         raise HTTPException(status_code=400, detail=str(e))
