@@ -416,7 +416,8 @@ async def search(q: str = Query(..., min_length=3, max_length=128), ext: Optiona
                         if q in line:
                             hits.append({"file": str(file_path.relative_to(base_dir)), "line": i + 1, "content": redact_sensitive_data(line.strip())})
                             if len(hits) >= 50: return {"results": hits, "truncated": True}
-            except: continue
+            except Exception:
+                continue
     return {"results": hits, "truncated": False}
 
 @app.get("/diff", response_class=PlainTextResponse)
@@ -448,4 +449,5 @@ if frontend_dist.exists():
             return FileResponse(str(index_file))
         raise HTTPException(status_code=404)
 else:
-    print(f"[WARNING] Frontend dist not found at {frontend_dist}")
+    import logging
+    logging.warning(f"Frontend dist not found at {frontend_dist}")

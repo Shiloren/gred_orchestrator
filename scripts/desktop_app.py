@@ -9,6 +9,8 @@ from tkinter import messagebox
 from pathlib import Path
 import ctypes
 
+UI_FONT = "Segoe UI"
+
 # Fix pathing for bundled execution
 BASE_DIR = Path(__file__).parent.parent
 sys.path.append(str(BASE_DIR))
@@ -27,7 +29,7 @@ class OrchestratorApp:
         self.root.protocol("WM_DELETE_WINDOW", self.on_closing)
         
         # UI Elements
-        self.label = tk.Label(root, text="GIL Orchestrator", font=("Segoe UI", 16, "bold"))
+        self.label = tk.Label(root, text="GIL Orchestrator", font=(UI_FONT, 16, "bold"))
         self.label.pack(pady=20)
         
         self.status_label = tk.Label(root, text="Iniciando servidor...", fg="blue")
@@ -107,7 +109,7 @@ if __name__ == "__main__":
     if icon_path.exists():
         try:
             root.iconbitmap(str(icon_path))
-        except Exception:
+        except tk.TclError:
             pass
         
     app = OrchestratorApp(root)

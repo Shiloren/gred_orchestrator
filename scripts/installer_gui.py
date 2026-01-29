@@ -8,10 +8,12 @@ from pathlib import Path
 import ctypes
 import time
 
+UI_FONT = "Segoe UI"
+
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
+    except Exception:
         return False
 
 class InstallerWizard:
@@ -24,8 +26,8 @@ class InstallerWizard:
         # Style
         self.style = ttk.Style()
         self.style.configure("TButton", padding=5)
-        self.style.configure("Header.TLabel", font=("Segoe UI", 12, "bold"))
-        self.style.configure("Action.TLabel", font=("Segoe UI", 10))
+        self.style.configure("Header.TLabel", font=(UI_FONT, 12, "bold"))
+        self.style.configure("Action.TLabel", font=(UI_FONT, 10))
         
         self.install_dir = tk.StringVar(value=os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "GredRepoOrchestrator"))
         self.current_step = 0
@@ -38,7 +40,7 @@ class InstallerWizard:
         # Frame 0: Welcome
         f0 = ttk.Frame(self.root, padding=20)
         ttk.Label(f0, text="Instalación Profesional de GIL Orchestrator", style="Header.TLabel").pack(pady=(0, 20))
-        ttk.Label(f0, text="Este asistente realizará una instalación limpia y autocontenida.", font=("Segoe UI", 10, "italic")).pack(pady=5)
+        ttk.Label(f0, text="Este asistente realizará una instalación limpia y autocontenida.", font=(UI_FONT, 10, "italic")).pack(pady=5)
         ttk.Label(f0, text="Nueva Arquitectura Standalone:\n- Cero servicios en segundo plano.\n- Cero procesos 'zombie'.\n- Cierre total al salir.", wraplength=400).pack(pady=15)
         ttk.Label(f0, text="Haga clic en Siguiente para comenzar la purga e instalación.").pack(side="bottom", pady=20)
         self.frames.append(f0)
@@ -69,7 +71,7 @@ class InstallerWizard:
         # Frame 3: Finish
         f3 = ttk.Frame(self.root, padding=20)
         ttk.Label(f3, text="¡Listo para Usar!", style="Header.TLabel").pack(pady=(0, 20))
-        ttk.Label(f3, text="GIL Orchestrator se ha instalado correctamente.", font=("Segoe UI", 10)).pack(pady=10)
+        ttk.Label(f3, text="GIL Orchestrator se ha instalado correctamente.", font=(UI_FONT, 10)).pack(pady=10)
         ttk.Label(f3, text="Use el acceso directo del escritorio para lanzar la aplicación.\nAl cerrarla, todos los procesos se detendrán sistemáticamente.", wraplength=400).pack(pady=20)
         self.frames.append(f3)
 
@@ -139,11 +141,12 @@ class InstallerWizard:
             
             # Wipe directory (Try a few times if locked)
             if dest.exists():
-                for i in range(3):
+                for _ in range(3):
                     try:
                         shutil.rmtree(dest)
                         break
-                    except: time.sleep(1)
+                    except Exception:
+                        time.sleep(1)
             
             dest.mkdir(parents=True, exist_ok=True)
             
@@ -198,7 +201,8 @@ class InstallerWizard:
                 f.write(f"URL=file:///{str(exe_path).replace('\\', '/')}\n")
                 f.write(f"IconFile={dest / 'orchestrator_icon.ico'}\n")
                 f.write("IconIndex=0\n")
-        except: pass
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     if not is_admin():

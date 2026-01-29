@@ -10,7 +10,7 @@ handover:
     root_lock: "REPO_ROOT (realpath)"
     traffic_type: "M2M (Machine-to-Machine)"
     environment: "INFRA_INTERNAL"
-    repo_root_base: "C:\\Users\\shilo\\Documents\\GitHub"
+    repo_root_base: "YOUR_REPO_ROOT_PATH"
     
   deployment:
     set_env_powershell: '$env:ORCH_TOKEN="TU_TOKEN_LARGO_Y_SEGURO"'

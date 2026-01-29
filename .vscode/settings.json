@@ -1,0 +1,6 @@
+{
+    "sonarlint.connectedMode.project": {
+        "connectionId": "shiloren",
+        "projectKey": "Shiloren_gred_orchestrator"
+    }
+}

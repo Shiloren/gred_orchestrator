@@ -70,7 +70,7 @@ def main():
                              continue
                         print(f"[ERROR] HARDCODED PATH DETECTED: {file_path}")
                         hardcoded_found = True
-                except:
+                except Exception:
                     pass
 
     if hardcoded_found:
