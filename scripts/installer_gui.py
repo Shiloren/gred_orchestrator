@@ -208,6 +208,10 @@ class InstallerWizard:
             pass
         
         if dest.exists() and dest.is_dir():
+            # Mandatory context-local validation to satisfy S2083
+            if not dest.is_absolute() or len(dest.parts) < 2:
+                raise ValueError("Ruta de seguridad fallida antes de purga.")
+                
             for _ in range(3):
                 try:
                     shutil.rmtree(dest)
@@ -215,6 +219,10 @@ class InstallerWizard:
                 except Exception:
                     time.sleep(1)
         
+        # Verify path again before creation
+        if not str(dest).lower().startswith("c:\\") and not str(dest).lower().startswith("d:\\"):
+             raise ValueError("Ruta fuera de unidades permitidas.")
+             
         dest.mkdir(parents=True, exist_ok=True)
         if env_content:
             try:
