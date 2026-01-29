@@ -16,7 +16,7 @@ sys.path.append(str(BASE_DIR))
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
-    except:
+    except Exception:
         return False
 
 class OrchestratorApp:
@@ -107,7 +107,8 @@ if __name__ == "__main__":
     if icon_path.exists():
         try:
             root.iconbitmap(str(icon_path))
-        except: pass
+        except Exception:
+            pass
         
     app = OrchestratorApp(root)
     root.mainloop()
