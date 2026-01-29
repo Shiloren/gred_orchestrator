@@ -4,7 +4,7 @@ from tools.repo_orchestrator.config import TOKENS
 
 security = HTTPBearer(auto_error=False)
 
-def verify_token(request: Request, credentials: HTTPAuthorizationCredentials | None = Security(security)):
+def verify_token(_request: Request, credentials: HTTPAuthorizationCredentials | None = Security(security)):
     if not credentials:
         raise HTTPException(status_code=401, detail="Token missing")
     token = credentials.credentials

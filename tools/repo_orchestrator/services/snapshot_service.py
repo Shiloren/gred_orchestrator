@@ -23,9 +23,8 @@ class SnapshotService:
         if not SNAPSHOT_DIR.exists():
             return
         for item in SNAPSHOT_DIR.iterdir():
-            if item.is_file():
-                if now - item.stat().st_mtime > SNAPSHOT_TTL:
-                    try:
-                        item.unlink()
-                    except Exception:
-                        pass
+            if item.is_file() and now - item.stat().st_mtime > SNAPSHOT_TTL:
+                try:
+                    item.unlink()
+                except Exception:
+                    pass

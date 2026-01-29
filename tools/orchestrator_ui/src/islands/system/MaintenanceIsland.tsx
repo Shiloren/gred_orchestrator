@@ -52,13 +52,20 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
         }
     };
 
+    const getLogClass = (log: string): string => {
+        if (log.includes('DENIED')) return 'text-red-400 bg-red-400/5 px-1 rounded';
+        if (log.includes('READ')) return 'text-blue-400';
+        if (log.includes('SYSTEM')) return 'text-amber-400';
+        return 'text-slate-400';
+    };
+
     const handleExport = () => {
         if (rawLogs.length === 0) return;
         const blob = new Blob([rawLogs.join('\n')], { type: 'text/plain;charset=utf-8' });
         const url = URL.createObjectURL(blob);
         const link = document.createElement('a');
         link.href = url;
-        link.download = `gred_audit_${new Date().toISOString().replace(/[:.]/g, '-')}.log`;
+        link.download = `gred_audit_${new Date().toISOString().replaceAll(/[:.]/g, '-')}.log`;
         link.click();
         URL.revokeObjectURL(url);
     };
@@ -87,8 +94,8 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                     </button>
                     {events.length > 0 && (
                         <div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar">
-                            {events.map((ev, i) => (
-                                <div key={i} className="text-[8px] font-mono text-red-300 bg-red-900/20 p-1.5 rounded-lg border border-red-500/10">
+                            {events.map((ev) => (
+                                <div key={`event-${ev.timestamp}`} className="text-[8px] font-mono text-red-300 bg-red-900/20 p-1.5 rounded-lg border border-red-500/10">
                                     <span className="opacity-60">{ev.timestamp}</span> | {ev.reason}
                                 </div>
                             ))}
@@ -139,9 +146,10 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
             <Accordion title="Repository Control">
                 <div className="space-y-3">
                     <div className="flex flex-col space-y-2">
-                        <label className="text-[9px] font-black uppercase tracking-widest text-slate-500">Target Repository</label>
+                        <label htmlFor="repo-select" className="text-[9px] font-black uppercase tracking-widest text-slate-500">Target Repository</label>
                         <div className="relative group">
                             <select
+                                id="repo-select"
                                 value={selectedRepoPath}
                                 onChange={(e) => setSelectedRepoPath(e.target.value)}
                                 className="w-full pl-8 pr-3 py-2.5 bg-black/40 border border-white/5 rounded-xl text-[10px] text-slate-300 focus:border-accent-primary/50 outline-none transition-all appearance-none cursor-pointer"
@@ -177,7 +185,7 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                     {activeRepo && (
                         <div className="pt-2 flex items-center justify-between border-t border-white/5">
                             <span className="text-[8px] font-black text-slate-600 uppercase tracking-widest">Active:</span>
-                            <span className="text-[9px] font-mono text-emerald-400 truncate max-w-[120px]" title={activeRepo}>{activeRepo.split(/[\/\\]/).pop()}</span>
+                            <span className="text-[9px] font-mono text-emerald-400 truncate max-w-[120px]" title={activeRepo}>{activeRepo.split(/[/\\]/).pop()}</span>
                         </div>
                     )}
                 </div>
@@ -201,7 +209,7 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                         <div className="relative group">
                             <select
                                 value={filter}
-                                onChange={(e) => setFilter(e.target.value as any)}
+                                onChange={(e) => setFilter(e.target.value as 'all' | 'read' | 'deny' | 'system')}
                                 className="appearance-none pl-8 pr-8 py-2 bg-black/40 border border-white/5 rounded-xl text-[10px] text-slate-300 focus:border-accent-primary/50 outline-none transition-all cursor-pointer"
                             >
                                 <option value="all">All</option>
@@ -246,13 +254,9 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                                 </div>
                             ) : (
                                 logs.map((log, i) => (
-                                    <div key={i} className="flex space-x-2 group">
+                                    <div key={`log-${logs.length - i}`} className="flex space-x-2 group">
                                         <span className="text-slate-600 shrink-0 select-none">[{logs.length - i}]</span>
-                                        <span className={`break-all ${log.includes('DENIED') ? 'text-red-400 bg-red-400/5 px-1 rounded' :
-                                            log.includes('READ') ? 'text-blue-400' :
-                                                log.includes('SYSTEM') ? 'text-amber-400' :
-                                                    'text-slate-400'
-                                            }`}>
+                                        <span className={`break-all ${getLogClass(log)}`}>
                                             {log}
                                         </span>
                                     </div>

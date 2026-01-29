@@ -1,7 +1,9 @@
 import os
 import re
 import json
+import time
 from pathlib import Path
+from typing import Optional
 from fastapi import HTTPException
 from tools.repo_orchestrator.config import (
     REPO_REGISTRY_PATH,
@@ -30,7 +32,7 @@ def get_active_repo_dir() -> Path:
     # Fallback to current dir if nothing active
     return Path.cwd()
 
-def _normalize_path(path_str: str, base_dir: Path) -> Path:
+def _normalize_path(path_str: str, base_dir: Path) -> Optional[Path]:
     try:
         requested = Path(path_str)
         if requested.is_absolute():
@@ -47,5 +49,34 @@ def _normalize_path(path_str: str, base_dir: Path) -> Path:
 def validate_path(requested_path: str, base_dir: Path) -> Path:
     target = _normalize_path(requested_path, base_dir)
     if not target:
-        raise HTTPException(status_code=403, detail="Acceso denegado: Path traversal detectado o path inválido.")
+        raise HTTPException(status_code=403, detail="Access denied: Path traversal detected or invalid path.")
     return target
+
+
+def get_allowed_paths(base_dir: Path) -> set[Path]:
+    """Load allowed paths from allowlist.json with TTL check."""
+    if not ALLOWLIST_PATH.exists():
+        return set()
+    try:
+        data = json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
+        timestamp = data.get("timestamp", 0)
+        if time.time() - timestamp > ALLOWLIST_TTL_SECONDS:
+            return set()
+        return {base_dir / p for p in data.get("paths", [])}
+    except Exception:
+        return set()
+
+
+def serialize_allowlist(paths: set[Path]) -> list[dict]:
+    """Convert set of paths to serializable list for API response."""
+    result = []
+    for p in paths:
+        try:
+            result.append({
+                "path": str(p),
+                "type": "file" if p.is_file() else "dir"
+            })
+        except Exception:
+            continue
+    return result
+

@@ -1,5 +1,8 @@
 {
-    "tools/repo_orchestrator/main.py": "c9905946e323e624355676a85b3fb3470d50887e25eaad1564e98fb4c88cb8cf",
-    "tools/repo_orchestrator/security.py": "9ed47a07ea3ab87d2d6f9c450fdb514211b58927b1f9f38270989524fab25105",
-    "tools/repo_orchestrator/config.py": "b00567493fd1276c6b7f94589a59163677fa3614a5f2c59085b5e98dba54b5c6"
+    "tools/repo_orchestrator/main.py": "c7f6a31eba4c4991062cc6c771d614869b9a54f4b6c8439c011ac46626e129b1",
+    "tools/repo_orchestrator/config.py": "7a87d872848055491a67269281ae047ac4586b60c8c47a71f83e2ae9ce47ac5d",
+    "tools/repo_orchestrator/security/__init__.py": "5b6139edccdd9d7bdcb75523cc9079bcdd4e9f592feebaeb655fa688e91730c8",
+    "tools/repo_orchestrator/security/validation.py": "dd1abae070869b50f82bfc37621fa4d0585d7b162f07e47663db630f9fb7bc33",
+    "tools/repo_orchestrator/security/auth.py": "eb06726f457b2dbaa3b6d5149868e2c9ec23a3bdb0763e66f353c334827d2430",
+    "tools/repo_orchestrator/security/audit.py": "0a433d5e76ceec05a059c679238d3ece4048ea05426b5698d82f27e90a443d62"
 }

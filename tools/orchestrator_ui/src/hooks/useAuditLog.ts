@@ -3,7 +3,6 @@ import { API_BASE } from '../types';
 
 export const useAuditLog = (token?: string, limit: number = 200) => {
     const [logs, setLogs] = useState<string[]>([]);
-    const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
     const [filter, setFilter] = useState<'all' | 'read' | 'deny' | 'system'>('all');
     const [searchTerm, setSearchTerm] = useState('');
@@ -44,7 +43,6 @@ export const useAuditLog = (token?: string, limit: number = 200) => {
     return {
         logs: filteredLogs,
         rawLogs: logs,
-        isLoading,
         error,
         filter,
         setFilter,
