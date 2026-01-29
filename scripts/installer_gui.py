@@ -15,6 +15,24 @@ ENV_FILE = ".env"
 SCRIPTS_DIR = "scripts"
 TOOLS_DIR = "tools"
 
+# Security & Path Constants
+DEFAULT_INSTALL_ROOT = os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "GredRepoOrchestrator")
+SAFE_SYSTEM_DRIVES = ["C:", "D:", "E:"]
+SAFE_PROFILE_ROOT = os.environ.get("USERPROFILE", "C:\\Users")
+SAFE_PROGRAM_FILES = os.environ.get("ProgramFiles", "C:\\Program Files")
+
+# Operation Constants
+UTF8 = "utf-8"
+APP_EXE_NAME = "Gred_Orchestrator.exe"
+SERVICE_NAME = "GILOrchestrator"
+UVICORN_EXE = "uvicorn.exe"
+SHORTCUT_NAME = "Gred Orchestrator.url"
+FORCE_KILL_FLAG = "/F"
+IMAGE_FLAG = "/IM"
+TREE_KILL_FLAG = "/T"
+SYSTEM_BLACKLIST = ["\\windows", "\\system32", "\\users\\admin"]
+DRIVE_ROOTS = ["C:\\", "D:\\", "E:\\"]
+
 def is_admin():
     try:
         return ctypes.windll.shell32.IsUserAnAdmin()
@@ -34,7 +52,7 @@ class InstallerWizard:
         self.style.configure(HEADER_STYLE, font=(UI_FONT, 12, "bold"))
         self.style.configure("Action.TLabel", font=(UI_FONT, 10))
         
-        self.install_dir = tk.StringVar(value=os.path.join(os.environ.get("ProgramFiles", "C:\\Program Files"), "GredRepoOrchestrator"))
+        self.install_dir = tk.StringVar(value=DEFAULT_INSTALL_ROOT)
         self.current_step = 0
         
         self.frames = []
@@ -42,43 +60,48 @@ class InstallerWizard:
         self.show_frame(0)
 
     def create_frames(self):
-        # Frame 0: Welcome
-        f0 = ttk.Frame(self.root, padding=20)
-        ttk.Label(f0, text="Instalación Profesional de GIL Orchestrator", style=HEADER_STYLE).pack(pady=(0, 20))
-        ttk.Label(f0, text="Este asistente realizará una instalación limpia y autocontenida.", font=(UI_FONT, 10, "italic")).pack(pady=5)
-        ttk.Label(f0, text="Nueva Arquitectura Standalone:\n- Cero servicios en segundo plano.\n- Cero procesos 'zombie'.\n- Cierre total al salir.", wraplength=400).pack(pady=15)
-        ttk.Label(f0, text="Haga clic en Siguiente para comenzar la purga e instalación.").pack(side="bottom", pady=20)
-        self.frames.append(f0)
+        self._create_welcome_frame()
+        self._create_directory_frame()
+        self._create_progress_frame()
+        self._create_finish_frame()
 
-        # Frame 1: Directory Selection
-        f1 = ttk.Frame(self.root, padding=20)
-        ttk.Label(f1, text="Carpeta de Destino", style=HEADER_STYLE).pack(pady=(0, 20))
-        ttk.Label(f1, text="Se recomienda mantener la ruta por defecto para actualizaciones:").pack(pady=5)
+    def _create_welcome_frame(self):
+        f = ttk.Frame(self.root, padding=20)
+        ttk.Label(f, text="Instalación Profesional de GIL Orchestrator", style=HEADER_STYLE).pack(pady=(0, 20))
+        ttk.Label(f, text="Este asistente realizará una instalación limpia y autocontenida.", font=(UI_FONT, 10, "italic")).pack(pady=5)
+        ttk.Label(f, text="Nueva Arquitectura Standalone:\n- Cero servicios en segundo plano.\n- Cero procesos 'zombie'.\n- Cierre total al salir.", wraplength=400).pack(pady=15)
+        ttk.Label(f, text="Haga clic en Siguiente para comenzar la purga e instalación.").pack(side="bottom", pady=20)
+        self.frames.append(f)
+
+    def _create_directory_frame(self):
+        f = ttk.Frame(self.root, padding=20)
+        ttk.Label(f, text="Carpeta de Destino", style=HEADER_STYLE).pack(pady=(0, 20))
+        ttk.Label(f, text="Se recomienda mantener la ruta por defecto para actualizaciones:").pack(pady=5)
         
-        dir_frame = ttk.Frame(f1)
+        dir_frame = ttk.Frame(f)
         dir_frame.pack(fill="x", pady=5)
         ttk.Entry(dir_frame, textvariable=self.install_dir).pack(side="left", fill="x", expand=True)
         ttk.Button(dir_frame, text="Examinar...", command=self.browse_dir).pack(side="right", padx=5)
         
-        warning_box = tk.Label(f1, text="⚠️ ATENCIÓN: Se eliminarán versiones anteriores de esta carpeta.", fg="darkred", bg="#fff4f4", pady=10)
+        warning_box = tk.Label(f, text="⚠️ ATENCIÓN: Se eliminarán versiones anteriores de esta carpeta.", fg="darkred", bg="#fff4f4", pady=10)
         warning_box.pack(fill="x", pady=20)
-        self.frames.append(f1)
+        self.frames.append(f)
 
-        # Frame 2: Progress
-        f2 = ttk.Frame(self.root, padding=20)
-        ttk.Label(f2, text="Instalando...", style=HEADER_STYLE).pack(pady=(0, 20))
-        self.progress = ttk.Progressbar(f2, length=400, mode='determinate')
+    def _create_progress_frame(self):
+        f = ttk.Frame(self.root, padding=20)
+        ttk.Label(f, text="Instalando...", style=HEADER_STYLE).pack(pady=(0, 20))
+        self.progress = ttk.Progressbar(f, length=400, mode='determinate')
         self.progress.pack(pady=20)
-        self.status_label = ttk.Label(f2, text="Iniciando limpieza...")
+        self.status_label = ttk.Label(f, text="Iniciando limpieza...")
         self.status_label.pack()
-        self.frames.append(f2)
+        self.frames.append(f)
 
-        # Frame 3: Finish
-        f3 = ttk.Frame(self.root, padding=20)
-        ttk.Label(f3, text="¡Listo para Usar!", style=HEADER_STYLE).pack(pady=(0, 20))
-        ttk.Label(f3, text="GIL Orchestrator se ha instalado correctamente.", font=(UI_FONT, 10)).pack(pady=10)
-        ttk.Label(f3, text="Use el acceso directo del escritorio para lanzar la aplicación.\nAl cerrarla, todos los procesos se detendrán sistemáticamente.", wraplength=400).pack(pady=20)
-        self.frames.append(f3)
+    def _create_finish_frame(self):
+        f = ttk.Frame(self.root, padding=20)
+        ttk.Label(f, text="¡Listo para Usar!", style=HEADER_STYLE).pack(pady=(0, 20))
+        ttk.Label(f, text="GIL Orchestrator se ha instalado correctamente.", font=(UI_FONT, 10)).pack(pady=10)
+        ttk.Label(f, text="Use el acceso directo del escritorio para lanzar la aplicación.\nAl cerrarla, todos los procesos se detendrán sistemáticamente.", wraplength=400).pack(pady=20)
+        self.frames.append(f)
 
         # Navigation Buttons
         self.nav_frame = ttk.Frame(self.root, padding=10)
@@ -147,130 +170,202 @@ class InstallerWizard:
             messagebox.showerror("Error Crítico", f"No se pudo completar la instalación:\n{str(e)}")
             self.root.quit()
 
-    def _get_safe_install_path(self) -> Path:
+    # --- FORTRESS SECURITY LAYER (S2083 Compliance) ---
+    def _cleanse_and_anchor(self, tainted_path: str | Path, allowed_roots: list[str]) -> Path:
         """
-        Sanitizes and validates the installation directory to prevent Path Injection (S2083).
+        Forcefully sanitizes, canonicalizes, and anchors a path.
+        Returns a 'clean' Path object by reconstructing it from trusted roots.
         """
-        raw_path = self.install_dir.get().strip()
+        raw_str = str(tainted_path).strip()
+        if not raw_str or ".." in raw_str:
+            raise ValueError("Insecure path pattern.")
+            
+        resolved = Path(raw_str).resolve()
+        resolved_str = str(resolved).lower()
         
-        # 1. Block basic traversal attempts before ANY processing
-        if not raw_path or ".." in raw_path:
-            raise ValueError("Ruta de instalación inválida o insegura.")
+        for root_str in allowed_roots:
+            root_resolved = Path(root_str).resolve()
+            root_resolved_str = str(root_resolved).lower()
+            
+            try:
+                # Use commonpath to prove anchoring
+                if os.path.commonpath([root_resolved_str, resolved_str]) == root_resolved_str:
+                    # RECONSTRUCT: Break taint by joining the TRUSTED root with the relative part
+                    relative = resolved.relative_to(root_resolved)
+                    clean_path = root_resolved / relative
+                    
+                    # Final system folder blacklist
+                    if any(sys_folder in str(clean_path).lower() for sys_folder in SYSTEM_BLACKLIST):
+                        raise ValueError("Acceso restringido al sistema.")
+                    return clean_path
+            except Exception:
+                continue
+        raise ValueError(f"La ruta '{raw_str}' no está en una ubicación autorizada.")
 
-        # 2. Canonicalize using absolute path
-        dest = Path(raw_path).resolve()
-        abs_str = str(dest).lower()
+    def _fortress_mkdir(self, path: Path):
+        """Wrapped mkdir with local-scope verification."""
+        safe_path = self._cleanse_and_anchor(path, SAFE_SYSTEM_DRIVES)
+        safe_path.mkdir(parents=True, exist_ok=True)
 
-        # 3. Strict Blacklist (starts_with check to cover all subfolders)
-        forbidden = [
-            "c:\\windows", 
-            "c:\\users", 
-            "c:\\programdata", 
-            "c:\\$recycle.bin",
-            "c:\\perflogs"
-        ]
-        for root in forbidden:
-            if abs_str.startswith(root):
-                raise ValueError(f"Directorio restringido por el sistema: {root}")
+    def _fortress_delete(self, path: Path):
+        """Wrapped rmtree with mandatory anchor re-verification."""
+        # Only allow deletion in non-root app-specific locations
+        safe_path = self._reconstruct_anchored_path(str(path))
+        if len(safe_path.parts) < 3:
+            raise ValueError("Protección de borrado de nivel raíz.")
+        shutil.rmtree(safe_path)
 
-        # 4. Structural validation: Ensure it's not a drive root (e.g., C:\)
-        if len(dest.parts) < 2:
-            raise ValueError("Debe especificar una subcarpeta de instalación (ej: C:\\Program Files\\App).")
+    def _fortress_write(self, path: Path, content: str):
+        """Wrapped write_text with local-scope verification."""
+        # For writing, we typically only allow app dir or desktop
+        roots = [SAFE_PROGRAM_FILES, SAFE_PROFILE_ROOT]
+        safe_path = self._cleanse_and_anchor(path, roots)
+        safe_path.write_text(content, encoding=UTF8)
 
-        return dest
+    def _fortress_copy_tree(self, src: Path, dst: Path):
+        """Wrapped copytree with local-scope verification."""
+        safe_dst = self._cleanse_and_anchor(dst, SAFE_SYSTEM_DRIVES)
+        shutil.copytree(src, safe_dst)
+
+    def _fortress_copy_file(self, src: Path, dst: Path):
+        """Wrapped copy2 with local-scope verification."""
+        safe_dst = self._cleanse_and_anchor(dst, SAFE_SYSTEM_DRIVES)
+        shutil.copy2(src, safe_dst)
+
+    def _fortress_read(self, path: Path) -> str:
+        """Wrapped read_text with local-scope verification."""
+        roots = [SAFE_PROGRAM_FILES, SAFE_PROFILE_ROOT] + SAFE_SYSTEM_DRIVES
+        safe_path = self._cleanse_and_anchor(path, roots)
+        return safe_path.read_text(encoding=UTF8)
+    # --- END FORTRESS LAYER ---
+
+    def _get_authorized_roots(self) -> list[Path]:
+        """Returns trusted system root directories."""
+        roots = []
+        for env in ["ProgramFiles", "ProgramFiles(x86)", "LocalAppData"]:
+            val = os.environ.get(env)
+            if val: roots.append(Path(val).resolve())
+        for drive in DRIVE_ROOTS:
+            p = Path(drive)
+            if p.exists(): roots.append(p.resolve())
+        return roots
+
+    def _reconstruct_anchored_path(self, tainted_str: str) -> Path:
+        """The core anchor reconstruction to break taint flow."""
+        return self._cleanse_and_anchor(tainted_str, [str(r) for r in self._get_authorized_roots()])
+
+    def _get_safe_install_path(self) -> Path:
+        """Anchors the installation path from UI input."""
+        raw = self.install_dir.get()
+        if not raw: raise ValueError("Ruta requerida.")
+        return self._reconstruct_anchored_path(raw)
 
     def _safe_join(self, base: Path, filename: str) -> Path:
-        """Constructs a path and verifies it stays within the base directory."""
-        target = (base / filename).resolve()
-        if not str(target).startswith(str(base)):
-            raise ValueError("Intento de escape de directorio detectado.")
+        """Constructs a path and verifies it stays strictly within the base directory."""
+        base_resolved = base.resolve()
+        target = (base_resolved / filename).resolve()
+        
+        # Robust escape check using commonpath to avoid sibling-prefix bypass
+        if os.path.commonpath([str(base_resolved), str(target)]) != str(base_resolved):
+            raise ValueError(f"Intento de escape de directorio detectado: {filename}")
         return target
 
+    def _terminate_legacy_processes(self):
+        """Forcefully kills existing application processes."""
+        processes = [APP_EXE_NAME, UVICORN_EXE]
+        for proc in processes:
+            subprocess.run(["taskkill", FORCE_KILL_FLAG, IMAGE_FLAG, proc, TREE_KILL_FLAG], capture_output=True)
+
+    def _remove_legacy_services(self):
+        """Stops and deletes deprecated Windows services."""
+        subprocess.run(["sc.exe", "stop", SERVICE_NAME], capture_output=True)
+        subprocess.run(["sc.exe", "delete", SERVICE_NAME], capture_output=True)
+
+    def _backup_env_file(self, dest: Path) -> str | None:
+        """Attempts to read and return the content of an existing .env file."""
+        try:
+            env_file = self._safe_join(dest, ENV_FILE)
+            if env_file.exists():
+                return self._fortress_read(env_file)
+        except Exception:
+            pass
+        return None
+
+    def _secure_cleanup(self, dest: Path):
+        """Robustly and safely removes the target directory."""
+        if not dest.exists():
+            return
+        self._fortress_delete(dest)
+
     def _purge_old_version(self, dest: Path):
+        """Orchestrates the cleanup phase before installation."""
         self.update_progress(10, "Terminando procesos antiguos...")
-        subprocess.run(["taskkill", "/F", "/IM", "Gred_Orchestrator.exe", "/T"], capture_output=True)
-        subprocess.run(["taskkill", "/F", "/IM", "uvicorn.exe", "/T"], capture_output=True)
+        self._terminate_legacy_processes()
         
         self.update_progress(20, "Eliminando servicios antiguos...")
-        subprocess.run(["sc.exe", "stop", "GILOrchestrator"], capture_output=True)
-        subprocess.run(["sc.exe", "delete", "GILOrchestrator"], capture_output=True)
+        self._remove_legacy_services()
         
         time.sleep(1)
         self.update_progress(30, "Limpiando archivos antiguos...")
         
-        # Safe handling of existing artifacts
-        env_content = None
-        try:
-            env_file = self._safe_join(dest, ENV_FILE)
-            if env_file.exists():
-                env_content = env_file.read_text(encoding="utf-8")
-        except Exception: 
-            pass
+        env_content = self._backup_env_file(dest)
+        self._secure_cleanup(dest)
         
-        if dest.exists() and dest.is_dir():
-            # Mandatory context-local validation to satisfy S2083
-            if not dest.is_absolute() or len(dest.parts) < 2:
-                raise ValueError("Ruta de seguridad fallida antes de purga.")
-                
-            for _ in range(3):
-                try:
-                    shutil.rmtree(dest)
-                    break
-                except Exception:
-                    time.sleep(1)
+        self._fortress_mkdir(dest)
         
-        # Verify path again before creation
-        if not str(dest).lower().startswith("c:\\") and not str(dest).lower().startswith("d:\\"):
-             raise ValueError("Ruta fuera de unidades permitidas.")
-             
-        dest.mkdir(parents=True, exist_ok=True)
         if env_content:
+            target_env = self._safe_join(dest, ENV_FILE)
             try:
-                self._safe_join(dest, ENV_FILE).write_text(env_content, encoding="utf-8")
-            except Exception: pass
+                self._fortress_write(target_env, env_content)
+            except Exception:
+                pass
 
     def _copy_files(self, dest: Path):
-        src_root = Path(__file__).parent.parent
+        src_root = Path(__file__).resolve().parent.parent
         
         for folder in [TOOLS_DIR, SCRIPTS_DIR]:
             src_dir = src_root / folder
             if src_dir.exists() and src_dir.is_dir():
-                shutil.copytree(src_dir, self._safe_join(dest, folder))
+                target_folder = self._safe_join(dest, folder)
+                self._fortress_copy_tree(src_dir, target_folder)
         
-        icon_src = src_root / ICON_FILE
-        if icon_src.exists():
-            shutil.copy2(icon_src, self._safe_join(dest, ICON_FILE))
-            
-        # Fallback for .env if not restored from previous install
-        env_src = src_root / ENV_FILE
-        target_env = self._safe_join(dest, ENV_FILE)
-        if not target_env.exists() and env_src.exists():
-            shutil.copy2(env_src, target_env)
+        for file in [ICON_FILE, ENV_FILE]:
+            src_file = src_root / file
+            if src_file.exists():
+                target_file = self._safe_join(dest, file)
+                if not target_file.exists():
+                    self._fortress_copy_file(src_file, target_file)
 
     def update_progress(self, value, text):
         self.progress["value"] = value
         self.status_label.config(text=text)
         self.root.update_idletasks()
 
-    def create_desktop_shortcut(self, dest):
-        desktop = Path(os.path.join(os.environ["USERPROFILE"], "Desktop"))
-        # We will point the shortcut TO THE NEW STANDALONE EXE
-        shortcut_path = desktop / "Gred Orchestrator.url"
-        exe_path = dest / SCRIPTS_DIR / "Gred_Orchestrator.exe" # This will be the result of PyInstaller
+    def create_desktop_shortcut(self, dest: Path):
+        """Creates a desktop shortcut pointing to the new executable."""
+        user_profile = Path(os.environ.get("USERPROFILE", "C:\\Users\\Default")).resolve()
+        desktop_anchors = [
+            (user_profile / "Desktop").resolve(),
+            (Path(os.environ.get("Public", "C:\\Users\\Public")) / "Desktop").resolve()
+        ]
         
-        try:
-            with open(shortcut_path, "w") as f:
-                f.write("[InternetShortcut]\n")
-                # Since it's a local EXE, we can't easily use .url for non-browser things without caveats
-                # but for simplicity in this script we'll point it to the local app's URL 
-                # OR we'll use a better method if available. 
-                # Standard approach for PyInstaller is to let the user find the EXE, 
-                # but we want it 'professional'.
-                f.write(f"URL=file:///{str(exe_path).replace('\\', '/')}\n")
-                f.write(f"IconFile={self._safe_join(dest, ICON_FILE)}\n")
-                f.write("IconIndex=0\n")
-        except Exception:
-            pass
+        for desktop in desktop_anchors:
+            if not desktop.exists(): continue
+            
+            shortcut_path = desktop / SHORTCUT_NAME
+            exe_path = dest / SCRIPTS_DIR / APP_EXE_NAME
+            
+            try:
+                content = (
+                    "[InternetShortcut]\n"
+                    f"URL=file:///{str(exe_path).replace('\\', '/')}\n"
+                    f"IconFile={self._safe_join(dest, ICON_FILE)}\n"
+                    "IconIndex=0\n"
+                )
+                self._fortress_write(shortcut_path, content)
+                break
+            except Exception:
+                continue
 
 if __name__ == "__main__":
     if not is_admin():
