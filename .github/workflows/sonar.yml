@@ -4,10 +4,14 @@ on:
   push:
     branches: ["**"]
   pull_request:
+    types: [opened, synchronize, reopened]
 
 jobs:
   sonar:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: read
     steps:
       - name: Checkout
         uses: actions/checkout@v4
@@ -26,19 +30,12 @@ jobs:
           python -m pip install --upgrade pip
           pip install -r requirements.txt
 
-      - name: Run tests with coverage (if present)
+      - name: Run tests with coverage
         run: |
-          set -e
-          if [ -d tests ] && find tests -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
-            pytest --cov=tools/repo_orchestrator --cov-report=xml:coverage.xml --cov-report=term
-          elif find tools -type f \( -name "test_*.py" -o -name "*_test.py" \) | grep -q .; then
-            pytest --cov=tools/repo_orchestrator --cov-report=xml:coverage.xml --cov-report=term
-          else
-            echo "No Python tests found. Skipping pytest. TODO: add tests to enable coverage."
-          fi
+          python -m pytest --cov=tools --cov=scripts --cov-report=xml:coverage.xml --cov-report=term
 
       - name: SonarCloud Scan
         uses: SonarSource/sonarcloud-github-action@383f7e52eae3ab0510c3cb0e7d9d150bbaeab838 # v3
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          SONAR_TOKEN: ${{ secrets.SONAR_TOKEN }}
+          SONAR_TOKEN: "${{ secrets.SONAR_TOKEN }}"
