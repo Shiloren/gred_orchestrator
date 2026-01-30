@@ -34,14 +34,32 @@ def get_active_repo_dir() -> Path:
 
 def _normalize_path(path_str: str, base_dir: Path) -> Optional[Path]:
     try:
+        # Check for null bytes
+        if '\0' in path_str:
+            return None
+        
+        # Check for Windows reserved names
+        reserved_names = {'CON', 'PRN', 'AUX', 'NUL', 'COM1', 'COM2', 'COM3', 'COM4', 
+                         'COM5', 'COM6', 'COM7', 'COM8', 'COM9', 'LPT1', 'LPT2', 
+                         'LPT3', 'LPT4', 'LPT5', 'LPT6', 'LPT7', 'LPT8', 'LPT9'}
+        path_upper = path_str.upper()
+        if any(name in path_upper for name in reserved_names):
+            return None
+        
         requested = Path(path_str)
         if requested.is_absolute():
             resolved = requested.resolve()
         else:
             resolved = (base_dir / requested).resolve()
         
-        if not str(resolved).startswith(str(base_dir)):
+        # Ensure resolved path is within base_dir
+        base_resolved = base_dir.resolve()
+        try:
+            resolved.relative_to(base_resolved)
+        except ValueError:
+            # Path is not relative to base_dir, it's outside
             return None
+            
         return resolved
     except Exception:
         return None

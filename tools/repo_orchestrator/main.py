@@ -2,6 +2,7 @@ import os
 import time
 import asyncio
 import logging
+from pathlib import Path
 from contextlib import asynccontextmanager
 from fastapi import FastAPI, Request, Response
 from fastapi.staticfiles import StaticFiles
@@ -10,9 +11,11 @@ from fastapi.responses import FileResponse, JSONResponse
 from tools.repo_orchestrator.config import (
     BASE_DIR,
     CORS_ORIGINS,
+    REPO_ROOT_DIR,
 )
 from tools.repo_orchestrator.services.snapshot_service import SnapshotService
 from tools.repo_orchestrator.routes import register_routes
+from tools.repo_orchestrator.security.audit import audit_log
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -57,6 +60,22 @@ app = FastAPI(
     version="1.0.0", 
     lifespan=lifespan
 )
+
+@app.middleware("http")
+async def panic_mode_check(request: Request, call_next):
+    """Block all requests during panic mode except the resolution endpoint."""
+    # Allow resolution route during panic
+    if request.url.path == "/ui/security/resolve":
+        return await call_next(request)
+    
+    from tools.repo_orchestrator.security import load_security_db
+    db = load_security_db()
+    if db.get("panic_mode", False):
+        return Response(
+            status_code=503,
+            content="System in LOCKDOWN. Use /ui/security/resolve to clear panic mode."
+        )
+    return await call_next(request)
 
 @app.middleware("http")
 async def allow_options_preflight(request: Request, call_next):

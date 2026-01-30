@@ -13,7 +13,7 @@ from tools.repo_orchestrator.config import (
 # Redaction Patterns
 REDACTION_PATTERNS = [
     re.compile(r"sk-[a-zA-Z0-9]{48}"),         # OpenAI
-    re.compile(r"ghp_[a-zA-Z0-9]{36}"),         # GitHub
+    re.compile(r"ghp_[a-zA-Z0-9]{32,}"),       # GitHub Personal Access Token (variable length)
     re.compile(r"AKIA[0-9A-Z]{16}"),            # AWS
     re.compile(r"(?i)api[-_]?key['\"]?\s*[:=]\s*['\"]?([a-zA-Z0-9]{20,})['\"]?"), # General API Key
 ]

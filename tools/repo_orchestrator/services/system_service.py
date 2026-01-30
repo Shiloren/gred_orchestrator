@@ -13,7 +13,7 @@ class SystemService:
         try:
             # Headless mode: never touch the OS
             if os.environ.get("ORCH_HEADLESS") == "true":
-                return "RUNNING"
+                return "RUNNING (MOCK)"
 
             process = subprocess.Popen(
                 ["sc", "query", service_name],
@@ -27,23 +27,11 @@ class SystemService:
             if process.returncode != 0:
                 return "STOPPED"
 
-            status_map = {
-                "1  STOPPED": "STOPPED",
-                "2  START_PENDING": "STARTING",
-                "3  STOP_PENDING": "STOPPING",
-                "4  RUNNING": "RUNNING",
-                "5  CONTINUE_PENDING": "STARTING",
-                "6  PAUSE_PENDING": "STOPPING",
-                "7  PAUSED": "STOPPED",
-            }
-
             for line in stdout.splitlines():
                 if "STATE" in line:
                     raw_val = line.split(":", 1)[-1].strip()
-                    for key, val in status_map.items():
-                        if key in raw_val:
-                            return val
-                    return "UNKNOWN"
+                    # Return the raw state value (e.g., "4 RUNNING")
+                    return raw_val if raw_val else "UNKNOWN"
 
         except subprocess.TimeoutExpired:
             process.kill()

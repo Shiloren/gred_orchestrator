@@ -6,7 +6,7 @@ from fastapi.testclient import TestClient
 from pathlib import Path
 
 # Set environment variables for testing
-os.environ["ORCH_TOKEN"] = "fuzz-token"
+# Use shared token from conftest.py
 os.environ["ORCH_REPO_ROOT"] = str(Path(__file__).parent.parent.resolve())
 
 from tools.repo_orchestrator.main import app
@@ -29,7 +29,7 @@ def test_endpoint_fuzzing(test_client):
         ("GET", "/diff"),
     ]
     
-    token = "fuzz-token"
+    token = os.environ.get("ORCH_TOKEN", "test-token-a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8s9T0")
     
     for _ in range(100):
         method, url = secrets.choice(endpoints)
@@ -62,7 +62,8 @@ def test_null_byte_injections(test_client):
     # Reset rate limit store to ensure we don't get 429 from previous fuzzing
     rate_limit_store.clear()
     
-    headers = {"Authorization": "Bearer fuzz-token"}
+    token = os.environ.get("ORCH_TOKEN", "test-token-a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8s9T0")
+    headers = {"Authorization": f"Bearer {token}"}
     payloads = ["test\0path", "\0/etc/passwd", "normal.py\0.exe"]
     
     for p in payloads:
