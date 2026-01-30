@@ -686,7 +686,7 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
     };
 &nbsp;
     const getLogClass = (log: string): string =&gt; {
-        if (log.includes('DENIED')) return 'text-red-400 bg-red-400/5 px-1 rounded';
+        if (log.includes('DENIED')) return 'text-red-400 bg-red-400/5 px-2 rounded';
         if (log.includes('READ')) return 'text-blue-400';
         if (log.includes('SYSTEM')) return 'text-amber-400';
         return 'text-slate-400';
@@ -712,23 +712,23 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
                         &lt;ShieldAlert className="w-12 h-12" /&gt;
                     &lt;/div&gt;
                     &lt;div className="flex items-center space-x-3"&gt;
-                        &lt;ShieldAlert className="w-5 h-5 text-red-500" /&gt;
+                        &lt;ShieldAlert className="w-6 h-6 text-red-500" /&gt;
                         &lt;div&gt;
-                            &lt;p className="text-[10px] font-black uppercase tracking-widest text-red-400"&gt;Security Lockdown&lt;/p&gt;
-                            &lt;p className="text-xs font-bold text-white"&gt;System in Panic Mode&lt;/p&gt;
+                            &lt;p className="text-xs font-black uppercase tracking-widest text-red-400"&gt;Security Lockdown&lt;/p&gt;
+                            &lt;p className="text-sm font-bold text-white"&gt;System in Panic Mode&lt;/p&gt;
                         &lt;/div&gt;
                     &lt;/div&gt;
                     &lt;button
                         onClick={clearPanic}
                         disabled={isSecurityLoading}
-                        className="w-full py-2 bg-red-500 hover:bg-red-400 text-white text-[10px] font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
+                        className="w-full py-3 bg-red-500 hover:bg-red-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
                     &gt;
                         {isSecurityLoading ? 'Processing...' : 'Deactivate Lockdown'}
                     &lt;/button&gt;
                     {events.length &gt; 0 &amp;&amp; (
-                        &lt;div className="space-y-1 max-h-24 overflow-y-auto custom-scrollbar"&gt;
+                        &lt;div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar"&gt;
                             {events.map((ev) =&gt; (
-                                &lt;div key={`event-${ev.timestamp}`} className="text-[8px] font-mono text-red-300 bg-red-900/20 p-1.5 rounded-lg border border-red-500/10"&gt;
+                                &lt;div key={`event-${ev.timestamp}`} className="text-xs font-mono text-red-300 bg-red-900/20 p-2 rounded-lg border border-red-500/10"&gt;
                                     &lt;span className="opacity-60"&gt;{ev.timestamp}&lt;/span&gt; | {ev.reason}
                                 &lt;/div&gt;
                             ))}
@@ -740,37 +740,37 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
             {/* Service Status Card */}
             &lt;div className={`p-4 rounded-2xl border ${getStatusColor()} flex items-center justify-between shadow-xl backdrop-blur-md`}&gt;
                 &lt;div className="flex items-center space-x-3"&gt;
-                    &lt;div className="p-2 rounded-xl bg-black/20"&gt;
-                        &lt;Activity className="w-4 h-4" /&gt;
+                    &lt;div className="p-2.5 rounded-xl bg-black/20"&gt;
+                        &lt;Activity className="w-5 h-5" /&gt;
                     &lt;/div&gt;
                     &lt;div&gt;
-                        &lt;p className="text-[10px] uppercase font-black tracking-widest opacity-60"&gt;System Core&lt;/p&gt;
-                        &lt;p className="text-xs font-bold"&gt;{panicMode ? 'LOCKDOWN' : status}&lt;/p&gt;
+                        &lt;p className="text-xs uppercase font-black tracking-widest opacity-60"&gt;System Core&lt;/p&gt;
+                        &lt;p className="text-sm font-bold"&gt;{panicMode ? 'LOCKDOWN' : status}&lt;/p&gt;
                     &lt;/div&gt;
                 &lt;/div&gt;
-                &lt;div className="flex space-x-2"&gt;
+                &lt;div className="flex space-x-3"&gt;
                     &lt;button
                         onClick={restart}
                         disabled={isServiceLoading || panicMode}
-                        className="p-2 rounded-lg bg-white/5 hover:bg-white/10 transition-all group disabled:opacity-30"
+                        className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all group disabled:opacity-30"
                         title="Restart Service"
                     &gt;
-                        &lt;RefreshCcw className={`w-3.5 h-3.5 ${isServiceLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} /&gt;
+                        &lt;RefreshCcw className={`w-4 h-4 ${isServiceLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} /&gt;
                     &lt;/button&gt;
                     &lt;button
                         onClick={stop}
                         disabled={isServiceLoading || status === 'STOPPED' || panicMode}
-                        className="p-2 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all disabled:opacity-30"
+                        className="p-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all disabled:opacity-30"
                         title="Stop Service"
                     &gt;
-                        &lt;Square className="w-3.5 h-3.5 fill-current" /&gt;
+                        &lt;Square className="w-4 h-4 fill-current" /&gt;
                     &lt;/button&gt;
                 &lt;/div&gt;
             &lt;/div&gt;
 &nbsp;
             {serviceError &amp;&amp; (
-                &lt;div className="p-3 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center space-x-2 text-[10px] text-red-400"&gt;
-                    &lt;AlertCircle className="w-3.5 h-3.5" /&gt;
+                &lt;div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center space-x-2 text-xs text-red-400"&gt;
+                    &lt;AlertCircle className="w-4 h-4" /&gt;
                     &lt;span&gt;{serviceError}&lt;/span&gt;
                 &lt;/div&gt;
             )}
@@ -779,46 +779,46 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
             &lt;Accordion title="Repository Control"&gt;
                 &lt;div className="space-y-3"&gt;
                     &lt;div className="flex flex-col space-y-2"&gt;
-                        &lt;label htmlFor="repo-select" className="text-[9px] font-black uppercase tracking-widest text-slate-500"&gt;Target Repository&lt;/label&gt;
+                        &lt;label htmlFor="repo-select" className="text-xs font-black uppercase tracking-widest text-slate-500"&gt;Target Repository&lt;/label&gt;
                         &lt;div className="relative group"&gt;
                             &lt;select
                                 id="repo-select"
                                 value={selectedRepoPath}
                                 onChange={(e) =&gt; setSelectedRepoPath(e.target.value)}
-                                className="w-full pl-8 pr-3 py-2.5 bg-black/40 border border-white/5 rounded-xl text-[10px] text-slate-300 focus:border-accent-primary/50 outline-none transition-all appearance-none cursor-pointer"
+                                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all appearance-none cursor-pointer"
                             &gt;
                                 &lt;option value=""&gt;Select a repository...&lt;/option&gt;
                                 {repos.map((repo) =&gt; (
                                     &lt;option key={repo.path} value={repo.path}&gt;{repo.name}&lt;/option&gt;
                                 ))}
                             &lt;/select&gt;
-                            &lt;Database className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" /&gt;
-                            &lt;ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" /&gt;
+                            &lt;Database className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /&gt;
+                            &lt;ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" /&gt;
                         &lt;/div&gt;
                     &lt;/div&gt;
 &nbsp;
-                    &lt;div className="flex space-x-2"&gt;
+                    &lt;div className="flex space-x-3"&gt;
                         &lt;button
                             onClick={() =&gt; selectRepo(selectedRepoPath)}
                             disabled={!selectedRepoPath || isRepoLoading || selectedRepoPath === activeRepo}
-                            className="flex-1 py-2 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-[9px] font-black uppercase tracking-widest text-white transition-all disabled:opacity-20"
+                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all disabled:opacity-20"
                         &gt;
                             Activate
                         &lt;/button&gt;
                         &lt;button
                             onClick={() =&gt; vitaminize(selectedRepoPath)}
                             disabled={!selectedRepoPath || isRepoLoading}
-                            className="flex-1 py-2 bg-accent-primary/20 hover:bg-accent-primary/30 border border-accent-primary/30 rounded-xl text-[9px] font-black uppercase tracking-widest text-accent-primary transition-all disabled:opacity-20 flex items-center justify-center space-x-2"
+                            className="flex-1 py-3 bg-accent-primary/20 hover:bg-accent-primary/30 border border-accent-primary/30 rounded-xl text-xs font-black uppercase tracking-widest text-accent-primary transition-all disabled:opacity-20 flex items-center justify-center space-x-2"
                         &gt;
-                            &lt;FlaskConical className="w-3 h-3" /&gt;
+                            &lt;FlaskConical className="w-4 h-4" /&gt;
                             &lt;span&gt;Vitaminize&lt;/span&gt;
                         &lt;/button&gt;
                     &lt;/div&gt;
 &nbsp;
                     {activeRepo &amp;&amp; (
-                        &lt;div className="pt-2 flex items-center justify-between border-t border-white/5"&gt;
-                            &lt;span className="text-[8px] font-black text-slate-600 uppercase tracking-widest"&gt;Active:&lt;/span&gt;
-                            &lt;span className="text-[9px] font-mono text-emerald-400 truncate max-w-[120px]" title={activeRepo}&gt;{activeRepo.split(/[/\\]/).pop()}&lt;/span&gt;
+                        &lt;div className="pt-3 flex items-center justify-between border-t border-white/5"&gt;
+                            &lt;span className="text-xs font-black text-slate-600 uppercase tracking-widest"&gt;Active:&lt;/span&gt;
+                            &lt;span className="text-xs font-mono text-emerald-400 truncate max-w-[200px]" title={activeRepo}&gt;{activeRepo.split(/[/\\]/).pop()}&lt;/span&gt;
                         &lt;/div&gt;
                     )}
                 &lt;/div&gt;
@@ -828,66 +828,66 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
             &lt;Accordion title="Audit Logs" defaultOpen={true}&gt;
                 &lt;div className="space-y-3"&gt;
                     {/* Log Controls */}
-                    &lt;div className="flex items-center space-x-2"&gt;
+                    &lt;div className="flex items-center space-x-3"&gt;
                         &lt;div className="relative flex-1"&gt;
-                            &lt;Search className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500" /&gt;
+                            &lt;Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" /&gt;
                             &lt;input
                                 type="text"
                                 value={searchTerm}
                                 onChange={(e) =&gt; setSearchTerm(e.target.value)}
                                 placeholder="Filter logs..."
-                                className="w-full pl-8 pr-3 py-2 bg-black/40 border border-white/5 rounded-xl text-[10px] text-slate-300 focus:border-accent-primary/50 outline-none transition-all placeholder:text-slate-600"
+                                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all placeholder:text-slate-600"
                             /&gt;
                         &lt;/div&gt;
                         &lt;div className="relative group"&gt;
                             &lt;select
                                 value={filter}
                                 onChange={(e) =&gt; setFilter(e.target.value as 'all' | 'read' | 'deny' | 'system')}
-                                className="appearance-none pl-8 pr-8 py-2 bg-black/40 border border-white/5 rounded-xl text-[10px] text-slate-300 focus:border-accent-primary/50 outline-none transition-all cursor-pointer"
+                                className="appearance-none pl-10 pr-10 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all cursor-pointer"
                             &gt;
                                 &lt;option value="all"&gt;All&lt;/option&gt;
                                 &lt;option value="read"&gt;Read&lt;/option&gt;
                                 &lt;option value="deny"&gt;Deny&lt;/option&gt;
                                 &lt;option value="system"&gt;System&lt;/option&gt;
                             &lt;/select&gt;
-                            &lt;Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" /&gt;
-                            &lt;ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-3 h-3 text-slate-500 pointer-events-none" /&gt;
+                            &lt;Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" /&gt;
+                            &lt;ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" /&gt;
                         &lt;/div&gt;
                     &lt;/div&gt;
 &nbsp;
                     {/* Log Terminal View */}
                     &lt;div className="bg-black/60 rounded-2xl border border-white/5 overflow-hidden shadow-inner"&gt;
-                        &lt;div className="flex items-center justify-between px-4 py-2 bg-white/5 border-b border-white/5"&gt;
+                        &lt;div className="flex items-center justify-between px-5 py-3 bg-white/5 border-b border-white/5"&gt;
                             &lt;div className="flex items-center space-x-2"&gt;
-                                &lt;Terminal className="w-3 h-3 text-emerald-400" /&gt;
-                                &lt;span className="text-[9px] font-black uppercase tracking-widest text-slate-500"&gt;Live Audit Stream&lt;/span&gt;
+                                &lt;Terminal className="w-4 h-4 text-emerald-400" /&gt;
+                                &lt;span className="text-xs font-black uppercase tracking-widest text-slate-500"&gt;Live Audit Stream&lt;/span&gt;
                             &lt;/div&gt;
-                            &lt;div className="flex items-center space-x-2"&gt;
+                            &lt;div className="flex items-center space-x-3"&gt;
                                 &lt;button
                                     onClick={handleExport}
-                                    className="p-1 hover:bg-white/5 rounded-md transition-all group"
+                                    className="p-1.5 hover:bg-white/5 rounded-md transition-all group"
                                     title="Export Logs"
                                 &gt;
-                                    &lt;Download className="w-2.5 h-2.5 text-slate-500 group-hover:text-white transition-colors" /&gt;
+                                    &lt;Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" /&gt;
                                 &lt;/button&gt;
                                 &lt;button
                                     onClick={refreshLogs}
-                                    className="p-1 hover:bg-white/5 rounded-md transition-all group"
+                                    className="p-1.5 hover:bg-white/5 rounded-md transition-all group"
                                     title="Refresh"
                                 &gt;
-                                    &lt;RefreshCcw className="w-2.5 h-2.5 text-slate-500 group-hover:text-white transition-colors" /&gt;
+                                    &lt;RefreshCcw className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" /&gt;
                                 &lt;/button&gt;
                             &lt;/div&gt;
                         &lt;/div&gt;
-                        &lt;div className="h-48 overflow-y-auto p-4 space-y-1.5 custom-scrollbar font-mono text-[9px]"&gt;
+                        &lt;div className="h-64 overflow-y-auto p-5 space-y-2 custom-scrollbar font-mono text-xs"&gt;
                             {logs.length === 0 ? (
-                                &lt;div className="h-full flex flex-col items-center justify-center opacity-20 py-10"&gt;
-                                    &lt;FileText className="w-8 h-8 mb-2" /&gt;
-                                    &lt;p&gt;No matches found&lt;/p&gt;
+                                &lt;div className="h-full flex flex-col items-center justify-center opacity-20 py-12"&gt;
+                                    &lt;FileText className="w-10 h-10 mb-2" /&gt;
+                                    &lt;p className="text-sm"&gt;No matches found&lt;/p&gt;
                                 &lt;/div&gt;
                             ) : (
                                 logs.map((log, i) =&gt; (
-                                    &lt;div key={`log-${logs.length - i}`} className="flex space-x-2 group"&gt;
+                                    &lt;div key={`log-${logs.length - i}`} className="flex space-x-3 group"&gt;
                                         &lt;span className="text-slate-600 shrink-0 select-none"&gt;[{logs.length - i}]&lt;/span&gt;
                                         &lt;span className={`break-all ${getLogClass(log)}`}&gt;
                                             {log}
@@ -901,13 +901,13 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
             &lt;/Accordion&gt;
 &nbsp;
             {/* Quick Security Badge */}
-            &lt;div className="pt-2"&gt;
-                &lt;div className={`p-3 bg-gradient-to-r ${panicMode ? 'from-red-500/20' : 'from-accent-primary/10'} to-transparent rounded-2xl border ${panicMode ? 'border-red-500/20' : 'border-accent-primary/10'} flex items-center justify-between`}&gt;
-                    &lt;div className="flex items-center space-x-2"&gt;
-                        &lt;ShieldCheck className={`w-4 h-4 ${panicMode ? 'text-red-500' : 'text-accent-primary'}`} /&gt;
-                        &lt;span className="text-[10px] font-bold text-slate-400"&gt;{panicMode ? 'System Locked' : 'Vault Integrity Active'}&lt;/span&gt;
+            &lt;div className="pt-4"&gt;
+                &lt;div className={`p-4 bg-gradient-to-r ${panicMode ? 'from-red-500/20' : 'from-accent-primary/10'} to-transparent rounded-2xl border ${panicMode ? 'border-red-500/20' : 'border-accent-primary/10'} flex items-center justify-between`}&gt;
+                    &lt;div className="flex items-center space-x-3"&gt;
+                        &lt;ShieldCheck className={`w-5 h-5 ${panicMode ? 'text-red-500' : 'text-accent-primary'}`} /&gt;
+                        &lt;span className="text-xs font-bold text-slate-400"&gt;{panicMode ? 'System Locked' : 'Vault Integrity Active'}&lt;/span&gt;
                     &lt;/div&gt;
-                    &lt;span className={`text-[9px] font-black ${panicMode ? 'text-red-500 bg-red-500/20' : 'text-accent-primary bg-accent-primary/20'} px-2 py-0.5 rounded-full uppercase tracking-tighter`}&gt;
+                    &lt;span className={`text-xs font-black ${panicMode ? 'text-red-500 bg-red-500/20' : 'text-accent-primary bg-accent-primary/20'} px-3 py-1 rounded-full uppercase tracking-tighter`}&gt;
                         {panicMode ? 'Critical' : 'Hardened'}
                     &lt;/span&gt;
                 &lt;/div&gt;
@@ -922,7 +922,7 @@ export const MaintenanceIsland: React.FC&lt;MaintenanceIslandProps&gt; = ({ toke
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-01-30T19:28:15.857Z
+                at 2026-01-30T19:49:03.002Z
             </div>
         <script src="../../../prettify.js"></script>
         <script>
