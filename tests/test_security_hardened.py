@@ -11,7 +11,14 @@ os.environ["ORCH_REPO_ROOT"] = str(Path(__file__).parent.parent.resolve())
 from tools.repo_orchestrator.main import app
 from tools.repo_orchestrator.security import validate_path, redact_sensitive_data, load_security_db, save_security_db
 
-client = TestClient(app)
+# Initialize TestClient with lifespan context
+client = TestClient(app, raise_server_exceptions=False)
+
+@pytest.fixture(scope="module", autouse=True)
+def setup_client():
+    """Ensure the app lifespan is properly initialized."""
+    with client:
+        yield
 
 def test_auth_rejection_triggers_panic():
     """ASVS L3: Verify that unauthorized attempts trigger Panic Mode."""
@@ -72,9 +79,9 @@ def test_path_traversal_shield_exhaustive():
 def test_redaction_rigor():
     """Verifies that redaction catches high-entropy and known patterns."""
     sensitive_content = """
-    openai_key = "sk-L9xJ82vO938475nd83948576db3948576c938475nb839485"
-    github_token = "ghp_1234567890abcdefghijklmnopqrstuv"
-    random_secret = "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0" # High entropy
+    openai_key = "sk-L9xJ82vO938475nd83948576db3948576c938475nb839485"  # nosec: fake key for testing
+    github_token = "ghp_1234567890abcdefghijklmnopqrstuv"  # nosec: fake token for testing
+    random_secret = "A1b2C3d4E5f6G7h8I9j0K1l2M3n4O5p6Q7r8S9t0"  # nosec: fake secret for testing (high entropy)
     """
     redacted = redact_sensitive_data(sensitive_content)
     assert "***REDACTED" in redacted
