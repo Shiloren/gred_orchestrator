@@ -7,7 +7,7 @@ def probe_ports(host, ports):
             try:
                 s.connect((host, port))
                 print(f"Port {port} is OPEN")
-            except:
+            except (socket.timeout, OSError):
                 pass
 
 if __name__ == "__main__":

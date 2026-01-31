@@ -1,9 +1,14 @@
 import time
+import logging
 from fastapi import Request, HTTPException, Security
 from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from tools.repo_orchestrator.config import TOKENS
 
+logger = logging.getLogger("orchestrator.auth")
+
 security = HTTPBearer(auto_error=False)
+
+INVALID_TOKEN_ERROR = "Invalid token"
 
 def verify_token(_request: Request, credentials: HTTPAuthorizationCredentials | None = Security(security)):
     if not credentials:
@@ -12,16 +17,17 @@ def verify_token(_request: Request, credentials: HTTPAuthorizationCredentials | 
     # Strip whitespace and validate token is not empty
     token = credentials.credentials.strip() if credentials.credentials else ""
     if not token:
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN_ERROR)
     
     # Validate token length (minimum 16 characters for security)
     if len(token) < 16:
-        raise HTTPException(status_code=401, detail="Invalid token")
-    
-    print(f"DEBUG: Checking token '{token}' against tokens: {TOKENS}", flush=True)
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN_ERROR)
+
+    # Verify token against valid tokens (sensitive data not logged for security)
+    logger.debug(f"Verifying authentication token (length: {len(token)})")
     if token not in TOKENS:
         _trigger_panic_for_invalid_token(token)
-        raise HTTPException(status_code=401, detail="Invalid token")
+        raise HTTPException(status_code=401, detail=INVALID_TOKEN_ERROR)
     return token
 
 
@@ -46,6 +52,7 @@ def _trigger_panic_for_invalid_token(token: str) -> None:
         "payload_hash": token_hash  # Observability: Hash of the malicious payload
     })
     save_security_db(db)
+
 
 
 

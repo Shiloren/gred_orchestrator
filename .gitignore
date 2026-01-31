@@ -38,7 +38,10 @@ repo_registry.json
 *tsc_errors.txt
 logs/
 coverage.xml
+coverage_*.txt
 *.pyc
 .pytest_cache/
 .coverage
 htmlcov/
+requirements_utf8.txt
+failing_tests.txt

@@ -84,3 +84,18 @@ async def test_snapshot_cleanup_loop_exit():
         with patch('tools.repo_orchestrator.services.snapshot_service.SnapshotService.cleanup_old_snapshots', side_effect=Exception("inner")):
             with pytest.raises(Exception, match="stop"):
                 await snapshot_cleanup_loop()
+
+
+@pytest.mark.asyncio
+async def test_lifespan_cleanup_task_cancelled_error_propagates():
+    async def dummy_loop():
+        try:
+            await asyncio.sleep(100)
+        except asyncio.CancelledError:
+            raise
+
+    with patch('tools.repo_orchestrator.services.snapshot_service.SnapshotService.ensure_snapshot_dir'):
+        with patch('tools.repo_orchestrator.main.snapshot_cleanup_loop', side_effect=dummy_loop):
+            from tools.repo_orchestrator.main import lifespan
+            async with lifespan(app):
+                pass

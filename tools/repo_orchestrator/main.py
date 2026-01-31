@@ -54,7 +54,7 @@ async def lifespan(app: FastAPI):
     try:
         await cleanup_task
     except asyncio.CancelledError:
-        pass
+        raise
 
 async def snapshot_cleanup_loop():
     """Background task to delete old snapshots every minute."""
