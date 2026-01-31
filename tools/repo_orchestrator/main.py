@@ -51,7 +51,10 @@ async def lifespan(app: FastAPI):
     # Shutdown: Clean up resources
     logger.info("Shutting down Repo Orchestrator...")
     cleanup_task.cancel()
-    await cleanup_task
+    try:
+        await cleanup_task
+    except asyncio.CancelledError:
+        pass
 
 async def snapshot_cleanup_loop():
     """Background task to delete old snapshots every minute."""
@@ -72,8 +75,8 @@ app = FastAPI(
 @app.middleware("http")
 async def panic_mode_check(request: Request, call_next):
     """Block all requests during panic mode except the resolution endpoint."""
-    # Allow resolution route during panic
-    if request.url.path == "/ui/security/resolve":
+    # Allow critical routes during panic
+    if request.url.path in ["/", "/status", "/ui/security/resolve"]:
         return await call_next(request)
     
     from tools.repo_orchestrator.security import load_security_db
