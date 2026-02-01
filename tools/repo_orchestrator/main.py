@@ -115,6 +115,29 @@ async def allow_options_preflight(request: Request, call_next):
     return response
 
 
+@app.middleware("http")
+async def correlation_id_middleware(request: Request, call_next):
+    correlation_id = request.headers.get("X-Correlation-ID") or str(uuid.uuid4())
+    request.state.correlation_id = correlation_id
+
+    start_time = time.perf_counter()
+    response = await call_next(request)
+    duration_ms = (time.perf_counter() - start_time) * 1000
+    response.headers["X-Correlation-ID"] = correlation_id
+
+    logger.info(
+        "Request handled",
+        extra={
+            "correlation_id": correlation_id,
+            "method": request.method,
+            "path": request.url.path,
+            "status_code": response.status_code,
+            "duration_ms": round(duration_ms, 2),
+        },
+    )
+    return response
+
+
 from fastapi.exceptions import RequestValidationError  # noqa: E402
 from starlette.exceptions import HTTPException as StarletteHTTPException  # noqa: E402
 
@@ -129,7 +152,7 @@ async def panic_catcher(request: Request, call_next):
         if isinstance(e, (StarletteHTTPException, RequestValidationError)):
             raise e
         # 1. Generate Correlation ID
-        correlation_id = str(uuid.uuid4())
+        correlation_id = getattr(request.state, "correlation_id", str(uuid.uuid4()))
 
         # 2. Capture & Hash Payload (Never log raw payload)
         try:

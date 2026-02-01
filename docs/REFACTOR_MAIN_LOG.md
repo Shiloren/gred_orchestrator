@@ -55,11 +55,11 @@
 - **Notas operativas**: Los archivos `test_diag_2.txt` y `test_failures.txt` se mantienen (no borrar). Se confirman como artefactos no-test de diagnóstico y quedan fuera del alcance del refactor. Se mantiene la exclusión en `pytest.ini` para evitar fallos de colección.
 
 ### F1 — Observabilidad + Correlation ID
-- **Qué se hizo**: _(pendiente)_
-- **Cómo se hizo**: _(pendiente)_
-- **Por qué se hizo**: _(pendiente)_
-- **Resultado**: _(pendiente)_
-- **Notas operativas**: _(pendiente)_
+- **Qué se hizo**: Se añadió middleware de Correlation ID y logging de requests en `main.py`, y se ajustó `panic_catcher` para reutilizar el ID de la petición. Se añadió un assert en tests para validar el header `X-Correlation-ID`.
+- **Cómo se hizo**: Se incorporó un middleware `correlation_id_middleware` que toma `X-Correlation-ID` o genera UUID, lo guarda en `request.state`, mide duración con `time.perf_counter`, añade el header de respuesta y registra un log estructurado vía `logger.info(..., extra=...)`. En `panic_catcher` se obtiene el correlation ID desde `request.state` con fallback. En `tests/unit/test_main.py` se añadió verificación del header en `test_root_route`.
+- **Por qué se hizo**: Para garantizar trazabilidad end-to-end y observabilidad básica sin cambiar comportamiento de rutas, cumpliendo el guardrail de compatibilidad.
+- **Resultado**: ✅ Cambios aplicados en `main.py` y `tests/unit/test_main.py`. Tests unitarios relevantes ejecutados: `pytest tests/unit/test_main.py` (8 passed, 1 warning). Se actualizó `tests/integrity_manifest.json` con el hash normalizado (LF) de `main.py` y se validó `pytest tests/test_integrity_deep.py` (3 passed, 1 warning).
+- **Notas operativas**: Se mantiene la política de no borrar archivos. Logging usa el logger existente `orchestrator` y no altera payloads ni respuestas. El hash se calculó con normalización CRLF→LF para coherencia cross-platform.
 
 ### F2 — App Factory mínima
 - **Qué se hizo**: _(pendiente)_

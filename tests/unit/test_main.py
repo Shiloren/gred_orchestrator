@@ -96,6 +96,7 @@ def test_root_route():
     with TestClient(app) as client:
         response = client.get("/")
         assert response.status_code == 200
+        assert response.headers.get("X-Correlation-ID")
 
 
 @pytest.mark.asyncio
