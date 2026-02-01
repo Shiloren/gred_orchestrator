@@ -69,11 +69,11 @@
 - **Notas operativas**: No se elimina ningún archivo. Se requiere ejecutar tests relevantes y actualizar `tests/integrity_manifest.json` si cambia el hash de `main.py`.
 
 ### F3 — Extracción por módulos
-- **Qué se hizo**: _(pendiente)_
-- **Cómo se hizo**: _(pendiente)_
-- **Por qué se hizo**: _(pendiente)_
-- **Resultado**: _(pendiente)_
-- **Notas operativas**: _(pendiente)_
+- **Qué se hizo**: Se extrajeron los middlewares, la tarea de limpieza en background y el montaje de static/SPA de `main.py` a módulos dedicados.
+- **Cómo se hizo**: Se crearon `tools/repo_orchestrator/middlewares.py` (con `register_middlewares(app)`), `tools/repo_orchestrator/tasks.py` (con `snapshot_cleanup_loop`) y `tools/repo_orchestrator/static_app.py` (con `mount_static(app)`). Luego se ajustó `main.py` para importar estas funciones y registrar middlewares/mounts sin cambiar la lógica.
+- **Por qué se hizo**: Reducir el tamaño y la responsabilidad de `main.py`, mejorar claridad y testabilidad, y habilitar los pasos posteriores del refactor sin romper compatibilidad.
+- **Resultado**: ✅ Extracción completada; `main.py` mantiene `create_app()` y comportamiento previo. Pendiente ejecutar tests relevantes.
+- **Notas operativas**: No se eliminó ningún archivo. Mantener verificación de integridad (`tests/integrity_manifest.json`) si cambia el hash de `main.py`.
 
 ### F4 — Configuración modular (settings)
 - **Qué se hizo**: _(pendiente)_
