@@ -13,7 +13,9 @@
       "Bash(pip-audit:*)",
       "Bash(copy requirements.txt requirements.txt.backup_fase1)",
       "Bash(git push:*)",
-      "Bash(pre-commit install:*)"
+      "Bash(pre-commit install:*)",
+      "Bash(Select-Object -Last 30)",
+      "Bash(code:*)"
     ]
   }
 }
