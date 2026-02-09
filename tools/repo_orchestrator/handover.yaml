@@ -1,6 +1,6 @@
 handover:
-  version: "1.0.0"
-  status: "PRODUCTION - STRICT READ-ONLY"
+  version: "UNRELEASED"
+  status: "UNRELEASED - VALIDATION PENDING"
   verified_date: "2026-01-28"
 
   service:

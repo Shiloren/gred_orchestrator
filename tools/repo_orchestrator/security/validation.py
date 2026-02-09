@@ -1,6 +1,7 @@
 import json
 import logging
 import time
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
@@ -110,10 +111,60 @@ def get_allowed_paths(base_dir: Path) -> set[Path]:
         return set()
     try:
         data = json.loads(ALLOWLIST_PATH.read_text(encoding="utf-8"))
+
+        # Legacy format:
+        #   {"timestamp": <epoch>, "paths": ["rel/path", ...]}
+        # New format:
+        #   {"paths": [{"path": "rel/path", "expires_at": "2099-01-01T00:00:00Z"}, ...]}
+
+        paths_value = data.get("paths", [])
+
+        # New format: list[dict]
+        if isinstance(paths_value, list) and (not paths_value or isinstance(paths_value[0], dict)):
+            now = datetime.now(timezone.utc)
+            allowed: set[Path] = set()
+            for item in paths_value:
+                if not isinstance(item, dict):
+                    continue
+                path_str = item.get("path")
+                expires_at = item.get("expires_at")
+                if not isinstance(path_str, str) or not path_str:
+                    continue
+
+                # If expires_at is missing or invalid, treat as expired (secure default)
+                exp_dt: datetime | None = None
+                if isinstance(expires_at, str) and expires_at:
+                    try:
+                        # Support Z suffix
+                        exp_dt = datetime.fromisoformat(expires_at.replace("Z", "+00:00"))
+                        if exp_dt.tzinfo is None:
+                            exp_dt = exp_dt.replace(tzinfo=timezone.utc)
+                    except Exception:
+                        exp_dt = None
+                if not exp_dt or exp_dt <= now:
+                    continue
+
+                normalized = _normalize_path(path_str, base_dir)
+                if not normalized:
+                    continue
+                allowed.add(normalized)
+
+            return allowed
+
+        # Legacy format: list[str] with TTL based on "timestamp"
         timestamp = data.get("timestamp", 0)
-        if time.time() - timestamp > ALLOWLIST_TTL_SECONDS:
+        if time.time() - float(timestamp or 0) > ALLOWLIST_TTL_SECONDS:
             return set()
-        return {base_dir / p for p in data.get("paths", [])}
+
+        allowed: set[Path] = set()
+        for p in paths_value:
+            if not isinstance(p, str) or not p:
+                continue
+            normalized = _normalize_path(p, base_dir)
+            if not normalized:
+                continue
+            allowed.add(normalized)
+        return allowed
     except (OSError, ValueError, json.JSONDecodeError) as exc:
         logger.warning("Failed to load allowlist: %s", exc)
         return set()

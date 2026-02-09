@@ -105,6 +105,43 @@ def test_get_allowed_paths_success(tmp_path):
             assert str(tmp_path / "test.py") in [str(p) for p in paths]
 
 
+def test_get_allowed_paths_new_format_success(tmp_path):
+    allowlist_path = tmp_path / "allowed.json"
+    data = {
+        "paths": [
+            {"path": "test.py", "expires_at": "2099-01-01T00:00:00Z"},
+        ]
+    }
+    allowlist_path.write_text(json.dumps(data))
+    with patch("tools.repo_orchestrator.security.validation.ALLOWLIST_PATH", allowlist_path):
+        paths = get_allowed_paths(tmp_path)
+        assert str(tmp_path / "test.py") in [str(p) for p in paths]
+
+
+def test_get_allowed_paths_new_format_expired(tmp_path):
+    allowlist_path = tmp_path / "allowed.json"
+    data = {
+        "paths": [
+            {"path": "test.py", "expires_at": "2000-01-01T00:00:00Z"},
+        ]
+    }
+    allowlist_path.write_text(json.dumps(data))
+    with patch("tools.repo_orchestrator.security.validation.ALLOWLIST_PATH", allowlist_path):
+        assert get_allowed_paths(tmp_path) == set()
+
+
+def test_get_allowed_paths_new_format_missing_expires_is_denied(tmp_path):
+    allowlist_path = tmp_path / "allowed.json"
+    data = {
+        "paths": [
+            {"path": "test.py"},
+        ]
+    }
+    allowlist_path.write_text(json.dumps(data))
+    with patch("tools.repo_orchestrator.security.validation.ALLOWLIST_PATH", allowlist_path):
+        assert get_allowed_paths(tmp_path) == set()
+
+
 def test_get_allowed_paths_expired(tmp_path):
     path = tmp_path / "allowed.json"
     data = {"timestamp": time.time() - 1000, "paths": ["test.py"]}

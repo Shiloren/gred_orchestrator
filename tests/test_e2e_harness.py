@@ -3,6 +3,7 @@ import os
 from fastapi.testclient import TestClient
 
 from tools.repo_orchestrator.main import app
+from tools.repo_orchestrator.version import __version__
 
 
 def _auth_headers() -> dict[str, str]:
@@ -16,11 +17,11 @@ def test_e2e_status_endpoints():
         status_response = client.get("/status", headers=_auth_headers())
         assert status_response.status_code == 200
         payload = status_response.json()
-        assert payload.get("version") == "1.0.0"
+        assert payload.get("version") == __version__
         assert payload.get("uptime_seconds", 0) >= 0
 
         ui_response = client.get("/ui/status", headers=_auth_headers())
         assert ui_response.status_code == 200
         ui_payload = ui_response.json()
-        assert ui_payload.get("version") == "1.0.0"
+        assert ui_payload.get("version") == __version__
         assert ui_payload.get("service_status")

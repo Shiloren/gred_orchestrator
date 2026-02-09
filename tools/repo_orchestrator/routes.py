@@ -27,6 +27,7 @@ from tools.repo_orchestrator.security.auth import AuthContext
 from tools.repo_orchestrator.services.file_service import FileService
 from tools.repo_orchestrator.services.repo_service import RepoService
 from tools.repo_orchestrator.services.system_service import SystemService
+from tools.repo_orchestrator.version import __version__
 
 READ_ONLY_ACTIONS_PATHS = {
     "/file",
@@ -62,7 +63,7 @@ def get_status_handler(
     auth: AuthContext = Depends(require_read_only_access),
     rl: None = Depends(check_rate_limit),
 ):
-    return {"version": "1.0.0", "uptime_seconds": time.time() - request.app.state.start_time}
+    return {"version": __version__, "uptime_seconds": time.time() - request.app.state.start_time}
 
 
 def get_ui_status_handler(
@@ -81,7 +82,7 @@ def get_ui_status_handler(
     agent_label = "ChatGPT" if "openai" in user_agent or "gpt" in user_agent else "Dashboard"
 
     return {
-        "version": "1.0.0",
+        "version": __version__,
         "uptime_seconds": time.time() - request.app.state.start_time,
         "allowlist_count": len(allowed_paths),
         "last_audit_line": audit_lines[-1] if audit_lines else None,

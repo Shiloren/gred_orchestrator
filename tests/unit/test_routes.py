@@ -74,15 +74,16 @@ def test_list_repos(client):
     with patch(
         "tools.repo_orchestrator.routes.RepoService.list_repos",
         return_value=[
-            RepoEntry(name="r1", path="C:\\Users\\shilo\\repo"),
+            RepoEntry(name="r1", path="C:\\Users\\someuser\\repo"),
             RepoEntry(name="empty", path=""),
         ],
     ):
         with patch(
             "tools.repo_orchestrator.routes.RepoService.ensure_repo_registry",
-            return_value={"active_repo": "C:\\Users\\shilo\\repo"},
+            return_value={"active_repo": "C:\\Users\\someuser\\repo"},
         ):
-            with patch("tools.repo_orchestrator.routes.REPO_ROOT_DIR", Path("C:\\Users\\shilo")):
+            # Use a generic user path to avoid hardcoding a real workstation username.
+            with patch("tools.repo_orchestrator.routes.REPO_ROOT_DIR", Path("C:\\Users\\someuser")):
                 response = client.get("/ui/repos")
                 assert response.status_code == 200
                 assert "[USER]" in response.json()["active_repo"]

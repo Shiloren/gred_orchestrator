@@ -20,6 +20,8 @@ import {
     Clock
 } from 'lucide-react';
 
+import { API_BASE } from '../../types';
+
 interface MaintenanceIslandProps {
     token?: string;
 }
@@ -39,6 +41,15 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
     const { repos, activeRepo, vitaminize, selectRepo, isLoading: isRepoLoading } = useRepoService(token);
 
     const [selectedRepoPath, setSelectedRepoPath] = useState<string>('');
+
+    const apiLabel = (() => {
+        try {
+            const url = new URL(API_BASE);
+            return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+        } catch {
+            return API_BASE;
+        }
+    })();
 
     const getStatusTheme = () => {
         if (panicMode) return {
@@ -148,7 +159,7 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                         </div>
                         <div className="flex items-center space-x-2">
                             <ExternalLink className="w-3 h-3 opacity-40" />
-                            <span>Port: 6834</span>
+                            <span>API: {apiLabel}</span>
                         </div>
                     </div>
                 </div>

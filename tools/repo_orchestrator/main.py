@@ -9,6 +9,7 @@ from fastapi.responses import FileResponse, JSONResponse
 from tools.repo_orchestrator.config import BASE_DIR, get_settings
 from tools.repo_orchestrator.middlewares import register_middlewares
 from tools.repo_orchestrator.routes import register_routes
+from tools.repo_orchestrator.version import __version__
 from tools.repo_orchestrator.services.snapshot_service import SnapshotService
 from tools.repo_orchestrator.static_app import mount_static
 from tools.repo_orchestrator.tasks import snapshot_cleanup_loop
@@ -50,7 +51,7 @@ async def lifespan(app: FastAPI):
 
 def create_app() -> FastAPI:
     settings = get_settings()
-    app = FastAPI(title="Repo Orchestrator", version="1.0.0", lifespan=lifespan)
+    app = FastAPI(title="Repo Orchestrator", version=__version__, lifespan=lifespan)
 
     @app.get("/")
     async def root_route():
@@ -76,10 +77,14 @@ app = create_app()
 if __name__ == "__main__":
     import uvicorn
 
+    # Canonical default port for the orchestrator service.
+    # Can be overridden for advanced setups via ORCH_PORT.
+    port = int(__import__("os").environ.get("ORCH_PORT", "9325"))
+
     uvicorn.run(
         "tools.repo_orchestrator.main:app",
         host="0.0.0.0",  # nosec B104 - CLI entrypoint for local/dev use
-        port=6834,
+        port=port,
         reload=False,
         log_level="info",
     )

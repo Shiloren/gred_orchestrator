@@ -15,6 +15,9 @@ def run_step(name, command):
         import shlex
 
         cmd_list = shlex.split(command)
+        # Ensure pytest is executed in the current interpreter environment.
+        if cmd_list and cmd_list[0] == "pytest":
+            cmd_list = [sys.executable, "-m", "pytest", *cmd_list[1:]]
         process = subprocess.Popen(
             cmd_list,
             cwd=BASE_DIR,

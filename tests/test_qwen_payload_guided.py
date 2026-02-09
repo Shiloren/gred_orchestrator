@@ -97,14 +97,22 @@ def test_auth_bypass_guided(llm, metrics, llm_available, test_client):
     assert len(payloads) > 0
 
     for payload in payloads:
+        token = str(payload)
         start_time = time.time()
         try:
+            # httpx/Starlette requires header values to be ASCII encodable (and practically printable).
+            # Some LLM outputs contain non-ASCII/control chars that are not representable as HTTP headers.
+            if (not token.isascii()) or any(ord(c) < 0x20 for c in token):
+                metrics.add_result("payload_guided", "/status", token, 0, 0, False, False)
+                print(f"Skipping auth payload not valid as HTTP header: {token!r}")
+                continue
+
             response = test_client.get(
                 "/status",
-                headers={"Authorization": f"Bearer {payload}"},
+                headers={"Authorization": f"Bearer {token}"},
             )
             _require_orchestrator_response(
-                response, f"auth bypass payload {payload[:50]}"
+                response, f"auth bypass payload {token[:50]}"
             )
             latency = time.time() - start_time
 
@@ -114,7 +122,7 @@ def test_auth_bypass_guided(llm, metrics, llm_available, test_client):
             metrics.add_result(
                 suite="payload_guided",
                 endpoint="/status",
-                payload=payload,
+                payload=token,
                 status=response.status_code,
                 latency=latency,
                 panic=False,
@@ -128,7 +136,7 @@ def test_auth_bypass_guided(llm, metrics, llm_available, test_client):
             ], f"Security failure: Token {payload} allowed access (Status {response.status_code})"
 
         except Exception as exc:
-            pytest.fail(f"Orchestrator call failed for auth payload {payload[:50]}: {exc}")
+            pytest.fail(f"Orchestrator call failed for auth payload {token[:50]}: {exc}")
 
 
 def _require_orchestrator_response(response, context: str) -> None:

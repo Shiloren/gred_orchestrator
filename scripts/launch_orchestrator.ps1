@@ -30,4 +30,4 @@ if ([string]::IsNullOrWhiteSpace($env:ORCH_TOKEN)) {
 }
 
 # Host local-only (seguridad por defecto)
-uvicorn src.api.app:app --host 127.0.0.1 --port 8001 --reload
+uvicorn tools.repo_orchestrator.main:app --host 127.0.0.1 --port 9325 --reload

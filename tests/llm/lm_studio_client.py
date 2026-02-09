@@ -1,6 +1,8 @@
 import json
 import logging
+import os
 import re
+import time
 from pathlib import Path
 from typing import Dict, List, Optional
 
@@ -53,6 +55,10 @@ class LMStudioClient:
         ]
         for item in payloads:
             s = str(item)
+
+            # Common LLM artifact: UTF-8 BOM / zero-width chars that can break HTTP header encoding.
+            s = s.replace("\ufeff", "").replace("\u200b", "").replace("\u200c", "").replace("\u200d", "")
+
             for prefix in prefixes:
                 if s.startswith(prefix):
                     s = s[len(prefix) :]
@@ -171,99 +177,112 @@ class LMStudioClient:
         Generates security payloads via LM Studio (OpenAI API format).
         Expects a JSON array of strings in the response.
         """
-        try:
-            payload = {
-                "model": self.model,
-                "messages": [
-                    {"role": "system", "content": system_prompt},
-                    {"role": "user", "content": user_prompt},
-                ],
-                "temperature": 0.1,  # Match user setting
-                "max_tokens": 2048,
-                "stream": False,
-                "response_format": {
-                    "type": "json_schema",
-                    "json_schema": {
-                        "name": "security_response",
-                        "schema": {
-                            "type": "object",
-                            "properties": {
-                                "thought_process": {"type": "string"},
-                                "payloads": {"type": "array", "items": {"type": "string"}},
-                                "status": {
-                                    "type": "string",
-                                    "enum": ["SUCCESS", "FAILURE", "PENDING"],
-                                },
+        timeout_s = int(os.environ.get("LM_STUDIO_TIMEOUT_SECONDS", "60"))
+        retries = int(os.environ.get("LM_STUDIO_RETRIES", "0"))
+
+        payload = {
+            "model": self.model,
+            "messages": [
+                {"role": "system", "content": system_prompt},
+                {"role": "user", "content": user_prompt},
+            ],
+            "temperature": 0.1,
+            "max_tokens": 2048,
+            "stream": False,
+            "response_format": {
+                "type": "json_schema",
+                "json_schema": {
+                    "name": "security_response",
+                    "schema": {
+                        "type": "object",
+                        "properties": {
+                            "thought_process": {"type": "string"},
+                            "payloads": {"type": "array", "items": {"type": "string"}},
+                            "status": {
+                                "type": "string",
+                                "enum": ["SUCCESS", "FAILURE", "PENDING"],
                             },
-                            "required": ["thought_process", "payloads", "status"],
                         },
+                        "required": ["thought_process", "payloads", "status"],
                     },
                 },
-            }
+            },
+        }
 
-            response = requests.post(f"{self.host}/chat/completions", json=payload, timeout=60)
-            response.raise_for_status()
-
-            data = response.json()
-            content = data["choices"][0]["message"]["content"]
-
-            # DEBUG
-            _LOG_DIR.mkdir(parents=True, exist_ok=True)
-            with open(_LOG_DIR / "llm_debug.log", "a", encoding="utf-8") as f:
-                f.write(f"--- PROMPT: {user_prompt[:50]}... ---\n")
-                f.write(f"--- CONTENT ---\n{content}\n--- END ---\n")
-
+        for attempt in range(retries + 1):
             try:
-                # Try to parse as the new structured schema first
-                structured = json.loads(content)
-                if isinstance(structured, dict) and "payloads" in structured:
-                    return self._clean_payloads(list(structured["payloads"]))
-            except json.JSONDecodeError:
+                response = requests.post(
+                    f"{self.host}/chat/completions",
+                    json=payload,
+                    timeout=timeout_s,
+                )
+                response.raise_for_status()
+
+                data = response.json()
+                content = data["choices"][0]["message"]["content"]
+
+                # DEBUG
+                _LOG_DIR.mkdir(parents=True, exist_ok=True)
+                with open(_LOG_DIR / "llm_debug.log", "a", encoding="utf-8") as f:
+                    f.write(f"--- PROMPT: {user_prompt[:50]}... ---\n")
+                    f.write(f"--- CONTENT ---\n{content}\n--- END ---\n")
+
+                # Primary parse path (structured JSON)
                 try:
-                    sanitized = self._sanitize_json_escapes(content)
-                    structured = json.loads(sanitized)
+                    structured = json.loads(content)
                     if isinstance(structured, dict) and "payloads" in structured:
                         return self._clean_payloads(list(structured["payloads"]))
-                except Exception:
-                    pass
-                # Fallback: if there's trailing junk (common in some LM Studio versions), try to fix it
-                if "}" in content:
+                except json.JSONDecodeError:
+                    # Try sanitization for invalid escapes
                     try:
-                        fixed_content = content[: content.rfind("}") + 1]
-                        fixed_content = self._sanitize_json_escapes(fixed_content)
-                        structured = json.loads(fixed_content)
+                        sanitized = self._sanitize_json_escapes(content)
+                        structured = json.loads(sanitized)
                         if isinstance(structured, dict) and "payloads" in structured:
                             return self._clean_payloads(list(structured["payloads"]))
                     except Exception:
                         pass
 
-            payloads = self._extract_json_object(content)
-            if payloads:
-                return payloads
+                    # Trailing junk fix
+                    if "}" in content:
+                        try:
+                            fixed_content = content[: content.rfind("}") + 1]
+                            fixed_content = self._sanitize_json_escapes(fixed_content)
+                            structured = json.loads(fixed_content)
+                            if isinstance(structured, dict) and "payloads" in structured:
+                                return self._clean_payloads(list(structured["payloads"]))
+                        except Exception:
+                            pass
 
-            # Fallback to legacy extraction if needed
-            payloads = self._extract_json_array(content)
-            if payloads:
-                return payloads
+                # Fallback extractors
+                payloads = self._extract_json_object(content)
+                if payloads:
+                    return payloads
 
-            payloads = self._extract_payloads_from_object(content)
-            if payloads:
-                return payloads
+                payloads = self._extract_json_array(content)
+                if payloads:
+                    return payloads
 
-            payloads = self._extract_payloads_regex(content)
-            if payloads:
-                return payloads
+                payloads = self._extract_payloads_from_object(content)
+                if payloads:
+                    return payloads
 
-            payloads = self._extract_truncated_payloads(content)
-            if payloads:
-                return payloads
+                payloads = self._extract_payloads_regex(content)
+                if payloads:
+                    return payloads
 
-            logger.warning(f"Failed to parse JSON from LLM: {content}")
-            return []
+                payloads = self._extract_truncated_payloads(content)
+                if payloads:
+                    return payloads
 
-        except Exception as e:
-            logger.error(f"LM Studio error: {str(e)}")
-            return []
+                logger.warning("Failed to parse JSON from LLM: %s", content)
+                return []
+
+            except Exception as e:
+                logger.error(f"LM Studio error: {str(e)}")
+                if attempt < retries:
+                    time.sleep(1.0)
+                    continue
+                return []
 
     def get_feedback_adaptation(
         self, system_prompt: str, history: List[Dict[str, str]]
@@ -293,6 +312,22 @@ def is_lm_studio_available(host: str = "http://localhost:1234/v1") -> bool:
     """Quick health check to see if LM Studio is available."""
     try:
         response = requests.get(f"{host}/models", timeout=2)
-        return response.status_code == 200
+        if response.status_code != 200:
+            return False
+
+        # Minimal completions probe to catch cases where /models works but /chat/completions stalls.
+        probe_timeout_s = int(os.environ.get("LM_STUDIO_PROBE_TIMEOUT_SECONDS", "5"))
+        probe = {
+            "model": os.environ.get("LM_STUDIO_MODEL", "qwen/qwen3-8b"),
+            "messages": [
+                {"role": "system", "content": "Return a JSON object with a payloads list."},
+                {"role": "user", "content": "Return: {\"payloads\":[\"ok\"],\"status\":\"SUCCESS\",\"thought_process\":\"x\"}"},
+            ],
+            "temperature": 0,
+            "max_tokens": 32,
+            "stream": False,
+        }
+        probe_resp = requests.post(f"{host}/chat/completions", json=probe, timeout=probe_timeout_s)
+        return probe_resp.status_code == 200
     except Exception:
         return False
