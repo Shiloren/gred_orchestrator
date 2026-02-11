@@ -85,3 +85,7 @@ tests/metrics/*.md
 
 # Accidental scratch files
 *console.error*
+
+# Vendor dependencies
+vendor/gics
+*.tar.gz

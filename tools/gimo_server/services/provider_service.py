@@ -3,6 +3,7 @@ from __future__ import annotations
 import logging
 import os
 import re
+import shutil
 from typing import Any, Dict, Optional
 
 from ..config import OPS_DATA_DIR
@@ -127,3 +128,78 @@ class ProviderService:
             return await adapter.health_check()
         except Exception:
             return False
+
+    @staticmethod
+    def _is_cli_installed(binary_name: str) -> bool:
+        return shutil.which(binary_name) is not None
+
+    @classmethod
+    def list_connectors(cls) -> Dict[str, Any]:
+        cfg = cls.get_config()
+        active_provider = cfg.active if cfg else None
+        providers = sorted(list(cfg.providers.keys())) if cfg else []
+
+        items = [
+            {
+                "id": "claude_code",
+                "type": "cli",
+                "installed": cls._is_cli_installed("claude"),
+                "configured": True,
+            },
+            {
+                "id": "codex_cli",
+                "type": "cli",
+                "installed": cls._is_cli_installed("codex"),
+                "configured": True,
+            },
+            {
+                "id": "gemini_cli",
+                "type": "cli",
+                "installed": cls._is_cli_installed("gemini"),
+                "configured": True,
+            },
+            {
+                "id": "openai_compat",
+                "type": "api",
+                "installed": True,
+                "configured": bool(cfg and cfg.providers),
+                "active_provider": active_provider,
+                "providers": providers,
+            },
+        ]
+
+        return {
+            "items": items,
+            "count": len(items),
+        }
+
+    @classmethod
+    async def connector_health(cls, connector_id: str) -> Dict[str, Any]:
+        connector_id = str(connector_id).strip().lower()
+
+        if connector_id in {"claude_code", "codex_cli", "gemini_cli"}:
+            binary = {
+                "claude_code": "claude",
+                "codex_cli": "codex",
+                "gemini_cli": "gemini",
+            }[connector_id]
+            installed = cls._is_cli_installed(binary)
+            return {
+                "id": connector_id,
+                "healthy": installed,
+                "details": {"installed": installed, "binary": binary},
+            }
+
+        if connector_id == "openai_compat":
+            healthy = await cls.health_check()
+            cfg = cls.get_config()
+            return {
+                "id": connector_id,
+                "healthy": healthy,
+                "details": {
+                    "active_provider": cfg.active if cfg else None,
+                    "providers": sorted(list(cfg.providers.keys())) if cfg else [],
+                },
+            }
+
+        raise ValueError(f"Unknown connector: {connector_id}")

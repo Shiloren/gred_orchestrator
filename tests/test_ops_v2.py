@@ -117,6 +117,33 @@ class TestRoles:
         r = client.get("/ops/provider", headers=_actions_headers())
         assert r.status_code == 403
 
+    def test_actions_cannot_access_connectors(self, client: TestClient):
+        r = client.get("/ops/connectors", headers=_actions_headers())
+        assert r.status_code == 403
+
+    def test_actions_cannot_access_trust_suggestions(self, client: TestClient):
+        r = client.get("/ops/trust/suggestions", headers=_actions_headers())
+        assert r.status_code == 403
+
+    def test_actions_cannot_access_observability_metrics(self, client: TestClient):
+        r = client.get("/ops/observability/metrics", headers=_actions_headers())
+        assert r.status_code == 403
+
+    def test_actions_cannot_access_observability_traces(self, client: TestClient):
+        r = client.get("/ops/observability/traces", headers=_actions_headers())
+        assert r.status_code == 403
+
+    def test_actions_cannot_run_evals(self, client: TestClient):
+        r = client.post(
+            "/ops/evals/run",
+            headers={**_actions_headers(), "Content-Type": "application/json"},
+            json={
+                "workflow": {"id": "wf", "nodes": [], "edges": [], "state_schema": {}},
+                "dataset": {"workflow_id": "wf", "cases": []},
+            },
+        )
+        assert r.status_code == 403
+
     def test_operator_can_approve(self, client: TestClient):
         rd = client.post(
             "/ops/drafts",
@@ -182,6 +209,104 @@ class TestRoles:
     def test_operator_can_read_config(self, client: TestClient):
         r = client.get("/ops/config", headers=_operator_headers())
         assert r.status_code == 200
+
+    def test_operator_can_list_connectors(self, client: TestClient):
+        r = client.get("/ops/connectors", headers=_operator_headers())
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["count"] >= 1
+        assert any(item["id"] == "openai_compat" for item in payload["items"])
+
+    def test_operator_can_check_connector_health(self, client: TestClient):
+        r = client.get("/ops/connectors/openai_compat/health", headers=_operator_headers())
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["id"] == "openai_compat"
+        assert "healthy" in payload
+
+    def test_operator_can_read_trust_suggestions(self, client: TestClient):
+        r = client.get("/ops/trust/suggestions", headers=_operator_headers())
+        assert r.status_code == 200
+        payload = r.json()
+        assert "items" in payload
+        assert "count" in payload
+
+    def test_operator_can_read_observability_metrics(self, client: TestClient):
+        r = client.get("/ops/observability/metrics", headers=_operator_headers())
+        assert r.status_code == 200
+        payload = r.json()
+        assert "workflows_total" in payload
+        assert "nodes_total" in payload
+        assert "cost_total_usd" in payload
+
+    def test_operator_can_read_observability_traces(self, client: TestClient):
+        r = client.get("/ops/observability/traces", headers=_operator_headers())
+        assert r.status_code == 200
+        payload = r.json()
+        assert "items" in payload
+        assert "count" in payload
+
+    def test_operator_can_run_evals(self, client: TestClient):
+        r = client.post(
+            "/ops/evals/run",
+            headers={**_operator_headers(), "Content-Type": "application/json"},
+            json={
+                "workflow": {
+                    "id": "wf_eval_api",
+                    "nodes": [{"id": "A", "type": "transform", "config": {"result": "ok"}}],
+                    "edges": [],
+                    "state_schema": {},
+                },
+                "dataset": {
+                    "workflow_id": "wf_eval_api",
+                    "cases": [
+                        {
+                            "case_id": "c1",
+                            "input_state": {},
+                            "expected_state": {"status": "ok"},
+                            "threshold": 1.0,
+                        }
+                    ],
+                },
+                "gate": {"min_pass_rate": 1.0, "min_avg_score": 1.0},
+            },
+        )
+        assert r.status_code == 200
+        payload = r.json()
+        assert payload["workflow_id"] == "wf_eval_api"
+        assert payload["total_cases"] == 1
+        assert payload["passed_cases"] == 1
+        assert payload["gate_passed"] is True
+
+    def test_operator_evals_fail_on_gate_returns_412(self, client: TestClient):
+        r = client.post(
+            "/ops/evals/run?fail_on_gate=true",
+            headers={**_operator_headers(), "Content-Type": "application/json"},
+            json={
+                "workflow": {
+                    "id": "wf_eval_gate",
+                    "nodes": [{"id": "A", "type": "transform", "config": {"result": "actual"}}],
+                    "edges": [],
+                    "state_schema": {},
+                },
+                "dataset": {
+                    "workflow_id": "wf_eval_gate",
+                    "cases": [
+                        {
+                            "case_id": "c1",
+                            "input_state": {},
+                            "expected_state": {"status": "expected"},
+                            "threshold": 1.0,
+                        }
+                    ],
+                },
+                "gate": {"min_pass_rate": 1.0, "min_avg_score": 1.0},
+            },
+        )
+        assert r.status_code == 412
+        payload = r.json()["detail"]
+        assert payload["workflow_id"] == "wf_eval_gate"
+        assert payload["gate_passed"] is False
 
 
 # ═══════════════════════════════════════════
