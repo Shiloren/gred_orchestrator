@@ -56,7 +56,11 @@ class Settings:
     audit_log_max_bytes: int
     audit_log_backup_count: int
     ops_data_dir: Path
+    ops_data_dir: Path
     ops_run_ttl: int
+    gics_daemon_script: Path
+    gics_socket_path: Path
+    gics_token_path: Path
 
 
 def _load_or_create_token(token_file: Path | None = None, env_key: str = "ORCH_TOKEN") -> str:
@@ -183,6 +187,9 @@ def _build_settings() -> Settings:
         audit_log_backup_count=audit_log_backup_count,
         ops_data_dir=ops_data_dir,
         ops_run_ttl=ops_run_ttl,
+        gics_daemon_script=base_dir.parent / "vendor" / "gics" / "dist" / "src" / "daemon" / "server.js",
+        gics_socket_path=ops_data_dir / "gics.sock",
+        gics_token_path=ops_data_dir / "gics.token",
     )
 
 
@@ -222,4 +229,8 @@ AUDIT_LOG_PATH = _SETTINGS.audit_log_path
 AUDIT_LOG_MAX_BYTES = _SETTINGS.audit_log_max_bytes
 AUDIT_LOG_BACKUP_COUNT = _SETTINGS.audit_log_backup_count
 OPS_DATA_DIR = _SETTINGS.ops_data_dir
+OPS_DATA_DIR = _SETTINGS.ops_data_dir
 OPS_RUN_TTL = _SETTINGS.ops_run_ttl
+GICS_DAEMON_SCRIPT = _SETTINGS.gics_daemon_script
+GICS_SOCKET_PATH = _SETTINGS.gics_socket_path
+GICS_TOKEN_PATH = _SETTINGS.gics_token_path

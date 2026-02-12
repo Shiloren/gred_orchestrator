@@ -40,7 +40,9 @@ from .services.provider_service import ProviderService
 from .services.policy_service import PolicyService
 from .services.storage_service import StorageService
 from .services.tool_registry_service import ToolRegistryService
+from .services.tool_registry_service import ToolRegistryService
 from .services.trust_engine import TrustEngine
+from .services.trust_store import TrustStore
 
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -388,7 +390,19 @@ async def trust_query(
     if not dimension_key:
         raise HTTPException(status_code=400, detail="dimension_key is required")
 
-    engine = TrustEngine(StorageService())
+    gics = getattr(request.app.state, "gics", None)
+    if not gics:
+         # Fallback/Error if GICS not running? For MVP just log or proceed with caution
+         audit_log("OPS", "/ops/trust/query", "GICS_MISSING", operation="ERROR", actor=_actor_label(auth))
+         # We can try to instantiate ad-hoc or raise error. 
+         # Assuming lifespan ran, it should be there.
+         pass
+         
+    storage = StorageService()
+    # Ideally reuse gics service from app state
+    trust_store = TrustStore(storage, gics)
+    engine = TrustEngine(trust_store)
+    
     result = engine.query_dimension(dimension_key)
     audit_log("OPS", "/ops/trust/query", dimension_key, operation="READ", actor=_actor_label(auth))
     return result
@@ -402,7 +416,11 @@ async def trust_dashboard(
     rl: None = Depends(check_rate_limit),
 ):
     _require_role(auth, "operator")
-    engine = TrustEngine(StorageService())
+    gics = getattr(request.app.state, "gics", None)
+    storage = StorageService()
+    trust_store = TrustStore(storage, gics)
+    engine = TrustEngine(trust_store)
+    
     result = engine.dashboard(limit=limit)
     audit_log("OPS", "/ops/trust/dashboard", str(limit), operation="READ", actor=_actor_label(auth))
     return {"items": result, "count": len(result)}
@@ -590,7 +608,9 @@ async def get_circuit_breaker_config(
     storage = StorageService()
     result = storage.get_circuit_breaker_config(dimension_key)
     if result is None:
-        engine = TrustEngine(storage)
+        gics = getattr(request.app.state, "gics", None)
+        trust_store = TrustStore(storage, gics)
+        engine = TrustEngine(trust_store)
         cfg = engine.circuit_breaker
         result = {
             "dimension_key": dimension_key,

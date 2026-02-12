@@ -30,11 +30,13 @@ class TrustEngine:
 
     def __init__(
         self,
-        storage: StorageService,
+        trust_store: Any,  # Typed as Any to avoid circular imports given current file structure, or import carefully
         thresholds: TrustThresholds | None = None,
         circuit_breaker: CircuitBreakerConfig | None = None,
     ):
-        self.storage = storage
+        self.trust_store = trust_store
+        # Legacy access if needed, but we should go via trust_store
+        self.storage = trust_store.storage 
         self.thresholds = thresholds or TrustThresholds()
         self.circuit_breaker = circuit_breaker or CircuitBreakerConfig()
 
@@ -42,7 +44,7 @@ class TrustEngine:
         events = self.storage.list_trust_events(limit=events_limit)
         record_map = self._build_records(events)
         record = record_map.get(dimension_key, self._empty_record(dimension_key))
-        self.storage.upsert_trust_record(record)
+        self.trust_store.save_dimension(dimension_key, record)
         return record
 
     def dashboard(self, *, limit: int = 100, events_limit: int = 5000) -> List[Dict[str, Any]]:

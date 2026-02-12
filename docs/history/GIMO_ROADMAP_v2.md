@@ -1,4 +1,8 @@
-# GIMO — Roadmap Unificado v2
+# [HISTÓRICO] GIMO — Roadmap Unificado v2
+> [!CAUTION]
+> **DOCUMENTO HISTÓRICO**: Este roadmap ya no representa la fuente de verdad (Source of Truth) del proyecto. 
+> Ha sido movido al archivo histórico y se mantiene solo como referencia.
+
 ## "The Agent Firewall"
 
 **Fecha:** 2026-02-10T18:00:00Z

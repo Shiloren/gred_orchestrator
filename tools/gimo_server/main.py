@@ -11,6 +11,7 @@ from tools.gimo_server.middlewares import register_middlewares
 from tools.gimo_server.routes import register_routes
 from tools.gimo_server.version import __version__
 from tools.gimo_server.services.snapshot_service import SnapshotService
+from tools.gimo_server.services.gics_service import GicsService
 from tools.gimo_server.static_app import mount_static
 from tools.gimo_server.tasks import snapshot_cleanup_loop
 from tools.gimo_server.ops_routes import router as ops_router
@@ -44,6 +45,11 @@ async def lifespan(app: FastAPI):
     from tools.gimo_server.services.provider_service import ProviderService
 
     ProviderService.ensure_default_config()
+    
+    # Initialize GICS Daemon Service
+    gics_service = GicsService()
+    gics_service.start_daemon()
+    app.state.gics = gics_service
 
     # Start background cleanup tasks
     cleanup_task = asyncio.create_task(snapshot_cleanup_loop())
@@ -76,6 +82,8 @@ async def lifespan(app: FastAPI):
 
     # Shutdown: Clean up resources
     logger.info("Shutting down Repo Orchestrator...")
+    if hasattr(app.state, "gics"):
+        app.state.gics.stop_daemon()
     await run_worker.stop()
     cleanup_task.cancel()
     ops_cleanup_task.cancel()

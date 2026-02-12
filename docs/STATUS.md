@@ -13,9 +13,9 @@
   - `pip-audit` is not installed.
   - `docker` CLI is not installed.
 
-## Sprint 1 update (Fase 1 cierre roadmap v2)
+## Sprint 1 update (Fase 1 cierre roadmap v2 - HISTÓRICO)
 
-Fase 1 del roadmap `docs/GIMO_ROADMAP_v2.md` se considera **cerrada a nivel backend/core** con evidencia local en la suite objetivo:
+Fase 1 del roadmap histórico `docs/history/GIMO_ROADMAP_v2.md` se considera **cerrada a nivel backend/core** con evidencia local en la suite objetivo:
 
 - Command:
   - `python -m pytest -q tests/test_adapters.py tests/test_graph_engine.py tests/test_trust_event_buffer.py tests/test_storage_service.py`

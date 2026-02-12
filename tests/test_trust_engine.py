@@ -3,6 +3,16 @@ from __future__ import annotations
 from tools.gimo_server.services.trust_engine import CircuitBreakerConfig, TrustEngine, TrustThresholds
 
 
+
+class StubTrustStore:
+    def __init__(self, storage):
+        self.storage = storage
+        self.saved_records = {}
+
+    def save_dimension(self, dimension_key, data):
+        self.storage.upsert_trust_record(data)
+        self.saved_records[dimension_key] = data
+
 class StubStorage:
     def __init__(self, events):
         self._events = list(events)
@@ -32,7 +42,8 @@ def test_trust_engine_query_dimension_auto_approve_policy():
         }
         for i in range(25)
     ]
-    engine = TrustEngine(StubStorage(events))
+    store = StubTrustStore(StubStorage(events))
+    engine = TrustEngine(store)
 
     record = engine.query_dimension("shell_exec|*|claude|agent_task")
     assert record["approvals"] == 25
@@ -58,7 +69,8 @@ def test_trust_engine_dashboard_and_blocked_policy():
         }
     ]
 
-    engine = TrustEngine(StubStorage(events), thresholds=TrustThresholds(blocked_failures=5))
+    store = StubTrustStore(StubStorage(events))
+    engine = TrustEngine(store, thresholds=TrustThresholds(blocked_failures=5))
     rows = engine.dashboard(limit=10)
 
     blocked = next(r for r in rows if r["dimension_key"].startswith("file_write"))
@@ -77,8 +89,9 @@ def test_trust_engine_circuit_breaker_opens_on_failure_threshold():
         }
         for i in range(5)
     ]
+    store = StubTrustStore(StubStorage(events))
     engine = TrustEngine(
-        StubStorage(events),
+        store,
         circuit_breaker=CircuitBreakerConfig(window=5, failure_threshold=5, recovery_probes=2, cooldown_seconds=60),
     )
 
@@ -106,8 +119,9 @@ def test_trust_engine_uses_dimension_specific_circuit_breaker_config():
         "recovery_probes": 1,
         "cooldown_seconds": 0,
     }
+    store = StubTrustStore(storage)
     engine = TrustEngine(
-        storage,
+        store,
         circuit_breaker=CircuitBreakerConfig(window=20, failure_threshold=10, recovery_probes=3, cooldown_seconds=300),
     )
 

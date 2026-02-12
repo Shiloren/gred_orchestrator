@@ -12,9 +12,16 @@
         "test:coverage": "vitest run --coverage --passWithNoTests"
     },
     "dependencies": {
+        "@types/dagre": "^0.7.53",
+        "@xyflow/react": "^12.10.0",
+        "clsx": "^2.1.1",
+        "dagre": "^0.8.5",
+        "framer-motion": "^12.34.0",
         "lucide-react": "^0.344.0",
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "tailwind-merge": "^3.4.0",
+        "@gredinlabstechnologies/gics-core": "file:../../vendor/gics"
     },
     "devDependencies": {
         "@eslint/js": "^9.0.0",
