@@ -1,4 +1,4 @@
-export const API_BASE = '';
+export const API_BASE: string = '';
 
 export type TrustLevel = 'autonomous' | 'supervised' | 'restricted';
 
@@ -128,10 +128,60 @@ export interface SubAgent {
     status: 'starting' | 'working' | 'idle' | 'terminated' | 'failed';
     currentTask?: string;
     config: SubAgentConfig;
+    result?: string;
 }
 
 export interface DelegationRequest {
     subTaskDescription: string;
     modelPreference: string;
     constraints?: Record<string, any>;
+}
+
+// --- Phase 11: Hybrid Provider System ---
+
+export type ProviderType = 'ollama' | 'groq' | 'openrouter' | 'codex' | 'custom';
+
+export interface ProviderConfig {
+    id: string;
+    type: ProviderType;
+    name: string;
+    enabled: boolean;
+    base_url?: string;
+    api_key?: string;
+    default_model?: string;
+    is_local: boolean;
+    max_concurrent: number;
+    cost_per_1k_tokens: number;
+    max_context: number;
+    models: string[];
+}
+
+export interface ComputeNode {
+    id: string;
+    name: string;
+    role: string;
+    max_concurrent_agents: number;
+    current_agents: number;
+    preferred_models: string[];
+    provider_ids: string[];
+    constraints: Record<string, any>;
+}
+
+export interface ProviderHealth {
+    provider_id: string;
+    available: boolean;
+    latency_ms?: number;
+    error?: string;
+    last_check: string;
+}
+
+export interface ProviderCreateRequest {
+    type: ProviderType;
+    name: string;
+    base_url?: string;
+    api_key?: string;
+    default_model?: string;
+    is_local?: boolean;
+    max_concurrent?: number;
+    models?: string[];
 }

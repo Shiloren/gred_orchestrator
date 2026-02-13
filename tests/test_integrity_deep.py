@@ -26,8 +26,10 @@ def test_critical_file_integrity():
     
     critical_files = [
         "tools/repo_orchestrator/main.py",
-        "tools/repo_orchestrator/security.py",
-        "tools/repo_orchestrator/config.py",
+        "tools/repo_orchestrator/security/__init__.py",
+        "tools/repo_orchestrator/security/validation.py",
+        "tools/repo_orchestrator/security/auth.py",
+        "tools/repo_orchestrator/security/audit.py",
     ]
     
     if not manifest_path.exists():

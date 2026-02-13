@@ -24,6 +24,26 @@ vi.mock('../islands/system/MaintenanceIsland', () => ({
     MaintenanceIsland: () => <div data-testid="maintenance-island">MaintenanceIsland Mock</div>
 }));
 
+// Mock usePlanEngine
+vi.mock('../hooks/usePlanEngine', () => ({
+    usePlanEngine: () => ({
+        currentPlan: null,
+        loading: false,
+        createPlan: vi.fn(),
+        approvePlan: vi.fn(),
+    })
+}));
+
+// Mock PlanBuilder
+vi.mock('../components/PlanBuilder', () => ({
+    PlanBuilder: () => <div data-testid="plan-builder">PlanBuilder Mock</div>
+}));
+
+// Mock PlanReview
+vi.mock('../components/PlanReview', () => ({
+    PlanReview: () => <div data-testid="plan-review">PlanReview Mock</div>
+}));
+
 // Mock ResizeObserver
 globalThis.ResizeObserver = class ResizeObserver {
     observe() { }
@@ -47,9 +67,9 @@ describe('App', () => {
         expect(screen.getByText(/v1\.0\.0/)).toBeInTheDocument();
     });
 
-    it('renders MaintenanceIsland component', () => {
+    it('renders InspectPanel component', () => {
         render(<App />);
-        expect(screen.getByTestId('maintenance-island')).toBeInTheDocument();
+        expect(screen.getByTestId('inspect-panel')).toBeInTheDocument();
     });
 
     it('has correct structure with header, main, and footer', () => {

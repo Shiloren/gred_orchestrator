@@ -11,26 +11,16 @@ from tools.repo_orchestrator.config import (
     ALLOWLIST_TTL_SECONDS,
 )
 
-def load_repo_registry():
-    if not REPO_REGISTRY_PATH.exists():
-        return {"active_repo": None, "repos": []}
-    try:
-        return json.loads(REPO_REGISTRY_PATH.read_text(encoding="utf-8"))
-    except Exception:
-        return {"active_repo": None, "repos": []}
-
-def save_repo_registry(data: dict):
-    REPO_REGISTRY_PATH.write_text(json.dumps(data, indent=2), encoding="utf-8")
+from tools.repo_orchestrator.services.registry_service import RegistryService
 
 def get_active_repo_dir() -> Path:
-    registry = load_repo_registry()
-    active = registry.get("active_repo")
-    if active:
-        path = Path(active).resolve()
-        if path.exists():
-            return path
-    # Fallback to current dir if nothing active
-    return Path.cwd()
+    # Proxy to the new service for backward compatibility during refactor if needed, 
+    # but best to replace usage.
+    # However, keeping it as a wrapper for now to minimize import breakage in other files 
+    # that might trust this module provided the imports are updated.
+    # actually, I will remove them and update importers.
+    return RegistryService.get_active_repo_dir()
+
 
 def _normalize_path(path_str: str, base_dir: Path) -> Optional[Path]:
     try:

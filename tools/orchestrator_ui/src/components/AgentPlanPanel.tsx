@@ -1,9 +1,11 @@
 import React from 'react';
 import { CheckCircle2, Circle, PlayCircle, XCircle, MessageSquare, ListTodo } from 'lucide-react';
 import { AgentPlan, TaskStatus } from '../types';
+import { useAgentControl } from '../hooks/useAgentControl';
 
 interface AgentPlanPanelProps {
     plan?: AgentPlan;
+    agentId?: string;
 }
 
 const StatusIcon = ({ status }: { status: TaskStatus }) => {
@@ -15,7 +17,8 @@ const StatusIcon = ({ status }: { status: TaskStatus }) => {
     }
 };
 
-export const AgentPlanPanel: React.FC<AgentPlanPanelProps> = ({ plan }) => {
+export const AgentPlanPanel: React.FC<AgentPlanPanelProps> = ({ plan, agentId }) => {
+    const { paused, loading, pauseAgent, resumeAgent, cancelPlan } = useAgentControl(agentId ?? null);
     if (!plan) {
         return (
             <div className="flex flex-col items-center justify-center py-12 text-[#86868b] text-center px-6">
@@ -97,10 +100,18 @@ export const AgentPlanPanel: React.FC<AgentPlanPanelProps> = ({ plan }) => {
 
             {/* Agent Controls */}
             <div className="pt-4 flex gap-2">
-                <button className="flex-1 h-9 rounded-lg bg-[#1c1c1e] border border-[#2c2c2e] text-[11px] font-semibold text-[#f5f5f7] hover:bg-[#2c2c2e] transition-colors">
-                    Pause Agent
+                <button
+                    onClick={() => paused ? resumeAgent() : pauseAgent()}
+                    disabled={loading}
+                    className="flex-1 h-9 rounded-lg bg-[#1c1c1e] border border-[#2c2c2e] text-[11px] font-semibold text-[#f5f5f7] hover:bg-[#2c2c2e] transition-colors disabled:opacity-50"
+                >
+                    {paused ? 'Resume Agent' : 'Pause Agent'}
                 </button>
-                <button className="flex-1 h-9 rounded-lg bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[11px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/20 transition-colors">
+                <button
+                    onClick={() => plan && cancelPlan(plan.id)}
+                    disabled={loading || !plan}
+                    className="flex-1 h-9 rounded-lg bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[11px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/20 transition-colors disabled:opacity-50"
+                >
                     Cancel Plan
                 </button>
             </div>

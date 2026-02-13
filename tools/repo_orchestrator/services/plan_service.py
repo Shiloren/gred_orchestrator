@@ -6,7 +6,7 @@ class PlanService:
     _plans: Dict[str, Plan] = {}
 
     @classmethod
-    def create_plan(cls, title: str, task_description: str) -> Plan:
+    async def create_plan(cls, title: str, task_description: str) -> Plan:
         # Mocking plan generation
         plan_id = str(uuid.uuid4())
         tasks = [
@@ -36,6 +36,14 @@ class PlanService:
             assignments=assignments
         )
         cls._plans[plan_id] = plan
+        
+        from tools.repo_orchestrator.ws.manager import manager
+        await manager.broadcast({
+            "type": "plan_update",
+            "plan_id": plan_id,
+            "payload": plan.dict()
+        })
+        
         return plan
 
     @classmethod
@@ -43,14 +51,21 @@ class PlanService:
         return cls._plans.get(plan_id)
 
     @classmethod
-    def approve_plan(cls, plan_id: str) -> bool:
+    async def approve_plan(cls, plan_id: str) -> bool:
         if plan_id in cls._plans:
             cls._plans[plan_id].status = "approved"
+            
+            from tools.repo_orchestrator.ws.manager import manager
+            await manager.broadcast({
+                "type": "plan_update",
+                "plan_id": plan_id,
+                "payload": cls._plans[plan_id].dict()
+            })
             return True
         return False
 
     @classmethod
-    def update_plan(cls, plan_id: str, updates: PlanUpdateRequest) -> Optional[Plan]:
+    async def update_plan(cls, plan_id: str, updates: PlanUpdateRequest) -> Optional[Plan]:
         if plan_id in cls._plans:
             plan = cls._plans[plan_id]
             # Simple update logic
@@ -58,5 +73,12 @@ class PlanService:
                 plan.status = updates.status
             if updates.title is not None:
                 plan.title = updates.title
+            
+            from tools.repo_orchestrator.ws.manager import manager
+            await manager.broadcast({
+                "type": "plan_update",
+                "plan_id": plan_id,
+                "payload": plan.dict()
+            })
             return plan
         return None

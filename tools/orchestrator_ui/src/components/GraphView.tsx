@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback } from 'react';
+import { useEffect, useCallback } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -26,7 +26,7 @@ export const GraphView = () => {
         try {
             const response = await fetch('/ui/graph', {
                 headers: {
-                    'Authorization': 'demo-token' // Assuming a demo token for now as per routes.py
+                    'Authorization': 'Bearer demo-token' // Assuming a demo token for now as per routes.py
                 }
             });
             const data = await response.json();

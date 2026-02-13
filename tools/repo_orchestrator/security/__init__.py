@@ -16,5 +16,5 @@ def save_security_db(db: dict):
 
 from .auth import verify_token
 from .audit import audit_log, redact_sensitive_data
-from .validation import validate_path, get_active_repo_dir, load_repo_registry, save_repo_registry, get_allowed_paths, serialize_allowlist
+from .validation import validate_path, get_active_repo_dir, get_allowed_paths, serialize_allowlist
 from .rate_limit import check_rate_limit, rate_limit_store

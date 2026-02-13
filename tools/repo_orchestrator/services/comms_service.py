@@ -7,7 +7,7 @@ class CommsService:
     _messages: Dict[str, List[AgentMessage]] = {}
 
     @classmethod
-    def send_message(cls, agent_id: str, from_role: str, msg_type: str, content: str) -> AgentMessage:
+    async def send_message(cls, agent_id: str, from_role: str, msg_type: str, content: str) -> AgentMessage:
         if agent_id not in cls._messages:
             cls._messages[agent_id] = []
         
@@ -21,6 +21,15 @@ class CommsService:
         )
         
         cls._messages[agent_id].append(message)
+
+        # Broadcast update
+        from tools.repo_orchestrator.ws.manager import manager
+        await manager.broadcast({
+            "type": "chat_message",
+            "agent_id": agent_id,
+            "payload": message.dict()
+        })
+        
         return message
 
     @classmethod

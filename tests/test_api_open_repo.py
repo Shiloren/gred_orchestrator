@@ -15,7 +15,12 @@ from tools.repo_orchestrator.security import verify_token
 async def override_verify_token():
     return "test_actor"
 
-app.dependency_overrides[verify_token] = override_verify_token
+
+@pytest.fixture(autouse=True)
+def override_auth():
+    app.dependency_overrides[verify_token] = override_verify_token
+    yield
+
 
 @patch('tools.repo_orchestrator.routes.REPO_ROOT_DIR', new=Path("/mock/repos"))
 @patch('tools.repo_orchestrator.routes.audit_log')

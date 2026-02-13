@@ -1,20 +1,45 @@
 import React, { useState } from 'react';
 import { useSubAgents } from '../hooks/useSubAgents';
-import { Bot, Cpu, XCircle, Play } from 'lucide-react';
+import { Bot, Cpu, XCircle, Play, Layers } from 'lucide-react';
+
+interface BatchTask {
+    description: string;
+    model: string;
+}
 
 interface Props {
     agentId: string;
 }
 
 export const SubAgentCluster: React.FC<Props> = ({ agentId }) => {
-    const { subAgents, delegateTask, terminateSubAgent } = useSubAgents(agentId);
+    const { subAgents, delegateTask, delegateBatch, terminateSubAgent } = useSubAgents(agentId);
     const [taskDesc, setTaskDesc] = useState('');
     const [model, setModel] = useState('llama3');
+    const [batchMode, setBatchMode] = useState(false);
+    const [batchTasks, setBatchTasks] = useState<BatchTask[]>([]);
+    const [batchInput, setBatchInput] = useState('');
 
     const handleDelegate = () => {
         if (!taskDesc) return;
         delegateTask(taskDesc, model);
         setTaskDesc('');
+    };
+
+    const addBatchTask = () => {
+        if (!batchInput) return;
+        setBatchTasks(prev => [...prev, { description: batchInput, model }]);
+        setBatchInput('');
+    };
+
+    const removeBatchTask = (index: number) => {
+        setBatchTasks(prev => prev.filter((_, i) => i !== index));
+    };
+
+    const executeBatch = () => {
+        if (batchTasks.length === 0) return;
+        delegateBatch(batchTasks);
+        setBatchTasks([]);
+        setBatchMode(false);
     };
 
     return (
@@ -40,6 +65,11 @@ export const SubAgentCluster: React.FC<Props> = ({ agentId }) => {
                                     <span>•</span>
                                     <span className={ag.status === 'working' ? 'text-blue-500' : ''}>{ag.status}</span>
                                 </div>
+                                {ag.result && (
+                                    <div className="mt-2 p-2 rounded bg-[#000000]/60 border border-[#1c1c1e] text-[10px] font-mono text-[#a1a1a6] whitespace-pre-wrap max-h-32 overflow-y-auto custom-scrollbar">
+                                        {ag.result}
+                                    </div>
+                                )}
                             </div>
                         </div>
                         {ag.status !== 'terminated' && (
@@ -61,7 +91,7 @@ export const SubAgentCluster: React.FC<Props> = ({ agentId }) => {
             </div>
 
             <div className="pt-2 border-t border-[#1c1c1e] space-y-2">
-                <div className="flex gap-2">
+                <div className="flex gap-2 items-center">
                     <select
                         value={model}
                         onChange={(e) => setModel(e.target.value)}
@@ -72,24 +102,75 @@ export const SubAgentCluster: React.FC<Props> = ({ agentId }) => {
                         <option value="mistral">Mistral</option>
                         <option value="gemma">Gemma</option>
                     </select>
-                </div>
-                <div className="flex gap-2">
-                    <input
-                        className="flex-1 bg-[#000000]/20 border border-[#1c1c1e] rounded px-3 py-1.5 text-xs text-[#f5f5f7] placeholder-[#424245] focus:outline-none focus:border-[#0a84ff]/50"
-                        placeholder="Delegate sub-task..."
-                        value={taskDesc}
-                        onChange={(e) => setTaskDesc(e.target.value)}
-                        onKeyDown={(e) => e.key === 'Enter' && handleDelegate()}
-                    />
                     <button
-                        onClick={handleDelegate}
-                        disabled={!taskDesc}
-                        className="bg-[#1c1c1e] hover:bg-[#2c2c2e] text-[#f5f5f7] px-3 py-1.5 rounded-lg text-xs disabled:opacity-50 transition-all flex items-center gap-2"
+                        onClick={() => setBatchMode(!batchMode)}
+                        className={`ml-auto flex items-center gap-1.5 px-2 py-1 rounded text-[10px] font-semibold transition-colors ${
+                            batchMode
+                                ? 'bg-[#5e5ce6]/10 text-[#5e5ce6] border border-[#5e5ce6]/20'
+                                : 'text-[#424245] hover:text-[#86868b]'
+                        }`}
                     >
-                        <Play size={10} className="fill-current" />
-                        <span>Run</span>
+                        <Layers size={10} />
+                        Batch
                     </button>
                 </div>
+
+                {batchMode ? (
+                    <div className="space-y-2">
+                        {batchTasks.map((task, idx) => (
+                            <div key={idx} className="flex items-center gap-2 p-2 bg-[#000000]/30 rounded border border-[#1c1c1e]">
+                                <span className="text-[10px] font-mono text-[#5e5ce6] shrink-0">{idx + 1}.</span>
+                                <span className="text-xs text-[#f5f5f7] flex-1 truncate">{task.description}</span>
+                                <span className="text-[9px] text-[#424245] uppercase">{task.model}</span>
+                                <button onClick={() => removeBatchTask(idx)} className="text-[#424245] hover:text-red-500">
+                                    <XCircle size={12} />
+                                </button>
+                            </div>
+                        ))}
+                        <div className="flex gap-2">
+                            <input
+                                className="flex-1 bg-[#000000]/20 border border-[#1c1c1e] rounded px-3 py-1.5 text-xs text-[#f5f5f7] placeholder-[#424245] focus:outline-none focus:border-[#5e5ce6]/50"
+                                placeholder="Add task to batch..."
+                                value={batchInput}
+                                onChange={(e) => setBatchInput(e.target.value)}
+                                onKeyDown={(e) => e.key === 'Enter' && addBatchTask()}
+                            />
+                            <button
+                                onClick={addBatchTask}
+                                disabled={!batchInput}
+                                className="bg-[#1c1c1e] hover:bg-[#2c2c2e] text-[#f5f5f7] px-3 py-1.5 rounded-lg text-xs disabled:opacity-50 transition-all"
+                            >
+                                Add
+                            </button>
+                        </div>
+                        <button
+                            onClick={executeBatch}
+                            disabled={batchTasks.length === 0}
+                            className="w-full bg-[#5e5ce6]/10 hover:bg-[#5e5ce6]/20 border border-[#5e5ce6]/20 text-[#5e5ce6] px-3 py-2 rounded-lg text-xs font-semibold disabled:opacity-50 transition-all flex items-center justify-center gap-2"
+                        >
+                            <Layers size={12} />
+                            Launch {batchTasks.length} Tasks in Parallel
+                        </button>
+                    </div>
+                ) : (
+                    <div className="flex gap-2">
+                        <input
+                            className="flex-1 bg-[#000000]/20 border border-[#1c1c1e] rounded px-3 py-1.5 text-xs text-[#f5f5f7] placeholder-[#424245] focus:outline-none focus:border-[#0a84ff]/50"
+                            placeholder="Delegate sub-task..."
+                            value={taskDesc}
+                            onChange={(e) => setTaskDesc(e.target.value)}
+                            onKeyDown={(e) => e.key === 'Enter' && handleDelegate()}
+                        />
+                        <button
+                            onClick={handleDelegate}
+                            disabled={!taskDesc}
+                            className="bg-[#1c1c1e] hover:bg-[#2c2c2e] text-[#f5f5f7] px-3 py-1.5 rounded-lg text-xs disabled:opacity-50 transition-all flex items-center gap-2"
+                        >
+                            <Play size={10} className="fill-current" />
+                            <span>Run</span>
+                        </button>
+                    </div>
+                )}
             </div>
         </div>
     );

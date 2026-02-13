@@ -60,17 +60,15 @@ def test_api_vitaminize_success(test_client):
     with patch('tools.repo_orchestrator.routes.REPO_ROOT_DIR', new="/mock/repos"):
         with patch('tools.repo_orchestrator.services.repo_service.RepoService.vitaminize_repo') as mock_vit:
             mock_vit.return_value = ["file1.txt", "file2.txt"]
-            # Ensure path exists for validation - patch pathlib directly
             with patch('pathlib.Path.exists', return_value=True):
                 with patch('pathlib.Path.resolve', return_value=MagicMock(__str__=lambda x: "/mock/repos/myrepo")):
-                    with patch('tools.repo_orchestrator.routes.load_repo_registry', return_value={"repos": []}):
-                        with patch('tools.repo_orchestrator.routes.save_repo_registry'):
-                            response = test_client.post("/ui/repos/vitaminize?path=/mock/repos/myrepo")
-                            assert response.status_code == 200
-                            data = response.json()
-                            assert data["status"] == "success"
-                            assert len(data["created_files"]) == 2
-                            assert "active_repo" in data
+                    with patch('tools.repo_orchestrator.services.registry_service.RegistryService.set_active_repo'):
+                        response = test_client.post("/ui/repos/vitaminize?path=/mock/repos/myrepo")
+                        assert response.status_code == 200
+                        data = response.json()
+                        assert data["status"] == "success"
+                        assert len(data["created_files"]) == 2
+                        assert "active_repo" in data
 
 if __name__ == "__main__":
     sys.exit(pytest.main(["-v", __file__]))

@@ -12,7 +12,7 @@ export const useAgentQuality = (agentId: string | null) => {
         setLoading(true);
         try {
             const response = await fetch(`${API_BASE}/ui/agent/${agentId}/quality`, {
-                headers: { 'Authorization': 'demo-token' }
+                headers: { 'Authorization': 'Bearer demo-token' }
             });
             if (!response.ok) throw new Error('Failed to fetch quality metrics');
             const data = await response.json();

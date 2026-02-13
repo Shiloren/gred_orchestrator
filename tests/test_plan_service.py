@@ -1,37 +1,74 @@
+import pytest
+from unittest.mock import AsyncMock, patch
 from tools.repo_orchestrator.services.plan_service import PlanService
 from tools.repo_orchestrator.models import PlanUpdateRequest
 
-def test_create_plan():
+
+@pytest.fixture(autouse=True)
+def mock_ws_manager():
+    mock_mgr = AsyncMock()
+    mock_mgr.broadcast = AsyncMock()
+    with patch("tools.repo_orchestrator.ws.manager.manager", mock_mgr):
+        yield mock_mgr
+
+
+@pytest.fixture(autouse=True)
+def clear_plans():
+    PlanService._plans.clear()
+    yield
+    PlanService._plans.clear()
+
+
+@pytest.mark.asyncio
+async def test_create_plan():
     title = "Test Plan"
     desc = "Test Description"
-    plan = PlanService.create_plan(title, desc)
-    
+    plan = await PlanService.create_plan(title, desc)
+
     assert plan.title == title
     assert plan.status == "review"
     assert len(plan.tasks) == 2
     assert plan.assignments[0].agentId == "api"
 
-def test_get_plan():
+
+@pytest.mark.asyncio
+async def test_get_plan():
     title = "Fetch Plan"
     desc = "Fetch Description"
-    plan = PlanService.create_plan(title, desc)
-    
+    plan = await PlanService.create_plan(title, desc)
+
     fetched = PlanService.get_plan(plan.id)
     assert fetched is not None
     assert fetched.id == plan.id
 
-def test_approve_plan():
-    plan = PlanService.create_plan("Approve", "Approve Desc")
-    success = PlanService.approve_plan(plan.id)
-    
+
+@pytest.mark.asyncio
+async def test_approve_plan():
+    plan = await PlanService.create_plan("Approve", "Approve Desc")
+    success = await PlanService.approve_plan(plan.id)
+
     assert success is True
     assert PlanService.get_plan(plan.id).status == "approved"
 
-def test_update_plan():
-    plan = PlanService.create_plan("Update", "Update Desc")
+
+@pytest.mark.asyncio
+async def test_update_plan():
+    plan = await PlanService.create_plan("Update", "Update Desc")
     updates = PlanUpdateRequest(title="New Title", status="executing")
-    updated = PlanService.update_plan(plan.id, updates)
-    
+    updated = await PlanService.update_plan(plan.id, updates)
+
     assert updated is not None
     assert updated.title == "New Title"
     assert updated.status == "executing"
+
+
+@pytest.mark.asyncio
+async def test_get_nonexistent_plan():
+    result = PlanService.get_plan("nonexistent-id")
+    assert result is None
+
+
+@pytest.mark.asyncio
+async def test_approve_nonexistent_plan():
+    result = await PlanService.approve_plan("nonexistent-id")
+    assert result is False

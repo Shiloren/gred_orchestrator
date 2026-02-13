@@ -1,5 +1,5 @@
 import React, { useMemo } from 'react';
-import { X, Activity, Settings } from 'lucide-react';
+import { X, Activity } from 'lucide-react';
 import type { SidebarTab } from './Sidebar';
 import { LiveLogs } from './LiveLogs';
 import { AgentPlanPanel } from './AgentPlanPanel';
@@ -8,6 +8,7 @@ import { AgentQuestionCard } from './AgentQuestionCard';
 import { QualityAlertPanel } from './QualityAlertPanel';
 import AgentChat from './AgentChat';
 import { SubAgentCluster } from './SubAgentCluster';
+import { ProviderSettings } from './ProviderSettings';
 import { useNodes } from 'reactflow';
 import { GraphNode, TrustLevel } from '../types';
 
@@ -210,13 +211,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                     </>
                 )}
 
-                {sidebarTab === 'settings' && (
-                    <div className="flex flex-col items-center justify-center py-20 text-[#86868b] text-center px-6">
-                        <Settings size={32} className="mb-4 opacity-10" />
-                        <p className="text-sm font-medium italic">Global orchestration settings</p>
-                        <p className="text-[10px] mt-1">Planned for Phase 3: Trust & Confidence System</p>
-                    </div>
-                )}
+                {sidebarTab === 'settings' && <ProviderSettings />}
             </div>
         </aside>
     );

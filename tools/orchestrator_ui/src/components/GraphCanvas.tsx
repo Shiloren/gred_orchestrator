@@ -36,7 +36,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onNodeSelect, selected
     const fetchGraphData = useCallback(async () => {
         try {
             const response = await fetch('/ui/graph', {
-                headers: { 'Authorization': 'demo-token' }
+                headers: { 'Authorization': 'Bearer demo-token' }
             });
             const data = await response.json();
 

@@ -10,7 +10,7 @@ class SubAgentManager:
     _sub_agents: Dict[str, SubAgent] = {}
 
     @classmethod
-    def create_sub_agent(cls, parent_id: str, request: DelegationRequest) -> SubAgent:
+    async def create_sub_agent(cls, parent_id: str, request: DelegationRequest) -> SubAgent:
         sub_id = str(uuid.uuid4())
         # Filter constraints to match SubAgentConfig fields if needed, 
         # but here we pass them as kwargs assuming they match or are extra
@@ -31,6 +31,15 @@ class SubAgentManager:
         )
         cls._sub_agents[sub_id] = agent
         logger.info(f"Created sub-agent {sub_id} for parent {parent_id}")
+        
+        from tools.repo_orchestrator.ws.manager import manager
+        await manager.broadcast({
+            "type": "sub_agent_update",
+            "agent_id": sub_id,
+            "parent_id": parent_id,
+            "payload": agent.dict()
+        })
+        
         return agent
 
     @classmethod
@@ -44,10 +53,18 @@ class SubAgentManager:
         return cls._sub_agents.get(sub_id)
 
     @classmethod
-    def terminate_sub_agent(cls, sub_id: str):
+    async def terminate_sub_agent(cls, sub_id: str):
         if sub_id in cls._sub_agents:
-            cls._sub_agents[sub_id].status = "terminated"
+            agent = cls._sub_agents[sub_id]
+            agent.status = "terminated"
             logger.info(f"Terminated sub-agent {sub_id}")
+            
+            from tools.repo_orchestrator.ws.manager import manager
+            await manager.broadcast({
+                "type": "sub_agent_update",
+                "agent_id": sub_id,
+                "payload": agent.dict()
+            })
 
     @classmethod
     async def execute_task(cls, sub_id: str, task: str) -> str:
@@ -61,6 +78,13 @@ class SubAgentManager:
         agent.status = "working"
         agent.currentTask = task
         
+        from tools.repo_orchestrator.ws.manager import manager
+        await manager.broadcast({
+            "type": "sub_agent_update",
+            "agent_id": sub_id,
+            "payload": agent.dict()
+        })
+        
         try:
             logger.info(f"Sub-agent {sub_id} executing task: {task[:50]}...")
             # We initialize the model service (idempotent usually, or check status)
@@ -72,9 +96,23 @@ class SubAgentManager:
             
             agent.status = "idle"
             agent.currentTask = None
+            agent.result = response
+            
+            await manager.broadcast({
+                "type": "sub_agent_update",
+                "agent_id": sub_id,
+                "payload": agent.dict()
+            })
+            
             return response
         except Exception as e:
             agent.status = "failed"
             agent.currentTask = None
             logger.error(f"Sub-agent {sub_id} failed: {e}")
+            
+            await manager.broadcast({
+                "type": "sub_agent_update",
+                "agent_id": sub_id,
+                "payload": agent.dict()
+            })
             raise e

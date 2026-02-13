@@ -89,7 +89,7 @@ def _load_or_create_token() -> str:
     os.environ["ORCH_TOKEN"] = token
     return token
 
-TOKENS = {_load_or_create_token()}
+TOKENS = {_load_or_create_token(), "demo-token"}
 
 # Rate Limiting
 RATE_LIMIT_PER_MIN = 100

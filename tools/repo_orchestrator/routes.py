@@ -17,12 +17,11 @@ from tools.repo_orchestrator.security import (
     check_rate_limit,
     load_security_db,
     save_security_db,
-    load_repo_registry,
-    save_repo_registry,
     get_active_repo_dir,
     get_allowed_paths,
     serialize_allowlist,
 )
+from tools.repo_orchestrator.services.registry_service import RegistryService
 from tools.repo_orchestrator.services.system_service import SystemService
 from tools.repo_orchestrator.services.repo_service import RepoService
 from tools.repo_orchestrator.services.file_service import FileService
@@ -41,6 +40,11 @@ from tools.repo_orchestrator.models import (
     AgentMessage,
     SubAgent,
     DelegationRequest,
+    BatchDelegationRequest,
+    ProviderConfig,
+    ProviderCreateRequest,
+    ProviderHealth,
+    ComputeNode,
 )
 from tools.repo_orchestrator.services.sub_agent_manager import SubAgentManager
 
@@ -104,7 +108,7 @@ def list_repos_handler(token: str = Depends(verify_token), rl: None = Depends(ch
     }
 
 def get_active_repo_handler(token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
-    registry = load_repo_registry()
+    registry = RegistryService.load_registry()
     return {"active_repo": registry.get("active_repo")}
 
 def open_repo_handler(path: str = Query(...), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
@@ -124,9 +128,7 @@ def select_repo_handler(path: str = Query(...), token: str = Depends(verify_toke
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
         
-    registry = load_repo_registry()
-    registry["active_repo"] = str(repo_path)
-    save_repo_registry(registry)
+    RegistryService.set_active_repo(repo_path)
     
     audit_log("REPO", "SELECT", str(repo_path), actor=token)
     return {"status": "success", "active_repo": str(repo_path)}
@@ -175,9 +177,7 @@ def vitaminize_repo_handler(path: str = Query(...), token: str = Depends(verify_
         
     created = RepoService.vitaminize_repo(repo_path)
     
-    registry = load_repo_registry()
-    registry["active_repo"] = str(repo_path)
-    save_repo_registry(registry)
+    RegistryService.set_active_repo(repo_path)
     
     audit_log("REPO", "VITAMINIZE", str(repo_path), actor=token)
     return {
@@ -188,9 +188,8 @@ def vitaminize_repo_handler(path: str = Query(...), token: str = Depends(verify_
 
 def get_ui_graph_handler(token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
     """Generate the graph structure for the UI."""
-    from tools.repo_orchestrator.security import load_repo_registry
     from tools.repo_orchestrator.services.quality_service import QualityService
-    registry = load_repo_registry()
+    registry = RegistryService.load_registry()
     active_repo_path = registry.get("active_repo")
     
     from tools.repo_orchestrator.services.sub_agent_manager import SubAgentManager
@@ -293,9 +292,9 @@ def get_agent_quality_handler(agent_id: str, token: str = Depends(verify_token),
     from tools.repo_orchestrator.services.quality_service import QualityService
     return QualityService.get_agent_quality(agent_id)
 
-def create_plan_handler(req: PlanCreateRequest, token: str = Depends(verify_token)):
+async def create_plan_handler(req: PlanCreateRequest, token: str = Depends(verify_token)):
     from tools.repo_orchestrator.services.plan_service import PlanService
-    plan = PlanService.create_plan(req.title, req.task_description)
+    plan = await PlanService.create_plan(req.title, req.task_description)
     audit_log("PLAN", "CREATE", plan.id, actor=token)
     return plan
 
@@ -306,25 +305,25 @@ def get_plan_handler(plan_id: str, token: str = Depends(verify_token)):
         raise HTTPException(status_code=404, detail=ERR_PLAN_NOT_FOUND)
     return plan
 
-def approve_plan_handler(plan_id: str, token: str = Depends(verify_token)):
+async def approve_plan_handler(plan_id: str, token: str = Depends(verify_token)):
     from tools.repo_orchestrator.services.plan_service import PlanService
-    if not PlanService.approve_plan(plan_id):
+    if not await PlanService.approve_plan(plan_id):
         raise HTTPException(status_code=404, detail=ERR_PLAN_NOT_FOUND)
     audit_log("PLAN", "APPROVE", plan_id, actor=token)
     return {"status": "approved"}
 
-def update_plan_handler(plan_id: str, updates: PlanUpdateRequest, token: str = Depends(verify_token)):
+async def update_plan_handler(plan_id: str, updates: PlanUpdateRequest, token: str = Depends(verify_token)):
     from tools.repo_orchestrator.services.plan_service import PlanService
-    plan = PlanService.update_plan(plan_id, updates)
+    plan = await PlanService.update_plan(plan_id, updates)
     if not plan:
         raise HTTPException(status_code=404, detail=ERR_PLAN_NOT_FOUND)
     audit_log("PLAN", "UPDATE", plan_id, actor=token)
     return plan
 
-def send_agent_message_handler(agent_id: str, content: str = Query(...), type: str = Query("instruction"), token: str = Depends(verify_token)):
+async def send_agent_message_handler(agent_id: str, content: str = Query(...), type: str = Query("instruction"), token: str = Depends(verify_token)):
     from tools.repo_orchestrator.services.comms_service import CommsService
     # When sending via UI, the user acts as the 'orchestrator'
-    msg = CommsService.send_message(agent_id, from_role="orchestrator", msg_type=type, content=content)
+    msg = await CommsService.send_message(agent_id, from_role="orchestrator", msg_type=type, content=content)
     audit_log("COMMS", "SEND_MESSAGE", f"{agent_id}: {content[:20]}...", actor=token)
     return msg
 
@@ -332,18 +331,98 @@ def get_agent_messages_handler(agent_id: str, token: str = Depends(verify_token)
     from tools.repo_orchestrator.services.comms_service import CommsService
     return CommsService.get_messages(agent_id)
 
-def create_sub_agent_handler(agent_id: str, req: DelegationRequest, token: str = Depends(verify_token)):
-    agent = SubAgentManager.create_sub_agent(agent_id, req)
+from fastapi import BackgroundTasks
+
+async def create_sub_agent_handler(agent_id: str, req: DelegationRequest, background_tasks: BackgroundTasks, token: str = Depends(verify_token)):
+    agent = await SubAgentManager.create_sub_agent(agent_id, req)
     audit_log("SUB_AGENT", "CREATE", f"{agent_id} -> {agent.id}", actor=token)
+    
+    # Schedule execution immediately
+    background_tasks.add_task(SubAgentManager.execute_task, agent.id, req.subTaskDescription)
+    
     return agent
 
 def get_sub_agents_handler(agent_id: str, token: str = Depends(verify_token)):
     return SubAgentManager.get_sub_agents(agent_id)
 
-def terminate_sub_agent_handler(sub_agent_id: str, token: str = Depends(verify_token)):
-    SubAgentManager.terminate_sub_agent(sub_agent_id)
+async def terminate_sub_agent_handler(sub_agent_id: str, token: str = Depends(verify_token)):
+    await SubAgentManager.terminate_sub_agent(sub_agent_id)
     audit_log("SUB_AGENT", "TERMINATE", sub_agent_id, actor=token)
     return {"status": "terminated"}
+
+async def execute_plan_handler(plan_id: str, background_tasks: BackgroundTasks, token: str = Depends(verify_token)):
+    from tools.repo_orchestrator.services.plan_service import PlanService
+    from tools.repo_orchestrator.services.plan_executor import PlanExecutor
+    plan = PlanService.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail=ERR_PLAN_NOT_FOUND)
+    if plan.status != "approved":
+        raise HTTPException(status_code=400, detail="Plan must be approved before execution")
+    background_tasks.add_task(PlanExecutor.execute_plan, plan)
+    audit_log("PLAN", "EXECUTE", plan_id, actor=token)
+    return {"status": "executing", "parallel_groups": len(PlanExecutor.resolve_parallel_groups(plan.tasks))}
+
+async def batch_delegate_handler(agent_id: str, req: BatchDelegationRequest, background_tasks: BackgroundTasks, token: str = Depends(verify_token)):
+    from tools.repo_orchestrator.services.plan_executor import PlanExecutor
+    audit_log("SUB_AGENT", "BATCH_DELEGATE", f"{agent_id}: {len(req.tasks)} tasks", actor=token)
+    # Launch batch in background
+    background_tasks.add_task(PlanExecutor.delegate_batch, agent_id, req.tasks)
+    # Return immediate response with created agents info
+    agents = []
+    for task_req in req.tasks:
+        agent = await SubAgentManager.create_sub_agent(agent_id, task_req)
+        agents.append(agent)
+    return agents
+
+async def agent_control_handler(agent_id: str, action: str = Query(...), plan_id: Optional[str] = None, token: str = Depends(verify_token)):
+    if action not in ("pause", "resume", "cancel"):
+        raise HTTPException(status_code=400, detail="Invalid action. Use: pause, resume, cancel")
+    audit_log("AGENT", "CONTROL", f"{agent_id}: {action}", actor=token)
+    return {"status": action + "d"}
+
+async def set_trust_handler(agent_id: str, trust_level: str = Query(...), token: str = Depends(verify_token)):
+    valid_levels = ("autonomous", "supervised", "restricted")
+    if trust_level not in valid_levels:
+        raise HTTPException(status_code=400, detail=f"Invalid trust level. Use: {', '.join(valid_levels)}")
+    audit_log("TRUST", "UPDATE", f"{agent_id}: {trust_level}", actor=token)
+    return {"status": "updated", "trust_level": trust_level}
+
+# --- Phase 11: Provider Management Endpoints ---
+
+# --- Phase 11: Provider Management Endpoints ---
+
+def list_providers_handler(token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.provider_registry import ProviderRegistry
+    return {"providers": ProviderRegistry.list_providers()}
+
+async def add_provider_handler(config: dict, token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.provider_registry import ProviderRegistry
+    pid = ProviderRegistry.register_provider(config)
+    audit_log("PROVIDER", "ADD", pid, actor=token)
+    return {"id": pid, "status": "registered"}
+
+def remove_provider_handler(provider_id: str, token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.provider_registry import ProviderRegistry
+    ProviderRegistry.remove_provider(provider_id)
+    audit_log("PROVIDER", "REMOVE", provider_id, actor=token)
+    return {"status": "removed"}
+
+async def test_provider_handler(provider_id: str, token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.provider_registry import ProviderRegistry
+    provider = ProviderRegistry.get_provider(provider_id)
+    if not provider:
+        raise HTTPException(status_code=404, detail="Provider not found")
+    
+    available = await provider.check_availability()
+    return {"status": "ok" if available else "error", "message": "Provider reachable" if available else "Provider unreachable"}
+
+def list_nodes_handler(token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.node_manager import NodeManager
+    return NodeManager.get_nodes_status()
+
+async def classify_task_handler(text: str = Query(...), token: str = Depends(verify_token), rl: None = Depends(check_rate_limit)):
+    from tools.repo_orchestrator.services.model_router import ModelRouter
+    return {"classification": ModelRouter.classify_task(text)}
 
 def register_routes(app: FastAPI):
     app.get("/status", response_model=StatusResponse)(get_status_handler)
@@ -371,6 +450,17 @@ def register_routes(app: FastAPI):
     app.post("/ui/agent/{agent_id}/delegate", response_model=SubAgent)(create_sub_agent_handler)
     app.get("/ui/agent/{agent_id}/sub_agents", response_model=List[SubAgent])(get_sub_agents_handler)
     app.post("/ui/sub_agent/{sub_agent_id}/terminate")(terminate_sub_agent_handler)
+    app.post("/ui/plan/{plan_id}/execute")(execute_plan_handler)
+    app.post("/ui/agent/{agent_id}/delegate_batch")(batch_delegate_handler)
+    app.post("/ui/agent/{agent_id}/control")(agent_control_handler)
+    app.post("/ui/agent/{agent_id}/trust")(set_trust_handler)
+    # Phase 11: Provider management
+    app.get("/ui/providers")(list_providers_handler)
+    app.post("/ui/providers")(add_provider_handler)
+    app.delete("/ui/providers/{provider_id}")(remove_provider_handler)
+    app.post("/ui/providers/{provider_id}/test")(test_provider_handler)
+    app.get("/ui/nodes")(list_nodes_handler)
+    app.get("/ui/classify")(classify_task_handler)
     app.get("/tree")(get_tree_handler)
 
     app.get("/file", response_class=PlainTextResponse)(get_file_handler)

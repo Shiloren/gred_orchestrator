@@ -1,5 +1,5 @@
-import React, { useState, useEffect, useRef } from 'react';
-import { Terminal, Activity } from 'lucide-react';
+import { useState, useEffect, useRef } from 'react';
+import { Terminal } from 'lucide-react';
 
 export const LiveLogs = () => {
     const [logs, setLogs] = useState<string[]>([]);
@@ -9,7 +9,7 @@ export const LiveLogs = () => {
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/ui/audit?limit=50', {
-                    headers: { 'Authorization': 'demo-token' }
+                    headers: { 'Authorization': 'Bearer demo-token' }
                 });
                 const data = await response.json();
                 if (data.lines) {
@@ -32,7 +32,7 @@ export const LiveLogs = () => {
     }, [logs]);
 
     return (
-        <div className="bg-[#000000] border border-[#38383a] rounded-xl overflow-hidden flex flex-col h-[300px] shadow-inner">
+        <div className="bg-[#000000] border border-[#38383a] rounded-xl overflow-hidden flex flex-col flex-1 shadow-inner">
             <div className="bg-[#1c1c1e] px-4 py-2 border-b border-[#38383a] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Terminal size={14} className="text-[#86868b]" />

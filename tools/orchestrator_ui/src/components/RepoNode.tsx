@@ -1,4 +1,4 @@
-import React, { memo } from 'react';
+import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { FolderGit2 } from 'lucide-react';
 

@@ -25,28 +25,28 @@
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Statements</span>
-                <span class='fraction'>109/109</span>
+                <span class='fraction'>120/120</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">94.73% </span>
+                <span class="strong">90.9% </span>
                 <span class="quiet">Branches</span>
-                <span class='fraction'>18/19</span>
+                <span class='fraction'>20/22</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
-                <span class="strong">100% </span>
+                <span class="strong">50% </span>
                 <span class="quiet">Functions</span>
-                <span class='fraction'>2/2</span>
+                <span class='fraction'>2/4</span>
             </div>
         
             
             <div class='fl pad1y space-right2'>
                 <span class="strong">100% </span>
                 <span class="quiet">Lines</span>
-                <span class='fraction'>109/109</span>
+                <span class='fraction'>120/120</span>
             </div>
         
             
@@ -172,7 +172,20 @@
 <a name='L107'></a><a href='#L107'>107</a>
 <a name='L108'></a><a href='#L108'>108</a>
 <a name='L109'></a><a href='#L109'>109</a>
-<a name='L110'></a><a href='#L110'>110</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<a name='L110'></a><a href='#L110'>110</a>
+<a name='L111'></a><a href='#L111'>111</a>
+<a name='L112'></a><a href='#L112'>112</a>
+<a name='L113'></a><a href='#L113'>113</a>
+<a name='L114'></a><a href='#L114'>114</a>
+<a name='L115'></a><a href='#L115'>115</a>
+<a name='L116'></a><a href='#L116'>116</a>
+<a name='L117'></a><a href='#L117'>117</a>
+<a name='L118'></a><a href='#L118'>118</a>
+<a name='L119'></a><a href='#L119'>119</a>
+<a name='L120'></a><a href='#L120'>120</a>
+<a name='L121'></a><a href='#L121'>121</a></td><td class="line-coverage quiet"><span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -190,6 +203,7 @@
 <span class="cline-any cline-yes">15x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">1x</span>
 <span class="cline-any cline-yes">1x</span>
@@ -267,6 +281,14 @@
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
 <span class="cline-any cline-yes">5x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
+<span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
 <span class="cline-any cline-yes">6x</span>
@@ -284,9 +306,11 @@
 <span class="cline-any cline-neutral">&nbsp;</span></td><td class="text"><pre class="prettyprint lang-js">import React from 'react';
 import { CheckCircle2, Circle, PlayCircle, XCircle, MessageSquare, ListTodo } from 'lucide-react';
 import { AgentPlan, TaskStatus } from '../types';
+import { useAgentControl } from '../hooks/useAgentControl';
 &nbsp;
 interface AgentPlanPanelProps {
     plan?: AgentPlan;
+    agentId?: string;
 }
 &nbsp;
 const StatusIcon = ({ status }: { status: TaskStatus }) =&gt; {
@@ -298,7 +322,8 @@ const StatusIcon = ({ status }: { status: TaskStatus }) =&gt; {
     }
 };
 &nbsp;
-export const AgentPlanPanel: React.FC&lt;AgentPlanPanelProps&gt; = ({ plan }) =&gt; {
+export const AgentPlanPanel: React.FC&lt;AgentPlanPanelProps&gt; = ({ plan, agentId }) =&gt; {
+    const { paused, loading, pauseAgent, resumeAgent, cancelPlan } = useAgentControl(agentId ?? null);
     if (!plan) {
         return (
             &lt;div className="flex flex-col items-center justify-center py-12 text-[#86868b] text-center px-6"&gt;
@@ -380,10 +405,18 @@ export const AgentPlanPanel: React.FC&lt;AgentPlanPanelProps&gt; = ({ plan }) =&
 &nbsp;
             {/* Agent Controls */}
             &lt;div className="pt-4 flex gap-2"&gt;
-                &lt;button className="flex-1 h-9 rounded-lg bg-[#1c1c1e] border border-[#2c2c2e] text-[11px] font-semibold text-[#f5f5f7] hover:bg-[#2c2c2e] transition-colors"&gt;
-                    Pause Agent
+                &lt;button
+                    onClick={<span class="fstat-no" title="function not covered" >() =&gt; paused ? resumeAgent() : pauseAgent()}</span>
+                    disabled={loading}
+                    className="flex-1 h-9 rounded-lg bg-[#1c1c1e] border border-[#2c2c2e] text-[11px] font-semibold text-[#f5f5f7] hover:bg-[#2c2c2e] transition-colors disabled:opacity-50"
+                &gt;
+                    {<span class="branch-0 cbranch-no" title="branch not covered" >paused ? 'Resume Agent' : '</span>Pause Agent'}
                 &lt;/button&gt;
-                &lt;button className="flex-1 h-9 rounded-lg bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[11px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/20 transition-colors"&gt;
+                &lt;button
+                    onClick={<span class="fstat-no" title="function not covered" >() =&gt; plan &amp;&amp; cancelPlan(plan.id)}</span>
+                    disabled={loading || !plan}
+                    className="flex-1 h-9 rounded-lg bg-[#ff3b30]/10 border border-[#ff3b30]/20 text-[11px] font-semibold text-[#ff3b30] hover:bg-[#ff3b30]/20 transition-colors disabled:opacity-50"
+                &gt;
                     Cancel Plan
                 &lt;/button&gt;
             &lt;/div&gt;
@@ -397,7 +430,7 @@ export const AgentPlanPanel: React.FC&lt;AgentPlanPanelProps&gt; = ({ plan }) =&
             <div class='footer quiet pad2 space-top1 center small'>
                 Code coverage generated by
                 <a href="https://istanbul.js.org/" target="_blank" rel="noopener noreferrer">istanbul</a>
-                at 2026-02-13T09:06:14.922Z
+                at 2026-02-13T10:53:30.443Z
             </div>
         <script src="../../prettify.js"></script>
         <script>

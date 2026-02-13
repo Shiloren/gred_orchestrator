@@ -16,6 +16,7 @@ from tools.repo_orchestrator.config import (
 from tools.repo_orchestrator.services.snapshot_service import SnapshotService
 from tools.repo_orchestrator.routes import register_routes
 from tools.repo_orchestrator.security.audit import audit_log
+from tools.repo_orchestrator.ws.endpoints import router as ws_router
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -105,6 +106,7 @@ async def allow_options_preflight(request: Request, call_next):
 
 # Register all API routes
 register_routes(app)
+app.include_router(ws_router)
 
 # Static Files & SPA Routing
 frontend_dist = BASE_DIR / "tools" / "orchestrator_ui" / "dist"

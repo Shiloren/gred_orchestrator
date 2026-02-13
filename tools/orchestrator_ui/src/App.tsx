@@ -8,6 +8,7 @@ import { UiStatusResponse, PlanCreateRequest } from './types';
 import { usePlanEngine } from './hooks/usePlanEngine';
 import { PlanBuilder } from './components/PlanBuilder';
 import { PlanReview } from './components/PlanReview';
+import { ReactFlowProvider } from 'reactflow';
 
 export default function App() {
     const [status, setStatus] = useState<UiStatusResponse | null>(null);
@@ -21,7 +22,7 @@ export default function App() {
         const fetchStatus = async () => {
             try {
                 const response = await fetch('/ui/status', {
-                    headers: { 'Authorization': 'demo-token' }
+                    headers: { 'Authorization': 'Bearer demo-token' }
                 });
                 const data = await response.json();
                 setStatus(data);
@@ -71,42 +72,44 @@ export default function App() {
             </header>
 
             <div className="flex flex-1 overflow-hidden">
-                <Sidebar
-                    activeTab={activeTab}
-                    onTabChange={(tab) => {
-                        setActiveTab(tab);
-                        setInspectOpen(true);
-                    }}
-                />
-
-                <main role="main" className="flex-1 relative overflow-hidden">
-                    <GraphCanvas
-                        onNodeSelect={handleNodeSelect}
-                        selectedNodeId={selectedNodeId}
-                    />
-                </main>
-
-                {inspectOpen && (
-                    <InspectPanel
+                <ReactFlowProvider>
+                    <Sidebar
                         activeTab={activeTab}
-                        selectedNodeId={selectedNodeId}
-                        onClose={() => setInspectOpen(false)}
-                    >
-                        {activeTab === 'plans' && (
-                            currentPlan ? (
-                                <PlanReview
-                                    plan={currentPlan}
-                                    onApprove={handleApprovePlan}
-                                    onModify={() => console.log('Modify')}
-                                    loading={loading}
-                                />
-                            ) : (
-                                <PlanBuilder onCreate={handleCreatePlan} loading={loading} />
-                            )
-                        )}
-                        {activeTab === 'maintenance' && <MaintenanceIsland />}
-                    </InspectPanel>
-                )}
+                        onTabChange={(tab) => {
+                            setActiveTab(tab);
+                            setInspectOpen(true);
+                        }}
+                    />
+
+                    <main role="main" className="flex-1 relative overflow-hidden">
+                        <GraphCanvas
+                            onNodeSelect={handleNodeSelect}
+                            selectedNodeId={selectedNodeId}
+                        />
+                    </main>
+
+                    {inspectOpen && (
+                        <InspectPanel
+                            activeTab={activeTab}
+                            selectedNodeId={selectedNodeId}
+                            onClose={() => setInspectOpen(false)}
+                        >
+                            {activeTab === 'plans' && (
+                                currentPlan ? (
+                                    <PlanReview
+                                        plan={currentPlan}
+                                        onApprove={handleApprovePlan}
+                                        onModify={() => console.log('Modify')}
+                                        loading={loading}
+                                    />
+                                ) : (
+                                    <PlanBuilder onCreate={handleCreatePlan} loading={loading} />
+                                )
+                            )}
+                            {activeTab === 'maintenance' && <MaintenanceIsland />}
+                        </InspectPanel>
+                    )}
+                </ReactFlowProvider>
             </div>
 
             <footer role="contentinfo" className="h-8 border-t border-[#2c2c2e] bg-[#0a0a0a] flex items-center justify-between px-4 text-[10px] text-[#424245] uppercase tracking-widest shrink-0">

@@ -1,10 +1,18 @@
 import { useState, useCallback } from 'react';
 import { Plan, PlanCreateRequest, API_BASE } from '../types';
+import { useSocketSubscription } from './useRealtimeChannel';
 
 export function usePlanEngine() {
     const [currentPlan, setCurrentPlan] = useState<Plan | null>(null);
     const [loading, setLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
+
+    // Real-time updates
+    useSocketSubscription('plan_update', (updatedPlan: Plan) => {
+        if (currentPlan?.id === updatedPlan.id) {
+            setCurrentPlan(updatedPlan);
+        }
+    }, [currentPlan]);
 
     const createPlan = useCallback(async (req: PlanCreateRequest) => {
         setLoading(true);
@@ -52,9 +60,7 @@ export function usePlanEngine() {
                 method: 'POST',
             });
             if (!response.ok) throw new Error('Failed to approve plan');
-            if (currentPlan?.id === planId) {
-                setCurrentPlan({ ...currentPlan, status: 'approved' });
-            }
+            // Optimistic update not needed as socket will trigger
             return true;
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
@@ -62,7 +68,7 @@ export function usePlanEngine() {
         } finally {
             setLoading(false);
         }
-    }, [currentPlan]);
+    }, []);
 
     const updatePlan = useCallback(async (planId: string, updates: Partial<Plan>) => {
         setLoading(true);

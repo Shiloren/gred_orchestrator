@@ -10,10 +10,9 @@ from tools.repo_orchestrator.config import (
     SEARCH_EXCLUDE_DIRS,
 )
 from tools.repo_orchestrator.security import (
-    load_repo_registry,
-    save_repo_registry,
     redact_sensitive_data,
 )
+from tools.repo_orchestrator.services.registry_service import RegistryService
 from tools.repo_orchestrator.services.git_service import GitService
 from tools.repo_orchestrator.models import RepoEntry
 
@@ -25,20 +24,7 @@ class RepoService:
 
     @staticmethod
     def ensure_repo_registry(repos: List[RepoEntry]) -> dict:
-        registry = load_repo_registry()
-        registry_paths = {Path(r).resolve() for r in registry.get("repos", [])}
-        for repo in repos:
-            repo_path = Path(repo.path).resolve()
-            if repo_path not in registry_paths:
-                registry["repos"].append(str(repo_path))
-        
-        if registry.get("active_repo"):
-            active = Path(registry["active_repo"]).resolve()
-            if active not in registry_paths:
-                registry["active_repo"] = str(active)
-        
-        save_repo_registry(registry)
-        return registry
+        return RegistryService.ensure_repo_in_registry(repos)
 
     @staticmethod
     def vitaminize_repo(target_repo: Path) -> List[str]:
