@@ -9,24 +9,27 @@ import {
     Square,
     FileText,
     Search,
-    Filter,
     ChevronDown,
     Terminal,
-    AlertCircle,
     ShieldCheck,
     Download,
     FlaskConical,
     ShieldAlert,
-    Database
+    Database,
+    ExternalLink,
+    Clock,
 } from 'lucide-react';
-import { Accordion } from '../../components/Accordion';
+
+import { API_BASE } from '../../types';
 
 interface MaintenanceIslandProps {
     token?: string;
 }
 
+type AuditFilter = 'all' | 'read' | 'deny' | 'system';
+
 export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) => {
-    const { status, isLoading: isServiceLoading, restart, stop, error: serviceError } = useSystemService(token);
+    const { status, isLoading: isServiceLoading, error: serviceError, restart, stop } = useSystemService(token);
     const {
         logs,
         rawLogs,
@@ -36,27 +39,78 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
         setSearchTerm,
         refresh: refreshLogs
     } = useAuditLog(token);
-    const { panicMode, events, clearPanic, isLoading: isSecurityLoading } = useSecurityService(token);
-    const { repos, activeRepo, vitaminize, selectRepo, isLoading: isRepoLoading } = useRepoService(token);
+    const security = useSecurityService(token);
+    // Prefer "LOCKDOWN" terminology, but keep compatibility with older return shapes.
+    const lockdown = security.lockdown ?? security.panicMode;
+    const clearLockdown = security.clearLockdown ?? security.clearPanic;
+    const isSecurityLoading = security.isLoading;
+    const { repos, activeRepo, bootstrap, selectRepo, isLoading: isRepoLoading } = useRepoService(token);
 
     const [selectedRepoPath, setSelectedRepoPath] = useState<string>('');
 
-    const getStatusColor = () => {
-        if (panicMode) return 'text-red-500 bg-red-500/10 border-red-500/40 animate-pulse';
+    const apiLabel = (() => {
+        try {
+            const url = new URL(API_BASE);
+            return url.port ? `${url.hostname}:${url.port}` : url.hostname;
+        } catch {
+            return 'API';
+        }
+    })();
+
+    const getStatusTheme = () => {
+        if (lockdown) return {
+            color: 'text-red-500',
+            bg: 'bg-red-500/10',
+            border: 'border-red-500/30',
+            label: 'LOCKDOWN'
+        };
+
         switch (status) {
-            case 'RUNNING': return 'text-emerald-400 bg-emerald-500/10 border-emerald-500/20';
-            case 'STOPPED': return 'text-red-400 bg-red-500/10 border-red-500/20';
+            case 'RUNNING':
+                return {
+                    color: 'text-emerald-400',
+                    bg: 'bg-emerald-500/10',
+                    border: 'border-emerald-500/20',
+                    label: 'RUNNING'
+                };
             case 'STARTING':
-            case 'STOPPING': return 'text-amber-400 bg-amber-500/10 border-amber-500/20 animate-pulse';
-            default: return 'text-slate-400 bg-slate-500/10 border-slate-500/20';
+                return {
+                    color: 'text-amber-400',
+                    bg: 'bg-amber-500/10',
+                    border: 'border-amber-500/20',
+                    label: 'STARTING'
+                };
+            case 'STOPPING':
+                return {
+                    color: 'text-amber-400',
+                    bg: 'bg-amber-500/10',
+                    border: 'border-amber-500/20',
+                    label: 'STOPPING'
+                };
+            case 'STOPPED':
+                return {
+                    color: 'text-red-400',
+                    bg: 'bg-red-500/10',
+                    border: 'border-red-500/20',
+                    label: 'STOPPED'
+                };
+            default:
+                return {
+                    color: 'text-zinc-500',
+                    bg: 'bg-zinc-500/10',
+                    border: 'border-zinc-500/20',
+                    label: 'UNKNOWN'
+                };
         }
     };
 
+    const theme = getStatusTheme();
+
     const getLogClass = (log: string): string => {
-        if (log.includes('DENIED')) return 'text-red-400 bg-red-400/5 px-2 rounded';
+        if (log.includes('DENIED')) return 'text-red-400 bg-red-400/5 px-2 rounded border border-red-500/10';
         if (log.includes('READ')) return 'text-blue-400';
         if (log.includes('SYSTEM')) return 'text-amber-400';
-        return 'text-slate-400';
+        return 'text-zinc-400';
     };
 
     const handleExport = () => {
@@ -71,212 +125,218 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
     };
 
     return (
-        <div className="flex flex-col space-y-4 animate-fade-in">
-            {/* Panic Mode Banner */}
-            {panicMode && (
-                <div className="p-4 rounded-2xl bg-red-600/20 border border-red-500/50 flex flex-col space-y-3 shadow-2xl overflow-hidden relative">
-                    <div className="absolute top-0 right-0 p-2 opacity-10">
-                        <ShieldAlert className="w-12 h-12" />
-                    </div>
-                    <div className="flex items-center space-x-3">
-                        <ShieldAlert className="w-6 h-6 text-red-500" />
-                        <div>
-                            <p className="text-xs font-black uppercase tracking-widest text-red-400">Security Lockdown</p>
-                            <p className="text-sm font-bold text-white">System in Panic Mode</p>
+        <div className="flex flex-col space-y-8">
+            {serviceError && (
+                <div className="p-4 bg-red-500/10 border border-red-500/20 rounded-2xl flex items-center space-x-3 text-red-400 text-xs animate-fade-in">
+                    <ShieldAlert className="w-4 h-4 shrink-0" />
+                    <span className="flex-1">{serviceError}</span>
+                </div>
+            )}
+            {/* Top Grid: Status & Controls */}
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                {/* System Core status */}
+                <div className={`glass-card p-6 flex flex-col justify-between overflow-hidden relative`}>
+                    <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-4">
+                            <div className={`p-3 rounded-2xl ${theme.bg} ${theme.color} border ${theme.border} relative`}>
+                                <Activity className="w-6 h-6" />
+                                {status === 'RUNNING' && !lockdown && (
+                                    <div className="absolute inset-0 rounded-2xl animate-pulse-ring bg-emerald-500/20" />
+                                )}
+                            </div>
+                            <div>
+                                <h3 className="text-[10px] font-black uppercase tracking-[0.2em] opacity-40 mb-1">Status</h3>
+                                <div className="flex items-center space-x-2">
+                                    <span className={`text-xl font-black ${theme.color}`}>{theme.label}</span>
+                                    {!isServiceLoading && <div className={`w-1.5 h-1.5 rounded-full ${status === 'RUNNING' ? 'bg-emerald-500' : 'bg-red-500'}`} />}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="flex space-x-2">
+                            <button
+                                onClick={restart}
+                                title="Restart Service"
+                                disabled={isServiceLoading || lockdown}
+                                className="p-2.5 rounded-xl bg-white/5 hover:bg-white/10 border border-white/5 transition-all disabled:opacity-30 group"
+                            >
+                                <RefreshCcw className={`w-4 h-4 text-zinc-400 group-hover:text-white ${isServiceLoading ? 'animate-spin' : ''}`} />
+                            </button>
+                            <button
+                                onClick={stop}
+                                title="Stop Service"
+                                disabled={isServiceLoading || status === 'STOPPED' || lockdown}
+                                className="p-2.5 rounded-xl bg-red-500/5 hover:bg-red-500/10 border border-red-500/10 transition-all disabled:opacity-30 group"
+                            >
+                                <Square className="w-4 h-4 text-red-500/60 group-hover:text-red-500" />
+                            </button>
                         </div>
                     </div>
-                    <button
-                        onClick={clearPanic}
-                        disabled={isSecurityLoading}
-                        className="w-full py-3 bg-red-500 hover:bg-red-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95"
-                    >
-                        {isSecurityLoading ? 'Processing...' : 'Deactivate Lockdown'}
-                    </button>
-                    {events.length > 0 && (
-                        <div className="space-y-1.5 max-h-32 overflow-y-auto custom-scrollbar">
-                            {events.map((ev) => (
-                                <div key={`event-${ev.timestamp}`} className="text-xs font-mono text-red-300 bg-red-900/20 p-2 rounded-lg border border-red-500/10">
-                                    <span className="opacity-60">{ev.timestamp}</span> | {ev.reason}
-                                </div>
-                            ))}
+                    <div className="mt-6 flex items-center justify-between text-[11px] font-medium text-zinc-500">
+                        <div className="flex items-center space-x-2">
+                            <Clock className="w-3 h-3 opacity-40" />
+                            <span>Uptime: —</span>
+                        </div>
+                        <div className="flex items-center space-x-2">
+                            <Database className="w-3 h-3 opacity-40" />
+                            <span>{apiLabel}</span>
+                        </div>
+                    </div>
+                </div>
+
+                {/* Security Lockdown Control */}
+                {lockdown ? (
+                    <div className="glass-card p-6 bg-red-500/5 border-red-500/20 flex flex-col justify-between">
+                        <div className="flex items-center space-x-3 text-red-500 mb-4">
+                            <ShieldAlert className="w-6 h-6" />
+                            <span className="text-sm font-black uppercase tracking-widest">Security: LOCKDOWN</span>
+                        </div>
+                        <p className="text-xs text-red-400 mb-6 font-medium">Lockdown is active. File access requests are blocked.</p>
+                        <button
+                            onClick={clearLockdown}
+                            disabled={isSecurityLoading}
+                            className="w-full py-3.5 bg-red-500 hover:bg-red-400 text-white text-xs font-black uppercase tracking-widest rounded-xl transition-all shadow-lg active:scale-95 disabled:opacity-50"
+                        >
+                            {isSecurityLoading ? 'Working...' : 'Clear lockdown'}
+                        </button>
+                    </div>
+                ) : (
+                    <div className="glass-card p-6 flex flex-col justify-between">
+                        <div className="flex items-center space-x-3 text-emerald-500/60 mb-4">
+                            <ShieldCheck className="w-6 h-6" />
+                            <span className="text-sm font-black uppercase tracking-widest">Security: OK</span>
+                        </div>
+                        <div className="space-y-2">
+                            <div className="flex justify-between text-[10px] uppercase font-bold tracking-widest text-zinc-600">
+                                <span>Security profile</span>
+                                <span className="text-emerald-500">High</span>
+                            </div>
+                            <div className="h-1.5 w-full bg-zinc-800 rounded-full overflow-hidden">
+                                <div className="h-full w-full bg-emerald-500/40 rounded-full" />
+                            </div>
+                        </div>
+                        <div className="mt-4 text-[10px] text-zinc-500 font-mono">
+                            Audit integrity: verified
+                        </div>
+                    </div>
+                )}
+            </div>
+
+            {/* Repositories Section */}
+            <div className="glass-card bg-[#1c1c1e] rounded-3xl overflow-hidden border border-white/5">
+                <div className="p-6 border-b border-white/5 flex items-center justify-between">
+                    <div className="flex items-center space-x-3">
+                        <Database className="w-5 h-5 text-blue-400" />
+                        <h3 className="text-xs font-black uppercase tracking-widest text-[#f5f5f7]">Active Repository</h3>
+                    </div>
+                    {activeRepo && (
+                        <div className="flex items-center space-x-2 text-[10px] font-mono text-zinc-500 bg-black/40 px-3 py-1.5 rounded-lg border border-white/5">
+                            <ExternalLink className="w-3 h-3 opacity-40" />
+                            <span>{activeRepo}</span>
                         </div>
                     )}
                 </div>
-            )}
-
-            {/* Service Status Card */}
-            <div className={`p-4 rounded-2xl border ${getStatusColor()} flex items-center justify-between shadow-xl backdrop-blur-md`}>
-                <div className="flex items-center space-x-3">
-                    <div className="p-2.5 rounded-xl bg-black/20">
-                        <Activity className="w-5 h-5" />
+                <div className="p-8">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8 items-end">
+                        <div className="space-y-3">
+                            <label htmlFor="repo-select" className="text-[10px] font-black uppercase tracking-widest text-zinc-500 ml-1">Target Repository</label>
+                            <div className="relative group">
+                                <select
+                                    id="repo-select"
+                                    value={selectedRepoPath}
+                                    onChange={(e) => setSelectedRepoPath(e.target.value)}
+                                    className="w-full bg-black/40 border border-white/10 rounded-2xl px-6 py-4 text-sm text-white appearance-none focus:border-blue-500/40 outline-none transition-all cursor-pointer group-hover:border-white/20"
+                                >
+                                    <option value="">Select a repository...</option>
+                                    {repos.map((repo) => (
+                                        <option key={repo.path} value={repo.path}>
+                                            {repo.name} ({repo.path})
+                                        </option>
+                                    ))}
+                                </select>
+                                <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none transition-transform group-hover:text-zinc-300" />
+                            </div>
+                        </div>
+                        <div className="flex space-x-4">
+                            <button
+                                onClick={() => selectRepo(selectedRepoPath)}
+                                disabled={!selectedRepoPath || isRepoLoading || selectedRepoPath === activeRepo}
+                                className="flex-1 bg-blue-500 hover:bg-blue-400 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all disabled:opacity-30 active:scale-95"
+                            >
+                                Activate
+                            </button>
+                            <button
+                                onClick={() => bootstrap(selectedRepoPath)}
+                                disabled={!selectedRepoPath || isRepoLoading}
+                                className="flex-1 bg-white/5 hover:bg-white/10 text-white py-4 rounded-2xl font-black text-xs uppercase tracking-widest transition-all border border-white/10 disabled:opacity-30 active:scale-95 flex items-center justify-center space-x-2"
+                            >
+                                <FlaskConical className="w-4 h-4" />
+                                <span>Bootstrap files</span>
+                            </button>
+                        </div>
                     </div>
-                    <div>
-                        <p className="text-xs uppercase font-black tracking-widest opacity-60">System Core</p>
-                        <p className="text-sm font-bold">{panicMode ? 'LOCKDOWN' : status}</p>
-                    </div>
-                </div>
-                <div className="flex space-x-3">
-                    <button
-                        onClick={restart}
-                        disabled={isServiceLoading || panicMode}
-                        className="p-3 rounded-lg bg-white/5 hover:bg-white/10 transition-all group disabled:opacity-30"
-                        title="Restart Service"
-                    >
-                        <RefreshCcw className={`w-4 h-4 ${isServiceLoading ? 'animate-spin' : 'group-hover:rotate-180 transition-transform duration-500'}`} />
-                    </button>
-                    <button
-                        onClick={stop}
-                        disabled={isServiceLoading || status === 'STOPPED' || panicMode}
-                        className="p-3 rounded-lg bg-red-500/10 hover:bg-red-500/20 text-red-500 transition-all disabled:opacity-30"
-                        title="Stop Service"
-                    >
-                        <Square className="w-4 h-4 fill-current" />
-                    </button>
                 </div>
             </div>
 
-            {serviceError && (
-                <div className="p-4 rounded-xl bg-red-500/10 border border-red-500/20 flex items-center space-x-2 text-xs text-red-400">
-                    <AlertCircle className="w-4 h-4" />
-                    <span>{serviceError}</span>
-                </div>
-            )}
-
-            {/* Repository Maintenance Accordion */}
-            <Accordion title="Repository Control">
-                <div className="space-y-3">
-                    <div className="flex flex-col space-y-2">
-                        <label htmlFor="repo-select" className="text-xs font-black uppercase tracking-widest text-slate-500">Target Repository</label>
-                        <div className="relative group">
-                            <select
-                                id="repo-select"
-                                value={selectedRepoPath}
-                                onChange={(e) => setSelectedRepoPath(e.target.value)}
-                                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all appearance-none cursor-pointer"
-                            >
-                                <option value="">Select a repository...</option>
-                                {repos.map((repo) => (
-                                    <option key={repo.path} value={repo.path}>{repo.name}</option>
-                                ))}
-                            </select>
-                            <Database className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                        </div>
-                    </div>
-
-                    <div className="flex space-x-3">
-                        <button
-                            onClick={() => selectRepo(selectedRepoPath)}
-                            disabled={!selectedRepoPath || isRepoLoading || selectedRepoPath === activeRepo}
-                            className="flex-1 py-3 bg-white/5 hover:bg-white/10 border border-white/10 rounded-xl text-xs font-black uppercase tracking-widest text-white transition-all disabled:opacity-20"
-                        >
-                            Activate
-                        </button>
-                        <button
-                            onClick={() => vitaminize(selectedRepoPath)}
-                            disabled={!selectedRepoPath || isRepoLoading}
-                            className="flex-1 py-3 bg-accent-primary/20 hover:bg-accent-primary/30 border border-accent-primary/30 rounded-xl text-xs font-black uppercase tracking-widest text-accent-primary transition-all disabled:opacity-20 flex items-center justify-center space-x-2"
-                        >
-                            <FlaskConical className="w-4 h-4" />
-                            <span>Vitaminize</span>
-                        </button>
-                    </div>
-
-                    {activeRepo && (
-                        <div className="pt-3 flex items-center justify-between border-t border-white/5">
-                            <span className="text-xs font-black text-slate-600 uppercase tracking-widest">Active:</span>
-                            <span className="text-xs font-mono text-emerald-400 truncate max-w-[200px]" title={activeRepo}>{activeRepo.split(/[/\\]/).pop()}</span>
-                        </div>
-                    )}
-                </div>
-            </Accordion>
-
-            {/* Audit Logs Section */}
-            <Accordion title="Audit Logs" defaultOpen={true}>
-                <div className="space-y-3">
-                    {/* Log Controls */}
+            {/* Audit Log Section */}
+            <div className="glass-card bg-[#1c1c1e] rounded-3xl overflow-hidden border border-white/5 flex flex-col min-h-[500px]">
+                <div className="p-6 border-b border-white/5 bg-white/[0.02] flex items-center justify-between">
                     <div className="flex items-center space-x-3">
-                        <div className="relative flex-1">
-                            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500" />
+                        <Terminal className="w-5 h-5 text-amber-500" />
+                        <h3 className="text-xs font-black uppercase tracking-widest text-[#f5f5f7]">Audit log</h3>
+                    </div>
+                    <div className="flex items-center space-x-3">
+                        <div className="relative flex items-center">
+                            <Search className="absolute left-3 w-3.5 h-3.5 text-zinc-500" />
                             <input
                                 type="text"
+                                placeholder="Search logs..."
                                 value={searchTerm}
                                 onChange={(e) => setSearchTerm(e.target.value)}
-                                placeholder="Filter logs..."
-                                className="w-full pl-10 pr-4 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all placeholder:text-slate-600"
+                                className="bg-black/40 border border-white/5 rounded-xl pl-9 pr-4 py-2 text-xs text-zinc-300 focus:border-amber-500/40 outline-none w-48 transition-all"
                             />
                         </div>
-                        <div className="relative group">
-                            <select
-                                value={filter}
-                                onChange={(e) => setFilter(e.target.value as 'all' | 'read' | 'deny' | 'system')}
-                                className="appearance-none pl-10 pr-10 py-3 bg-black/40 border border-white/5 rounded-xl text-sm text-slate-300 focus:border-accent-primary/50 outline-none transition-all cursor-pointer"
-                            >
-                                <option value="all">All</option>
-                                <option value="read">Read</option>
-                                <option value="deny">Deny</option>
-                                <option value="system">System</option>
-                            </select>
-                            <Filter className="absolute left-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                            <ChevronDown className="absolute right-3 top-1/2 -translate-y-1/2 w-4 h-4 text-slate-500 pointer-events-none" />
-                        </div>
-                    </div>
-
-                    {/* Log Terminal View */}
-                    <div className="bg-black/60 rounded-2xl border border-white/5 overflow-hidden shadow-inner">
-                        <div className="flex items-center justify-between px-5 py-3 bg-white/5 border-b border-white/5">
-                            <div className="flex items-center space-x-2">
-                                <Terminal className="w-4 h-4 text-emerald-400" />
-                                <span className="text-xs font-black uppercase tracking-widest text-slate-500">Live Audit Stream</span>
-                            </div>
-                            <div className="flex items-center space-x-3">
-                                <button
-                                    onClick={handleExport}
-                                    className="p-1.5 hover:bg-white/5 rounded-md transition-all group"
-                                    title="Export Logs"
-                                >
-                                    <Download className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-                                </button>
-                                <button
-                                    onClick={refreshLogs}
-                                    className="p-1.5 hover:bg-white/5 rounded-md transition-all group"
-                                    title="Refresh"
-                                >
-                                    <RefreshCcw className="w-3.5 h-3.5 text-slate-500 group-hover:text-white transition-colors" />
-                                </button>
-                            </div>
-                        </div>
-                        <div className="h-64 overflow-y-auto p-5 space-y-2 custom-scrollbar font-mono text-xs">
-                            {logs.length === 0 ? (
-                                <div className="h-full flex flex-col items-center justify-center opacity-20 py-12">
-                                    <FileText className="w-10 h-10 mb-2" />
-                                    <p className="text-sm">No matches found</p>
-                                </div>
-                            ) : (
-                                logs.map((log, i) => (
-                                    <div key={`log-${logs.length - i}`} className="flex space-x-3 group">
-                                        <span className="text-slate-600 shrink-0 select-none">[{logs.length - i}]</span>
-                                        <span className={`break-all ${getLogClass(log)}`}>
-                                            {log}
-                                        </span>
-                                    </div>
-                                ))
-                            )}
-                        </div>
+                        <select
+                            value={filter}
+                            onChange={(e) => setFilter(e.target.value as AuditFilter)}
+                            className="bg-black/40 border border-white/5 rounded-xl px-3 py-2 text-[10px] font-bold text-zinc-400 outline-none hover:border-white/10 transition-all uppercase"
+                        >
+                            <option value="all">ANY</option>
+                            <option value="read">READ</option>
+                            <option value="deny">DENY</option>
+                            <option value="system">SYS</option>
+                        </select>
+                        <button
+                            onClick={refreshLogs}
+                            title="Refresh Logs"
+                            className="p-2 rounded-xl bg-zinc-900/50 border border-white/5 hover:bg-white/5 transition-all"
+                        >
+                            <RefreshCcw className="w-3.5 h-3.5 text-zinc-500" />
+                        </button>
+                        <button
+                            onClick={handleExport}
+                            title="Export Logs"
+                            className="p-2 rounded-xl bg-zinc-900/50 border border-white/5 hover:bg-white/5 transition-all"
+                        >
+                            <Download className="w-3.5 h-3.5 text-zinc-500" />
+                        </button>
                     </div>
                 </div>
-            </Accordion>
 
-            {/* Quick Security Badge */}
-            <div className="pt-4">
-                <div className={`p-4 bg-gradient-to-r ${panicMode ? 'from-red-500/20' : 'from-accent-primary/10'} to-transparent rounded-2xl border ${panicMode ? 'border-red-500/20' : 'border-accent-primary/10'} flex items-center justify-between`}>
-                    <div className="flex items-center space-x-3">
-                        <ShieldCheck className={`w-5 h-5 ${panicMode ? 'text-red-500' : 'text-accent-primary'}`} />
-                        <span className="text-xs font-bold text-slate-400">{panicMode ? 'System Locked' : 'Vault Integrity Active'}</span>
-                    </div>
-                    <span className={`text-xs font-black ${panicMode ? 'text-red-500 bg-red-500/20' : 'text-accent-primary bg-accent-primary/20'} px-3 py-1 rounded-full uppercase tracking-tighter`}>
-                        {panicMode ? 'Critical' : 'Hardened'}
-                    </span>
+                <div className="flex-1 p-6 font-mono text-[11px] overflow-y-auto bg-black/20 custom-scrollbar">
+                    {logs.length > 0 ? (
+                        <div className="space-y-1.5">
+                            {logs.map((log, i) => (
+                                <div key={i} className={`break-all leading-relaxed ${getLogClass(log)} transition-colors`}>
+                                    {log}
+                                </div>
+                            ))}
+                        </div>
+                    ) : (
+                        <div className="h-full flex flex-col items-center justify-center text-zinc-600 space-y-3 opacity-40">
+                            <FileText className="w-8 h-8" />
+                            <span className="text-[10px] font-black uppercase tracking-widest">No matching events</span>
+                        </div>
+                    )}
                 </div>
             </div>
         </div>

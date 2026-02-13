@@ -4,6 +4,9 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
     plugins: [react()],
     test: {
+        // Enable Vitest globals so common testing utilities (and testing-library auto-cleanup)
+        // can register hooks without importing them.
+        globals: true,
         environment: 'jsdom',
         setupFiles: ['./src/test/setup.ts'],
         include: ['src/**/*.test.{ts,tsx}'],
@@ -21,4 +24,3 @@ export default defineConfig({
         }
     }
 })
-

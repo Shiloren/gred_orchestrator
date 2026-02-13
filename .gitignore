@@ -4,10 +4,16 @@ __pycache__
 dist
 build
 .env
+.env.local
+.env.*.local
+.claude/settings.local.json
 .orch_token
+.orch_actions_token
+.orch_operator_token
 *.log
 *.tmp
 .DS_Store
+.orch_data/
 .orch_snapshots/
 *.spec
 repos.json
@@ -36,3 +42,50 @@ repo_registry.json
 *lint_*.txt
 *lint_report.json
 *tsc_errors.txt
+logs/
+tmp/
+out/
+artifacts/
+coverage.xml
+coverage_*.txt
+*.pyc
+.pytest_cache/
+.coverage
+htmlcov/
+requirements_utf8.txt
+failing_tests.txt
+last_llm_response.json
+venv_test/
+app_log.txt
+error.txt
+last_test_run.txt
+pytest_error.txt
+pytest_final.txt
+pytest_short.txt
+nul
+.orch_actions_token
+
+# UI build/test artifacts
+tools/orchestrator_ui/coverage/
+tools/orchestrator_ui/dist/
+tools/orchestrator_ui/.env.local
+tools/orchestrator_ui/vitest-results.json
+
+# Generated test metrics (keep only golden snapshots)
+tests/metrics/*.json
+tests/metrics/*.md
+!tests/metrics/golden/
+!tests/metrics/golden/**
+
+# Root-level diagnostics (should live under docs/evidence/ if kept)
+/test_diag*.txt
+/test_results*.txt
+/test_failures*.txt
+/*_latest.txt
+
+# Accidental scratch files
+*console.error*
+
+# Vendor dependencies
+vendor/gics
+*.tar.gz

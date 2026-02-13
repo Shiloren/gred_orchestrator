@@ -3,5 +3,11 @@
     "tools/repo_orchestrator/security/__init__.py": "0357515b8dd3ed78123f57f5c1edeb3dc46f1d83e12965f3100afdc15d78f281",
     "tools/repo_orchestrator/security/validation.py": "11e0f2238655be6eca9ce58e778c489f0124ae0619633b5b95d2892136a0e404",
     "tools/repo_orchestrator/security/auth.py": "f86af172a71d83c16817d5d1991b5e2af7bf5700ecbf78e640ba550d7dc7cfd4",
-    "tools/repo_orchestrator/security/audit.py": "39c13f87eabb39ffdba271f4f1f63d17dabc304dbfbeb1534f46077182974a48"
+    "tools/repo_orchestrator/security/audit.py": "39c13f87eabb39ffdba271f4f1f63d17dabc304dbfbeb1534f46077182974a48",
+    "tools/gimo_server/main.py": "a1e3bc8029dabc6734521b76b01f72cd6aa951650179ac5b4b1542bf5464413a",
+    "tools/gimo_server/security/__init__.py": "500e2cf7e9ab7bb06469d90121ea5eb8620ee60b465a26bc40f2261bf86af659",
+    "tools/gimo_server/security/validation.py": "b902613ff6f4a406fd943026edbcb6bf3cb3125967703ec2bf5f1d1bac38df80",
+    "tools/gimo_server/security/auth.py": "564a3383d193033f12b3e5ef0bb48c7caa89c47178110daa91d364abf949de03",
+    "tools/gimo_server/security/audit.py": "6a687952a319a86c0d9002e00321df063bfa745531c2afd790c9a4da1c7c16ee",
+    "tools/gimo_server/config.py": "0c332dc6ead0f43066bbc68ceec66e22cafe2209983c46d3f910f362255bc6d3"
 }
