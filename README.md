@@ -1,3 +1,9 @@
+> **DEPRECATED** -- This document is superseded by the GIMO Roadmap.
+> Source of truth: [`docs/GIMO_ROADMAP.md`](docs/GIMO_ROADMAP.md)
+> UI implementation plan: [`docs/GIMO_UI_OVERHAUL_PLAN.md`](docs/GIMO_UI_OVERHAUL_PLAN.md)
+
+---
+
 # GIL Orchestrator (Repo Management Tool) - [PRODUCTION READY]
 
 Este repositorio contiene la herramienta de gestión y orquestación de repositorios (GIL Orchestrator), diseñada para exponer repositorios locales de forma segura a través de túneles Cloudflare y permitir la auditoría en tiempo real.

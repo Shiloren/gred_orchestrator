@@ -1,3 +1,8 @@
+> **OPERATIONAL** -- SonarCloud setup is still valid. Project roadmap managed via GIMO.
+> Source of truth: [`GIMO_ROADMAP.md`](GIMO_ROADMAP.md)
+
+---
+
 # Sonar (SonarCloud) Continuous Analysis
 
 Este repositorio está configurado para ejecutar análisis continuo de código con SonarCloud en cada `push` y `pull_request` mediante GitHub Actions.

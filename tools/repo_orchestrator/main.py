@@ -38,6 +38,10 @@ async def lifespan(app: FastAPI):
     # Start background cleanup task
     cleanup_task = asyncio.create_task(snapshot_cleanup_loop())
     
+    # Initialize Model Service (Ollama default)
+    from tools.repo_orchestrator.services.model_service import ModelService
+    ModelService.initialize()
+    
     yield
     
     # Shutdown: Clean up resources

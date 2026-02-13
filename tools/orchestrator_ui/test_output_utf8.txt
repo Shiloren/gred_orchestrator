@@ -1,0 +1,22 @@
+﻿
+[7m[1m[36m RUN [39m[22m[27m [36mv1.6.1[39m [90mC:/Users/shilo/Documents/GitHub/gred_orchestrator/tools/orchestrator_ui[39m
+
+ [33mÔØ»[39m src/__tests__/App.test.tsx [2m ([22m[2m6 tests[22m [2m|[22m [31m6 failed[39m[2m)[22m[90m 119[2mms[22m[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mrenders header with title[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mrenders company name[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mrenders footer with version[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mrenders MaintenanceIsland component[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mhas correct structure with header, main, and footer[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+[31m   [33mÔØ»[31m src/__tests__/App.test.tsx[2m > [22mApp[2m > [22mapplies dark mode classes[39m
+[31m     ÔåÆ ResizeObserver is not defined[39m
+
+[2m Test Files [22m [1m[31m1 failed[39m[22m[90m (1)[39m
+[2m      Tests [22m [1m[31m6 failed[39m[22m[90m (6)[39m
+[2m   Start at [22m 09:47:30
+[2m   Duration [22m 2.87s[2m (transform 246ms, setup 477ms, collect 404ms, tests 119ms, environment 851ms, prepare 147ms)[22m
+

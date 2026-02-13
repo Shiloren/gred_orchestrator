@@ -1,4 +1,9 @@
-# walkthrough.md — Technical Debt Narrative
+> **DEPRECATED** -- Technical debt tracking has moved to the GIMO Roadmap (Phase 9: Backend Refactor).
+> Source of truth: [`docs/GIMO_ROADMAP.md`](docs/GIMO_ROADMAP.md)
+
+---
+
+# walkthrough.md -- Technical Debt Narrative
 
 ## 1. ¿Dónde duele más?
 El dolor principal reside en la **falta de una frontera clara entre la interfaz y la lógica**. Actualmente, el orquestador es un "monolito de conveniencia":

@@ -1,3 +1,8 @@
+> **DEPRECATED** -- Technical debt tracking has moved to the GIMO Roadmap (Phase 9: Backend Refactor).
+> Source of truth: [`docs/GIMO_ROADMAP.md`](docs/GIMO_ROADMAP.md)
+
+---
+
 # technical_debt_map.md
 
 ## 1. Prioritized List of Technical Debt

@@ -1,3 +1,8 @@
+> **REFERENCE ONLY** -- Security hashes remain valid. Project roadmap is now managed via GIMO.
+> Source of truth: [`docs/GIMO_ROADMAP.md`](docs/GIMO_ROADMAP.md)
+
+---
+
 # SECURITY_CANON_JUSTIFICATION.md
 
 **Fecha de Última Canonización:** 2026-01-28 22:45:00 ISO

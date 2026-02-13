@@ -11,9 +11,13 @@
         "test:coverage": "vitest run --coverage --passWithNoTests"
     },
     "dependencies": {
+        "@xyflow/react": "^12.10.0",
+        "clsx": "^2.1.1",
         "lucide-react": "^0.344.0",
         "react": "^18.2.0",
-        "react-dom": "^18.2.0"
+        "react-dom": "^18.2.0",
+        "reactflow": "^11.11.4",
+        "tailwind-merge": "^3.4.0"
     },
     "devDependencies": {
         "@testing-library/jest-dom": "^6.4.0",

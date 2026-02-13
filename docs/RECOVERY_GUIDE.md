@@ -1,3 +1,8 @@
+> **DEPRECATED** -- Recovery and endpoint documentation is being consolidated into the GIMO Roadmap.
+> Source of truth: [`GIMO_ROADMAP.md`](GIMO_ROADMAP.md)
+
+---
+
 # Handover & Recovery Guide: Gred-Repo-Orchestrator
 
 ## Current State & Integrity Findings

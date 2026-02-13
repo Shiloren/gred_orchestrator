@@ -3,21 +3,178 @@
 @tailwind utilities;
 
 :root {
-    color-scheme: dark;
+    --background: 240 10% 4%;
+    --foreground: 0 0% 98%;
+    --card: 240 10% 6%;
+    --card-foreground: 0 0% 98%;
+    --popover: 240 10% 4%;
+    --popover-foreground: 0 0% 98%;
+    --primary: 217 91% 60%;
+    --primary-foreground: 0 0% 98%;
+    --secondary: 240 4% 16%;
+    --secondary-foreground: 0 0% 98%;
+    --muted: 240 4% 16%;
+    --muted-foreground: 240 5% 65%;
+    --accent: 240 4% 16%;
+    --accent-foreground: 0 0% 98%;
+    --destructive: 0 62% 30%;
+    --destructive-foreground: 0 0% 98%;
+    --border: 240 4% 16%;
+    --input: 240 4% 16%;
+    --ring: 240 5% 65%;
+    --radius: 0.5rem;
     --accent-primary: #0a84ff;
     --accent-secondary: #30d158;
+
+    /* ---- Surface hierarchy variables ---- */
+    --surface-0: #000000;
+    --surface-1: #0a0a0a;
+    --surface-2: #141414;
+    --surface-3: #1c1c1e;
+    --border-primary: #2c2c2e;
+    --border-subtle: #1c1c1e;
+    --accent-blue: #0a84ff;
+    --accent-green: #32d74b;
+    --accent-purple: #5e5ce6;
+    --accent-amber: #ff9f0a;
+    --text-primary: #f5f5f7;
+    --text-secondary: #86868b;
+    --text-tertiary: #424245;
+
+    color-scheme: dark;
 }
 
-body {
-    font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
-    -webkit-font-smoothing: antialiased;
-    -moz-osx-font-smoothing: grayscale;
+/* ---- Animated edge flow ---- */
+@keyframes edgeFlow {
+    from {
+        stroke-dashoffset: 24;
+    }
+
+    to {
+        stroke-dashoffset: 0;
+    }
 }
 
-/* Scrollbar - Minimal */
+.react-flow__edge-path {
+    stroke-dasharray: 5 5;
+    animation: edgeFlow 1s linear infinite;
+}
+
+/* ---- Glow utilities ---- */
+.glow-blue {
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.2);
+}
+
+.glow-green {
+    box-shadow: 0 0 20px rgba(50, 215, 75, 0.2);
+}
+
+.glow-purple {
+    box-shadow: 0 0 20px rgba(94, 92, 230, 0.2);
+}
+
+/* ---- Skeleton loading ---- */
+@keyframes shimmer {
+    0% {
+        background-position: -200% 0;
+    }
+
+    100% {
+        background-position: 200% 0;
+    }
+}
+
+.skeleton {
+    background: linear-gradient(90deg, #1c1c1e 25%, #2c2c2e 50%, #1c1c1e 75%);
+    background-size: 200% 100%;
+    animation: shimmer 1.5s ease-in-out infinite;
+    border-radius: 8px;
+}
+
+/* ---- ReactFlow overrides ---- */
+.react-flow__minimap {
+    border-radius: 12px !important;
+    overflow: hidden;
+}
+
+.react-flow__controls {
+    border-radius: 12px !important;
+    overflow: hidden;
+    box-shadow: 0 4px 24px rgba(0, 0, 0, 0.5) !important;
+}
+
+.react-flow__controls-button {
+    background: #141414 !important;
+    border-color: #2c2c2e !important;
+    fill: #86868b !important;
+}
+
+.react-flow__controls-button:hover {
+    background: #1c1c1e !important;
+    fill: #f5f5f7 !important;
+}
+
+.react-flow__node.selected>div {
+    outline: none;
+}
+
+/* ---- Toast animation ---- */
+@keyframes slideInRight {
+    from {
+        transform: translateX(100%);
+        opacity: 0;
+    }
+
+    to {
+        transform: translateX(0);
+        opacity: 1;
+    }
+}
+
+.toast-enter {
+    animation: slideInRight 0.3s ease-out;
+}
+
+/* ---- Status pulse ---- */
+@keyframes statusPulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.5;
+    }
+}
+
+.status-dot-active {
+    animation: statusPulse 2s ease-in-out infinite;
+}
+
+@layer base {
+    body {
+        background-color: hsl(var(--background));
+        color: hsl(var(--foreground));
+        font-family: -apple-system, BlinkMacSystemFont, 'SF Pro Text', 'SF Pro Display', 'Segoe UI', Roboto, sans-serif;
+        -webkit-font-smoothing: antialiased;
+        -moz-osx-font-smoothing: grayscale;
+        font-feature-settings: "rlig" 1, "calt" 1;
+    }
+}
+
+.glass {
+    @apply bg-opacity-60 backdrop-blur-xl border border-white border-opacity-10;
+}
+
+.glow-blue {
+    box-shadow: 0 0 20px rgba(10, 132, 255, 0.2);
+}
+
+/* Custom Scrollbar */
 ::-webkit-scrollbar {
-    width: 8px;
-    height: 8px;
+    width: 6px;
+    height: 6px;
 }
 
 ::-webkit-scrollbar-track {
@@ -25,23 +182,14 @@ body {
 }
 
 ::-webkit-scrollbar-thumb {
-    background: rgba(0, 0, 0, 0.2);
-    border-radius: 4px;
-}
-
-.dark ::-webkit-scrollbar-thumb {
-    background: rgba(255, 255, 255, 0.2);
+    @apply bg-[#38383a] rounded-full text-white/20;
 }
 
 ::-webkit-scrollbar-thumb:hover {
-    background: rgba(0, 0, 0, 0.3);
+    @apply bg-[#48484a];
 }
 
-.dark ::-webkit-scrollbar-thumb:hover {
-    background: rgba(255, 255, 255, 0.3);
-}
-
-/* Custom scrollbar utility */
+/* Custom scrollbar utility for inner containers */
 .custom-scrollbar::-webkit-scrollbar {
     width: 4px;
 }
