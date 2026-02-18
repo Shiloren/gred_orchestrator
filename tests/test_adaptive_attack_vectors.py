@@ -5,6 +5,8 @@ import json
 import pytest
 import requests
 
+pytestmark = pytest.mark.adversarial
+
 from tests.llm.lm_studio_client import LMStudioClient, is_lm_studio_available
 from tests.adversarial.prompts_exhaustive import ADAPTIVE_SYSTEM_PROMPT
 from tests.llm.prompt_templates import SYSTEM_ADAPTIVE_ATTACKER

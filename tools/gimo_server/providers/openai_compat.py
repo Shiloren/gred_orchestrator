@@ -35,7 +35,7 @@ class OpenAICompatAdapter(ProviderAdapter):
             headers["Authorization"] = f"Bearer {key}"
         return headers
 
-    async def generate(self, prompt: str, context: Dict[str, Any]) -> str:
+    async def generate(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
         # Keep context simple and safe.
         sys_hint = context.get("system") if isinstance(context, dict) else None
         messages = []
@@ -44,7 +44,7 @@ class OpenAICompatAdapter(ProviderAdapter):
         messages.append({"role": "user", "content": prompt})
 
         payload = {
-            "model": self.model,
+            "model": context.get("model") or self.model,
             "messages": messages,
             "temperature": 0.2,
         }
@@ -57,11 +57,17 @@ class OpenAICompatAdapter(ProviderAdapter):
             )
             resp.raise_for_status()
             data = resp.json()
+            usage = data.get("usage", {"prompt_tokens": 0, "completion_tokens": 0})
             try:
-                return data["choices"][0]["message"]["content"]
+                content = data["choices"][0]["message"]["content"]
             except Exception:
                 # Fall back to raw JSON if provider does not follow schema
-                return str(data)
+                content = str(data)
+            
+            return {
+                "content": content,
+                "usage": usage
+            }
 
     async def health_check(self) -> bool:
         # Best effort: try GET /models (OpenAI style). If fails, return False.

@@ -9,10 +9,9 @@ export const useAuditLog = (token?: string, limit: number = 200) => {
 
     const fetchLogs = useCallback(async () => {
         try {
-            const headers: HeadersInit = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
+            const requestInit: RequestInit = { credentials: 'include' };
 
-            const res = await fetch(`${API_BASE}/ui/audit?limit=${limit}`, { headers });
+            const res = await fetch(`${API_BASE}/ui/audit?limit=${limit}`, requestInit);
             if (!res.ok) throw new Error('Failed to fetch audit logs');
             const data = await res.json();
             setLogs(data.lines || []);

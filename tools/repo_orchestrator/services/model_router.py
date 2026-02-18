@@ -42,7 +42,7 @@ class ModelRouter:
 
         # 1. User Preference Override
         if preferred_type:
-            matches = [p for p in providers if p.provider_type == preferred_type]
+            matches = [p for p in providers if p.type == preferred_type]
             if matches:
                 # Just pick first matching provider for now
                 return matches[0], "default" # Model selection to be refined
@@ -53,10 +53,10 @@ class ModelRouter:
             if cloud_providers:
                 # Prioritize Groq (Free) -> Codex (Paid) -> OpenRouter
                 # Simple logic: precise filtering
-                groq = next((p for p in cloud_providers if p.provider_type == "groq"), None)
+                groq = next((p for p in cloud_providers if p.type == "groq"), None)
                 if groq: return groq, "llama3-70b-8192"
                 
-                codex = next((p for p in cloud_providers if p.provider_type == "codex"), None)
+                codex = next((p for p in cloud_providers if p.type == "codex"), None)
                 if codex: return codex, "gpt-4o"
                 
                 return cloud_providers[0], "default"
@@ -66,7 +66,7 @@ class ModelRouter:
         if local_providers:
             # Check availability/load? (NodeManager handle concurrency blocks, here we just pick provider)
             # Default to Ollama
-            ollama = next((p for p in local_providers if p.provider_type == "ollama"), None)
+            ollama = next((p for p in local_providers if p.type == "ollama"), None)
             if ollama: return ollama, "qwen2.5-coder:1.5b"
             return local_providers[0], "default"
 

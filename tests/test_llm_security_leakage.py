@@ -15,7 +15,6 @@ import time
 from pathlib import Path
 
 import pytest
-from fastapi.testclient import TestClient
 
 os.environ.setdefault("ORCH_REPO_ROOT", str(Path(__file__).parent.parent.resolve()))
 
@@ -24,31 +23,42 @@ from tools.gimo_server.main import app
 from tools.gimo_server.security import load_security_db, save_security_db, verify_token
 from tools.gimo_server.security.auth import AuthContext
 
+# Populated by the autouse fixture below from the session-scoped test_client
+_shared_client = None
+
+
+@pytest.fixture(autouse=True)
+def _use_session_client(test_client):
+    """Inject the session-scoped test_client into the module-level _shared_client."""
+    global _shared_client
+    _shared_client = test_client
+
+
+def _setup_admin_auth():
+    """Common setup: reset security DB + set admin auth override."""
+    db = load_security_db()
+    db["panic_mode"] = False
+    db["recent_events"] = []
+    save_security_db(db)
+    app.dependency_overrides.clear()
+
+    def override_verify_token(test_actor: str):
+        return AuthContext(token=test_actor, role="admin")
+
+    app.dependency_overrides[verify_token] = lambda: override_verify_token(
+        os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
+    )
+
 
 class TestPromptInjectionAttacks:
     """Tests para detectar vulnerabilidades de inyección de prompts."""
 
     def setup_method(self):
-        """Setup con token válido para simular LLM autenticado."""
-        db = load_security_db()
-        db["panic_mode"] = False
-        db["recent_events"] = []
-        save_security_db(db)
-
-        app.dependency_overrides.clear()
-
-        # Mock para simular LLM autenticado
-        def override_verify_token(test_actor: str):
-            return AuthContext(token=test_actor, role="admin")
-
-        app.dependency_overrides[verify_token] = lambda: override_verify_token(
-            os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
-        )
-        self.client = TestClient(app)
+        _setup_admin_auth()
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
-        """Cleanup."""
         app.dependency_overrides.clear()
         db = load_security_db()
         db["panic_mode"] = False
@@ -165,28 +175,12 @@ class TestInformationDisclosure:
     """Tests para detectar divulgación de información sensible."""
 
     def setup_method(self):
-        """Setup."""
-        db = load_security_db()
-        db["panic_mode"] = False
-        save_security_db(db)
-
-        app.dependency_overrides.clear()
-
-        def override_verify_token(test_actor: str):
-            return AuthContext(token=test_actor, role="admin")
-
-        app.dependency_overrides[verify_token] = lambda: override_verify_token(
-            os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
-        )
-
-        # Initialize app state for TestClient
+        _setup_admin_auth()
         app.state.start_time = time.time()
-
-        self.client = TestClient(app)
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
-        """Cleanup."""
         app.dependency_overrides.clear()
 
     def test_status_endpoint_info_disclosure(self):
@@ -267,24 +261,12 @@ class TestRateLimitBypass:
     """Tests para detectar bypasses de rate limiting."""
 
     def setup_method(self):
-        """Setup."""
-        app.dependency_overrides.clear()
-
-        def override_verify_token(test_actor: str):
-            return AuthContext(token=test_actor, role="admin")
-
-        app.dependency_overrides[verify_token] = lambda: override_verify_token(
-            os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
-        )
-
-        # Initialize app state
+        _setup_admin_auth()
         app.state.start_time = time.time()
-
-        self.client = TestClient(app)
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
-        """Cleanup."""
         app.dependency_overrides.clear()
 
     def test_rate_limit_enforcement(self):
@@ -328,9 +310,8 @@ class TestPanicModeEvasion:
     """Tests para detectar evasiones de panic mode."""
 
     def setup_method(self):
-        """Setup."""
         app.dependency_overrides.clear()
-        self.client = TestClient(app)
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
@@ -378,7 +359,7 @@ class TestPanicModeEvasion:
 
         # Only resolution should work
         response = self.client.post(
-            "/ui/security/resolve?action=clear_panic",
+            "/ui/security/resolve?action=clear_all",
             headers={"Authorization": f"Bearer {valid_token}"},
         )
         assert response.status_code == 200
@@ -388,21 +369,11 @@ class TestSemanticAttackVectors:
     """Tests para detectar ataques semánticos mediante ingeniería de prompts."""
 
     def setup_method(self):
-        """Setup."""
-        app.dependency_overrides.clear()
-
-        def override_verify_token(test_actor: str):
-            return AuthContext(token=test_actor, role="admin")
-
-        app.dependency_overrides[verify_token] = lambda: override_verify_token(
-            os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
-        )
-
-        self.client = TestClient(app)
+        _setup_admin_auth()
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
-        """Cleanup."""
         app.dependency_overrides.clear()
 
     def test_social_engineering_via_natural_language(self):
@@ -449,21 +420,11 @@ class TestDataExfiltration:
     """Tests para detectar intentos de exfiltración de datos."""
 
     def setup_method(self):
-        """Setup."""
-        app.dependency_overrides.clear()
-
-        def override_verify_token(test_actor: str):
-            return AuthContext(token=test_actor, role="admin")
-
-        app.dependency_overrides[verify_token] = lambda: override_verify_token(
-            os.environ.get("ORCH_LLM_TEST_ACTOR", "llm_test_actor")
-        )
-
-        self.client = TestClient(app)
+        _setup_admin_auth()
+        self.client = _shared_client
         self.valid_token = list(TOKENS)[0]
 
     def teardown_method(self):
-        """Cleanup."""
         app.dependency_overrides.clear()
 
     def test_bulk_file_enumeration(self):

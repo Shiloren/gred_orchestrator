@@ -155,16 +155,14 @@ def test_get_security_events(client):
 
 
 def test_security_resolve_success(client):
-    with patch(
-        "tools.gimo_server.routes.load_security_db",
-        return_value={"panic_mode": True, "recent_events": [{"resolved": False}]},
-    ):
-        with patch("tools.gimo_server.routes.save_security_db") as mock_save:
-            response = client.post("/ui/security/resolve?action=clear_panic")
+    with patch("tools.gimo_server.security.threat_engine") as mock_engine:
+        mock_engine.level_label = "NOMINAL"
+        with patch("tools.gimo_server.security.save_security_db"):
+            response = client.post("/ui/security/resolve?action=clear_all")
             assert response.status_code == 200
-            db = mock_save.call_args[0][0]
-            assert db["panic_mode"] is False
-            assert db["recent_events"][0]["resolved"] is True
+            mock_engine.clear_all.assert_called_once()
+            data = response.json()
+            assert data["action"] == "clear_all"
 
 
 def test_security_resolve_invalid(client):

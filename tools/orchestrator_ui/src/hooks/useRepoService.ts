@@ -6,7 +6,7 @@ export interface RepoInfo {
     path: string;
 }
 
-export const useRepoService = (token?: string) => {
+export const useRepoService = (_token?: string) => {
     const [repos, setRepos] = useState<RepoInfo[]>([]);
     const [activeRepo, setActiveRepo] = useState<string | null>(null);
     const [isLoading, setIsLoading] = useState(false);
@@ -15,9 +15,8 @@ export const useRepoService = (token?: string) => {
     const fetchRepos = useCallback(async () => {
         try {
             const headers: HeadersInit = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
 
-            const res = await fetch(`${API_BASE}/ui/repos`, { headers });
+            const res = await fetch(`${API_BASE}/ui/repos`, { headers, credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch repositories');
             const data = await res.json();
             setRepos(data.repos || []);
@@ -26,18 +25,18 @@ export const useRepoService = (token?: string) => {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
         }
-    }, [token]);
+    }, []);
 
     const bootstrap = useCallback(async (path: string) => {
         setIsLoading(true);
         try {
             const headers: HeadersInit = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
 
             const MODERN_BOOTSTRAP_ENDPOINT = `${API_BASE}/ui/repos/bootstrap?path=${encodeURIComponent(path)}`;
             const res = await fetch(MODERN_BOOTSTRAP_ENDPOINT, {
                 method: 'POST',
-                headers
+                headers,
+                credentials: 'include',
             });
 
             if (!res.ok) throw new Error('Failed to bootstrap repository');
@@ -48,17 +47,17 @@ export const useRepoService = (token?: string) => {
         } finally {
             setIsLoading(false);
         }
-    }, [token, fetchRepos]);
+    }, [fetchRepos]);
 
     const selectRepo = useCallback(async (path: string) => {
         setIsLoading(true);
         try {
             const headers: HeadersInit = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
 
             const res = await fetch(`${API_BASE}/ui/repos/select?path=${encodeURIComponent(path)}`, {
                 method: 'POST',
-                headers
+                headers,
+                credentials: 'include',
             });
             if (!res.ok) throw new Error('Failed to select repository');
 
@@ -68,7 +67,7 @@ export const useRepoService = (token?: string) => {
         } finally {
             setIsLoading(false);
         }
-    }, [token, fetchRepos]);
+    }, [fetchRepos]);
 
     useEffect(() => {
         fetchRepos();

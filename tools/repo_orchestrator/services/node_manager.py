@@ -54,5 +54,13 @@ class NodeManager:
     def get_nodes_status(cls) -> Dict[str, Any]:
         return cls._nodes
 
+    @classmethod
+    def clear(cls):
+        """Reset all nodes to default state and clear semaphores."""
+        for node_id in cls._nodes:
+            cls._nodes[node_id]["current_load"] = 0
+        cls._semaphores.clear()
+        cls.initialize()
+
 # Auto-initialize on module load (simple for now)
 NodeManager.initialize()

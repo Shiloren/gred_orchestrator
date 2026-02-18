@@ -22,6 +22,7 @@ async def test_evals_service_regression_passes_all_cases():
     )
     dataset = EvalDataset(
         workflow_id="wf_eval_ok",
+        name="test_pass_ds",
         cases=[
             EvalGoldenCase(
                 case_id="c1",
@@ -57,6 +58,7 @@ async def test_evals_service_regression_fails_gate_on_mismatch():
     )
     dataset = EvalDataset(
         workflow_id="wf_eval_fail",
+        name="test_fail_ds",
         cases=[
             EvalGoldenCase(
                 case_id="c1",

@@ -47,14 +47,21 @@ describe('MaintenanceIsland', () => {
     }
 
     const mockSecurityService = {
-        panicMode: false,
+        threatLevel: 0,
+        threatLevelLabel: 'NOMINAL',
+        autoDecayRemaining: null,
+        activeSources: 0,
         lockdown: false,
-        events: [],
+        trustDashboard: [],
         isLoading: false,
         error: null,
-        clearPanic: vi.fn(),
         clearLockdown: vi.fn(),
+        resetThreats: vi.fn(),
+        downgrade: vi.fn(),
         refresh: vi.fn()
+        ,
+        fetchTrustDashboard: vi.fn(),
+        getCircuitBreakerConfig: vi.fn().mockResolvedValue(null)
     }
 
     const mockRepoService = {
@@ -73,7 +80,8 @@ describe('MaintenanceIsland', () => {
     const setLockdown = (lockdown: boolean, extras: Record<string, unknown> = {}) => {
         vi.mocked(useSecurityService).mockReturnValue({
             ...mockSecurityService,
-            panicMode: lockdown,
+            threatLevel: lockdown ? 3 : 0,
+            threatLevelLabel: lockdown ? 'LOCKDOWN' : 'NOMINAL',
             lockdown,
             ...extras
         })

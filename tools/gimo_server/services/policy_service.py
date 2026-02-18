@@ -43,6 +43,7 @@ class PolicyService:
         tool: str,
         context: str,
         trust_score: float,
+        confidence_score: float = 1.0,
     ) -> Dict[str, Any]:
         cfg = cls.get_config()
         tool_s = str(tool or "")
@@ -58,6 +59,11 @@ class PolicyService:
             min_score = rule.min_trust_score
 
             if min_score is not None and trust_score < float(min_score):
+                action = "require_review"
+
+            # 3. Check min confidence score if provided
+            min_conf = getattr(rule, "min_confidence_score", None)
+            if min_conf is not None and confidence_score < float(min_conf):
                 action = "require_review"
 
             return {

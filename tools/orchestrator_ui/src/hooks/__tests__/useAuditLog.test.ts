@@ -26,14 +26,14 @@ describe('useAuditLog', () => {
         )
     })
 
-    it('includes authorization header when token provided', async () => {
+    it('no depende de header auth cuando hay token', async () => {
         renderHook(() => useAuditLog('test-token'))
 
         await waitFor(() => {
             expect(fetch).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    headers: { Authorization: 'Bearer test-token' }
+                    credentials: 'include'
                 })
             )
         })

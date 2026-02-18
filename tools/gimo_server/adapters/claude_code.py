@@ -67,7 +67,10 @@ class ClaudeCodeSession(GenericCLISession):
 
 
 class ClaudeCodeAdapter(AgentAdapter):
-    """Adapter for orchestrating Claude Code."""
+    """Adapter for orchestrating Claude Code.
+
+    Spawns the `claude` CLI and handles the MCP protocol over stdio.
+    """
 
     def __init__(
         self,

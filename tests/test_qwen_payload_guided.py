@@ -3,6 +3,8 @@ import time
 
 import pytest
 
+pytestmark = pytest.mark.adversarial
+
 from tests.llm.lm_studio_client import LMStudioClient, is_lm_studio_available
 from tests.llm.prompt_templates import SYSTEM_PAYLOAD_GENERATOR, USER_PROMPTS
 from tests.metrics.runtime_metrics import MetricsCollector

@@ -6,11 +6,12 @@ export default defineConfig({
     plugins: [react()],
     server: {
         proxy: {
-            '/ui': 'http://localhost:8000',
-            '/tree': 'http://localhost:8000',
-            '/file': 'http://localhost:8000',
-            '/search': 'http://localhost:8000',
-            '/diff': 'http://localhost:8000',
+            '/ui': 'http://127.0.0.1:9325',
+            '/ops': 'http://127.0.0.1:9325',
+            '/tree': 'http://127.0.0.1:9325',
+            '/file': 'http://127.0.0.1:9325',
+            '/search': 'http://127.0.0.1:9325',
+            '/diff': 'http://127.0.0.1:9325',
         }
     }
 })

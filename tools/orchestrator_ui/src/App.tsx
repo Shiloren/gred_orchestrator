@@ -1,46 +1,120 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Sidebar, SidebarTab } from './components/Sidebar';
 import { GraphCanvas } from './components/GraphCanvas';
 import { InspectPanel } from './components/InspectPanel';
+import { TokenMastery } from './components/TokenMastery';
 import { MaintenanceIsland } from './islands/system/MaintenanceIsland';
-import { Zap } from 'lucide-react';
-import { UiStatusResponse, PlanCreateRequest } from './types';
+import { LoginModal } from './components/LoginModal';
+import { AlertTriangle, RefreshCw } from 'lucide-react';
+import { UiStatusResponse, PlanCreateRequest, API_BASE } from './types';
 import { usePlanEngine } from './hooks/usePlanEngine';
-import { PlanBuilder } from './components/PlanBuilder';
-import { PlanReview } from './components/PlanReview';
+import { PlansPanel } from './components/PlansPanel';
 import { ReactFlowProvider } from 'reactflow';
+import { EvalDashboard } from './components/evals/EvalDashboard';
+import { ObservabilityPanel } from './components/observability/ObservabilityPanel';
+import { TrustSettings } from './components/TrustSettings';
+import { SettingsPanel } from './components/SettingsPanel';
+import { MenuBar } from './components/MenuBar';
+import { OrchestratorChat } from './components/OrchestratorChat';
+import { WelcomeScreen } from './components/WelcomeScreen';
+import { CommandPalette } from './components/Shell/CommandPalette';
+import { useToast } from './components/Toast';
 
 export default function App() {
+    const [authenticated, setAuthenticated] = useState<boolean | null>(null);
+    const [bootState, setBootState] = useState<'checking' | 'ready' | 'offline'>('checking');
+    const [bootError, setBootError] = useState<string | null>(null);
     const [status, setStatus] = useState<UiStatusResponse | null>(null);
     const [activeTab, setActiveTab] = useState<SidebarTab>('graph');
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-    const [inspectOpen, setInspectOpen] = useState(true);
-
+    const [graphNodeCount, setGraphNodeCount] = useState(-1);
+    const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const { currentPlan, loading, createPlan, approvePlan } = usePlanEngine();
+    const { addToast } = useToast();
+
+    const handleMcpSync = useCallback(async () => {
+        try {
+            const listRes = await fetch(`${API_BASE}/ops/config/mcp`, { credentials: 'include' });
+            if (!listRes.ok) throw new Error(`HTTP ${listRes.status}`);
+            const listData = await listRes.json() as { servers?: Array<{ name: string; enabled?: boolean }> };
+            const servers = Array.isArray(listData.servers) ? listData.servers : [];
+            const candidate = servers.find(s => s.enabled !== false) ?? servers[0];
+            if (!candidate?.name) {
+                addToast('No hay servidores MCP configurados para sincronizar.', 'info');
+                return;
+            }
+
+            const syncRes = await fetch(`${API_BASE}/ops/config/mcp/sync`, {
+                method: 'POST',
+                credentials: 'include',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ server_name: candidate.name }),
+            });
+            if (!syncRes.ok) throw new Error(`HTTP ${syncRes.status}`);
+
+            const payload = await syncRes.json() as { tools_discovered?: number; server?: string };
+            addToast(
+                `MCP Sync OK (${payload.server || candidate.name}): ${payload.tools_discovered ?? 0} tools`,
+                'success'
+            );
+            setActiveTab('maintenance');
+        } catch (error) {
+            console.error('MCP sync failed', error);
+            addToast('Falló MCP Sync. Revisa configuración de server en Settings.', 'error');
+        }
+    }, [addToast]);
+
+    const checkSession = useCallback(async () => {
+        setBootState('checking');
+        setBootError(null);
+        try {
+            const response = await fetch(`${API_BASE}/auth/check`, { credentials: 'include' });
+            if (!response.ok && response.status !== 401) {
+                throw new Error(`HTTP ${response.status}`);
+            }
+            const data = await response.json().catch(() => ({ authenticated: false }));
+            setAuthenticated(data.authenticated === true);
+            setBootState('ready');
+        } catch {
+            setBootError('No se pudo conectar con GIMO backend.');
+            setBootState('offline');
+        }
+    }, []);
+
+    // Check session on mount
+    useEffect(() => {
+        checkSession();
+    }, [checkSession]);
 
     useEffect(() => {
+        if (!authenticated) return;
         const fetchStatus = async () => {
             try {
-                const response = await fetch('/ui/status', {
-                    headers: { 'Authorization': 'Bearer demo-token' }
+                const response = await fetch(`${API_BASE}/ui/status`, {
+                    credentials: 'include',
                 });
+                if (response.status === 401) { setAuthenticated(false); return; }
+                if (!response.ok) {
+                    throw new Error(`HTTP ${response.status}`);
+                }
                 const data = await response.json();
                 setStatus(data);
+                setBootState('ready');
+                setBootError(null);
             } catch (error) {
                 console.error('Error fetching status:', error);
+                setBootState('offline');
+                setBootError('No hay conexión con el backend.');
             }
         };
         fetchStatus();
         const interval = setInterval(fetchStatus, 5000);
         return () => clearInterval(interval);
-    }, []);
+    }, [authenticated]);
 
     const handleNodeSelect = (nodeId: string | null) => {
         setSelectedNodeId(nodeId);
-        if (nodeId) {
-            setActiveTab('graph');
-            setInspectOpen(true);
-        }
+        if (nodeId) setActiveTab('graph');
     };
 
     const handleCreatePlan = async (req: PlanCreateRequest) => {
@@ -53,63 +127,239 @@ export default function App() {
         }
     };
 
+    const openGlobalPlanBuilder = () => setActiveTab('plans');
+
+    const handleSelectView = (tab: SidebarTab) => {
+        setActiveTab(tab);
+        if (tab !== 'graph') setSelectedNodeId(null);
+    };
+
+    useEffect(() => {
+        const onKeyDown = (event: KeyboardEvent) => {
+            if ((event.ctrlKey || event.metaKey) && event.key.toLowerCase() === 'k') {
+                event.preventDefault();
+                setIsCommandPaletteOpen(true);
+            }
+        };
+        window.addEventListener('keydown', onKeyDown);
+        return () => window.removeEventListener('keydown', onKeyDown);
+    }, []);
+
+    useEffect(() => {
+        if (!authenticated || activeTab !== 'graph' || graphNodeCount !== 0) return;
+
+        const refreshGraphCount = async () => {
+            try {
+                const response = await fetch('/ui/graph', { credentials: 'include' });
+                if (!response.ok) return;
+                const payload = await response.json();
+                const count = Array.isArray(payload?.nodes) ? payload.nodes.length : 0;
+                setGraphNodeCount(count);
+            } catch {
+                // Silent: welcome screen remains visible on errors
+            }
+        };
+
+        const interval = window.setInterval(refreshGraphCount, 5000);
+        return () => window.clearInterval(interval);
+    }, [authenticated, activeTab, graphNodeCount]);
+
+    const handleCommandAction = (actionId: string) => {
+        switch (actionId) {
+            case 'new_plan':
+                setActiveTab('plans');
+                break;
+            case 'open_draft_modal':
+                setActiveTab('plans');
+                break;
+            case 'goto_graph':
+                setActiveTab('graph');
+                break;
+            case 'goto_plans':
+                setActiveTab('plans');
+                break;
+            case 'goto_evals':
+                setActiveTab('evals');
+                break;
+            case 'goto_metrics':
+                setActiveTab('metrics');
+                break;
+            case 'goto_security':
+                setActiveTab('security');
+                break;
+            case 'goto_maintenance':
+                setActiveTab('maintenance');
+                break;
+            case 'goto_settings':
+                setActiveTab('settings');
+                break;
+            case 'goto_mastery':
+                setActiveTab('mastery');
+                break;
+            case 'search_repo':
+                setActiveTab('maintenance');
+                break;
+            case 'mcp_sync':
+                void handleMcpSync();
+                break;
+            case 'view_runs':
+                setActiveTab('maintenance');
+                break;
+            case 'view_plan':
+                setActiveTab('plans');
+                break;
+            default:
+                break;
+        }
+    };
+
+    const renderMainContent = () => {
+        switch (activeTab) {
+            case 'graph':
+                return (
+                    <ReactFlowProvider>
+                        {graphNodeCount === 0 ? (
+                            <WelcomeScreen
+                                onNewPlan={openGlobalPlanBuilder}
+                                onConnectProvider={() => setActiveTab('settings')}
+                                onOpenRepo={() => setActiveTab('maintenance')}
+                                onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+                            />
+                        ) : (
+                            <div className="h-full flex flex-col min-h-0 relative">
+                                <div className="h-3/5 min-h-0 overflow-hidden border-b border-[#2c2c2e]">
+                                    <GraphCanvas
+                                        onNodeSelect={handleNodeSelect}
+                                        selectedNodeId={selectedNodeId}
+                                        onNodeCountChange={setGraphNodeCount}
+                                    />
+                                </div>
+                                <div className="h-2/5 min-h-[260px] overflow-hidden">
+                                    <OrchestratorChat />
+                                </div>
+                                <div className={`absolute right-0 top-0 bottom-0 z-40 transition-transform duration-300 ease-in-out ${selectedNodeId ? 'translate-x-0' : 'translate-x-full pointer-events-none'}`}>
+                                    <InspectPanel
+                                        selectedNodeId={selectedNodeId}
+                                        onClose={() => setSelectedNodeId(null)}
+                                    />
+                                </div>
+                            </div>
+                        )}
+                    </ReactFlowProvider>
+                );
+
+            case 'plans':
+                return (
+                    <PlansPanel
+                        currentPlan={currentPlan}
+                        loading={loading}
+                        onCreatePlan={handleCreatePlan}
+                        onApprovePlan={handleApprovePlan}
+                    />
+                );
+
+            case 'evals':
+                return <EvalDashboard />;
+
+            case 'metrics':
+                return <ObservabilityPanel />;
+
+            case 'security':
+                return (
+                    <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
+                        <div className="max-w-6xl mx-auto">
+                            <TrustSettings />
+                        </div>
+                    </div>
+                );
+
+            case 'maintenance':
+                return (
+                    <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
+                        <MaintenanceIsland />
+                    </div>
+                );
+
+            case 'logs':
+                return (
+                    <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a] space-y-4">
+                        <div className="max-w-6xl mx-auto rounded-xl border border-[#2c2c2e] bg-[#141414] p-3 text-xs text-[#86868b]">
+                            Audit Logs ahora usan la vista completa de Maintenance (filtros + búsqueda + export).
+                        </div>
+                        <MaintenanceIsland />
+                    </div>
+                );
+
+            case 'settings':
+                return (
+                    <SettingsPanel onOpenMastery={() => setActiveTab('mastery')} />
+                );
+
+            case 'mastery':
+                return (
+                    <div className="h-full overflow-y-auto custom-scrollbar bg-[#0a0a0a]">
+                        <TokenMastery />
+                    </div>
+                );
+        }
+    };
+
+    // Loading state
+    if (bootState === 'checking' || authenticated === null) {
+        return (
+            <div className="min-h-screen bg-[#1c1c1e] flex items-center justify-center">
+                <div className="w-6 h-6 border-2 border-[#0a84ff] border-t-transparent rounded-full animate-spin" />
+            </div>
+        );
+    }
+
+    if (bootState === 'offline') {
+        return (
+            <div className="min-h-screen bg-[#0a0a0a] text-[#f5f5f7] flex items-center justify-center p-6">
+                <div className="w-full max-w-lg rounded-2xl border border-[#2c2c2e] bg-[#141414] p-8 space-y-5">
+                    <div className="flex items-center gap-3 text-[#ff9f0a]">
+                        <AlertTriangle size={20} />
+                        <h1 className="text-lg font-semibold">Backend no disponible</h1>
+                    </div>
+                    <p className="text-sm text-[#86868b]">
+                        {bootError || 'No se pudo conectar con los servicios de GIMO.'}
+                    </p>
+                    <div className="flex gap-3">
+                        <button
+                            onClick={checkSession}
+                            className="inline-flex items-center gap-2 px-4 py-2 rounded-xl bg-[#0a84ff] hover:bg-[#0071e3] text-white text-sm font-medium"
+                        >
+                            <RefreshCw size={14} />
+                            Reintentar conexión
+                        </button>
+                    </div>
+                </div>
+            </div>
+        );
+    }
+
+    // Not authenticated — show login
+    if (!authenticated) {
+        return <LoginModal onAuthenticated={() => setAuthenticated(true)} />;
+    }
+
     return (
         <div className="min-h-screen bg-[#000000] text-[#f5f5f7] font-sans selection:bg-[#0a84ff] selection:text-white flex flex-col">
-            <header role="banner" className="h-12 border-b border-[#2c2c2e] bg-[#000000]/80 backdrop-blur-xl flex items-center justify-between px-4 z-50 shrink-0">
-                <div className="flex items-center gap-3">
-                    <div className="w-7 h-7 bg-[#0a84ff] rounded-lg flex items-center justify-center glow-blue">
-                        <Zap size={14} className="text-white" />
-                    </div>
-                    <span className="font-semibold tracking-tight text-sm">Repo Orchestrator</span>
-                    <span className="text-[10px] text-[#86868b] font-mono bg-[#1c1c1e] px-2 py-0.5 rounded-full ml-1">Gred In Labs</span>
-                </div>
-                <div className="flex items-center gap-4 text-xs text-[#86868b]">
-                    <div className="flex items-center gap-1.5">
-                        <div className="w-1.5 h-1.5 rounded-full bg-[#32d74b] animate-pulse" />
-                        <span>{status?.service_status || 'Connecting...'}</span>
-                    </div>
-                </div>
-            </header>
+            <MenuBar
+                onNewPlan={openGlobalPlanBuilder}
+                onSelectView={handleSelectView}
+                onSelectSettingsView={handleSelectView}
+                onRefreshSession={checkSession}
+                onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
+                onMcpSync={() => void handleMcpSync()}
+            />
 
             <div className="flex flex-1 overflow-hidden">
-                <ReactFlowProvider>
-                    <Sidebar
-                        activeTab={activeTab}
-                        onTabChange={(tab) => {
-                            setActiveTab(tab);
-                            setInspectOpen(true);
-                        }}
-                    />
+                <Sidebar activeTab={activeTab} onTabChange={handleSelectView} />
 
-                    <main role="main" className="flex-1 relative overflow-hidden">
-                        <GraphCanvas
-                            onNodeSelect={handleNodeSelect}
-                            selectedNodeId={selectedNodeId}
-                        />
-                    </main>
-
-                    {inspectOpen && (
-                        <InspectPanel
-                            activeTab={activeTab}
-                            selectedNodeId={selectedNodeId}
-                            onClose={() => setInspectOpen(false)}
-                        >
-                            {activeTab === 'plans' && (
-                                currentPlan ? (
-                                    <PlanReview
-                                        plan={currentPlan}
-                                        onApprove={handleApprovePlan}
-                                        onModify={() => console.log('Modify')}
-                                        loading={loading}
-                                    />
-                                ) : (
-                                    <PlanBuilder onCreate={handleCreatePlan} loading={loading} />
-                                )
-                            )}
-                            {activeTab === 'maintenance' && <MaintenanceIsland />}
-                        </InspectPanel>
-                    )}
-                </ReactFlowProvider>
+                <main role="main" className="flex-1 relative overflow-hidden">
+                    {renderMainContent()}
+                </main>
             </div>
 
             <footer role="contentinfo" className="h-8 border-t border-[#2c2c2e] bg-[#0a0a0a] flex items-center justify-between px-4 text-[10px] text-[#424245] uppercase tracking-widest shrink-0">
@@ -118,10 +368,16 @@ export default function App() {
                     <span className="text-[#1c1c1e]">|</span>
                     <span>v{status?.version || '1.0.0'}</span>
                 </div>
-                <div className="font-mono lowercase italic opacity-50">
-                    multi-agent orchestration engine
+                <div className="font-mono lowercase italic opacity-60 text-[#86868b]">
+                    {status?.service_status || 'connecting...'}
                 </div>
             </footer>
+
+            <CommandPalette
+                isOpen={isCommandPaletteOpen}
+                onClose={() => setIsCommandPaletteOpen(false)}
+                onAction={handleCommandAction}
+            />
         </div>
     );
 }

@@ -1,0 +1,210 @@
+import React, { useEffect, useState } from 'react';
+import { API_BASE, UserEconomyConfig } from '../types';
+import { ProviderSettings } from './ProviderSettings';
+import { Shield, SlidersHorizontal, Coins, Info, ArrowRight } from 'lucide-react';
+
+interface SettingsPanelProps {
+    onOpenMastery: () => void;
+}
+
+interface OpsConfig {
+    default_auto_run: boolean;
+    draft_cleanup_ttl_days: number;
+    max_concurrent_runs: number;
+    operator_can_generate: boolean;
+}
+
+export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) => {
+    const [config, setConfig] = useState<OpsConfig | null>(null);
+    const [statusInfo, setStatusInfo] = useState<{ version?: string; uptime_seconds?: number } | null>(null);
+    const [economyConfig, setEconomyConfig] = useState<UserEconomyConfig | null>(null);
+    const [economySaving, setEconomySaving] = useState(false);
+    const [economyMessage, setEconomyMessage] = useState<string>('');
+
+    useEffect(() => {
+        const fetchData = async () => {
+            try {
+                const [configRes, statusRes] = await Promise.all([
+                    fetch(`${API_BASE}/ops/config`, { credentials: 'include' }),
+                    fetch(`${API_BASE}/ui/status`, { credentials: 'include' }),
+                ]);
+
+                if (configRes.ok) setConfig(await configRes.json());
+                if (statusRes.ok) setStatusInfo(await statusRes.json());
+
+                const economyRes = await fetch(`${API_BASE}/mastery/config/economy`, { credentials: 'include' });
+                if (economyRes.ok) setEconomyConfig(await economyRes.json());
+            } catch {
+                // non-blocking for settings UI
+            }
+        };
+
+        fetchData();
+    }, []);
+
+    const formatUptime = (seconds?: number) => {
+        if (!seconds || seconds < 0) return '—';
+        const total = Math.floor(seconds);
+        const hours = Math.floor(total / 3600);
+        const minutes = Math.floor((total % 3600) / 60);
+        return `${hours}h ${minutes}m`;
+    };
+
+    const saveEconomy = async () => {
+        if (!economyConfig) return;
+        setEconomySaving(true);
+        setEconomyMessage('');
+        try {
+            const res = await fetch(`${API_BASE}/mastery/config/economy`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
+                body: JSON.stringify(economyConfig),
+            });
+            if (!res.ok) throw new Error('save_failed');
+            setEconomyMessage('Economy guardada.');
+        } catch {
+            setEconomyMessage('No se pudo guardar Economy.');
+        } finally {
+            setEconomySaving(false);
+        }
+    };
+
+    return (
+        <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
+            <div className="max-w-6xl mx-auto space-y-6">
+                <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <SlidersHorizontal size={16} className="text-[#0a84ff]" />
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">General</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
+                        <SettingCell label="Tema" value="macOS Dark" />
+                        <SettingCell label="Idioma" value="es" />
+                        <SettingCell label="Auto-run" value={config?.default_auto_run ? 'enabled' : 'disabled'} />
+                        <SettingCell label="Concurrencia" value={String(config?.max_concurrent_runs ?? '—')} />
+                        <SettingCell label="TTL drafts" value={`${config?.draft_cleanup_ttl_days ?? '—'} días`} />
+                        <SettingCell label="Operator generate" value={config?.operator_can_generate ? 'enabled' : 'disabled'} />
+                    </div>
+                </section>
+
+                <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Coins size={16} className="text-[#af52de]" />
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Economy</h2>
+                    </div>
+                    {economyConfig ? (
+                        <div className="space-y-3">
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
+                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Autonomy</label>
+                                    <select
+                                        value={economyConfig.autonomy_level}
+                                        onChange={(e) => setEconomyConfig({ ...economyConfig, autonomy_level: e.target.value as UserEconomyConfig['autonomy_level'] })}
+                                        className="mt-1 w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded px-2 py-1 text-xs text-[#f5f5f7]"
+                                    >
+                                        <option value="manual">manual</option>
+                                        <option value="advisory">advisory</option>
+                                        <option value="guided">guided</option>
+                                        <option value="autonomous">autonomous</option>
+                                    </select>
+                                </div>
+
+                                <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
+                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Global Budget (USD)</label>
+                                    <input
+                                        type="number"
+                                        value={economyConfig.global_budget_usd ?? ''}
+                                        onChange={(e) => setEconomyConfig({ ...economyConfig, global_budget_usd: e.target.value ? Number(e.target.value) : null })}
+                                        className="mt-1 w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded px-2 py-1 text-xs text-[#f5f5f7]"
+                                    />
+                                </div>
+
+                                <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
+                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Cache TTL (h)</label>
+                                    <input
+                                        type="number"
+                                        value={economyConfig.cache_ttl_hours}
+                                        onChange={(e) => setEconomyConfig({ ...economyConfig, cache_ttl_hours: Number(e.target.value) || 0 })}
+                                        className="mt-1 w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded px-2 py-1 text-xs text-[#f5f5f7]"
+                                    />
+                                </div>
+
+                                <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
+                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Flags</label>
+                                    <div className="mt-1 space-y-1 text-xs text-[#f5f5f7]">
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={economyConfig.cache_enabled}
+                                                onChange={(e) => setEconomyConfig({ ...economyConfig, cache_enabled: e.target.checked })}
+                                            /> cache
+                                        </label>
+                                        <label className="flex items-center gap-2">
+                                            <input
+                                                type="checkbox"
+                                                checked={economyConfig.show_cost_predictions}
+                                                onChange={(e) => setEconomyConfig({ ...economyConfig, show_cost_predictions: e.target.checked })}
+                                            /> predictions
+                                        </label>
+                                    </div>
+                                </div>
+                            </div>
+
+                            <div className="flex items-center gap-3">
+                                <button
+                                    onClick={saveEconomy}
+                                    disabled={economySaving}
+                                    className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#af52de]/15 text-[#d4a5f2] border border-[#af52de]/30 hover:bg-[#af52de]/25 disabled:opacity-50"
+                                >
+                                    Guardar Economy
+                                </button>
+                                {economyMessage && <span className="text-xs text-[#86868b]">{economyMessage}</span>}
+                                <button
+                                    onClick={onOpenMastery}
+                                    className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#1c1c1e] text-[#86868b] border border-[#2c2c2e] hover:text-[#f5f5f7]"
+                                >
+                                    Abrir Token Mastery
+                                    <ArrowRight size={12} />
+                                </button>
+                            </div>
+                        </div>
+                    ) : (
+                        <p className="text-xs text-[#86868b]">Economy config no disponible.</p>
+                    )}
+                </section>
+
+                <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Shield size={16} className="text-[#ff9f0a]" />
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Security</h2>
+                    </div>
+                    <p className="text-xs text-[#86868b]">
+                        Las políticas, circuit breakers y trust dimensions se gestionan desde la vista Security.
+                    </p>
+                </section>
+
+                <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
+                    <div className="flex items-center gap-2 mb-4">
+                        <Info size={16} className="text-[#32d74b]" />
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">About</h2>
+                    </div>
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                        <SettingCell label="Versión" value={statusInfo?.version ?? '—'} />
+                        <SettingCell label="Uptime" value={formatUptime(statusInfo?.uptime_seconds)} />
+                        <SettingCell label="Endpoints" value="/ui/* + /ops/* + /mastery/*" />
+                    </div>
+                </section>
+
+                <ProviderSettings />
+            </div>
+        </div>
+    );
+};
+
+const SettingCell: React.FC<{ label: string; value: string }> = ({ label, value }) => (
+    <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
+        <div className="text-[10px] uppercase tracking-widest text-[#86868b] mb-1">{label}</div>
+        <div className="text-[#f5f5f7] font-medium">{value}</div>
+    </div>
+);

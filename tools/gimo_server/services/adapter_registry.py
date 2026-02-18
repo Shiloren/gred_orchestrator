@@ -1,6 +1,6 @@
 from typing import Dict, Type, Optional
 from ..adapters.base import AgentAdapter
-from ..adapters.local_llm import LocalLLMAdapter
+from ..adapters.openai_compatible import OpenAICompatibleAdapter
 from ..adapters.generic_cli import GenericCLIAdapter
 # Import other adapters as needed
 
@@ -18,5 +18,5 @@ class AdapterRegistry:
     @classmethod
     def initialize_defaults(cls):
         # Register default adapters
-        cls.register("local", LocalLLMAdapter(model_name="qwen-2.5-7b-instruct"))
+        cls.register("local", OpenAICompatibleAdapter(model_name="qwen-2.5-7b-instruct"))
         # Add others if configured

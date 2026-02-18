@@ -9,13 +9,13 @@ import {
     Connection,
     Edge,
     Node,
+    Position,
     BackgroundVariant,
     ReactFlowProvider,
     useReactFlow,
     NodeTypes
 } from '@xyflow/react';
 import '@xyflow/react/dist/style.css';
-import dagre from 'dagre';
 import { GenericNode, GenericNodeType } from './GenericNode';
 
 const nodeTypes: NodeTypes = {
@@ -25,32 +25,21 @@ const nodeTypes: NodeTypes = {
     contract_check: GenericNode,
 };
 
-const getLayoutedElements = (nodes: GenericNodeType[], edges: Edge[], direction = 'LR') => {
-    const dagreGraph = new dagre.graphlib.Graph();
-    dagreGraph.setDefaultEdgeLabel(() => ({}));
+const getLayoutedElements = (nodes: GenericNodeType[], edges: Edge[]) => {
+    const spacingX = 280;
+    const spacingY = 140;
+    const perRow = 4;
 
-    const isHorizontal = direction === 'LR';
-    dagreGraph.setGraph({ rankdir: direction });
-
-    nodes.forEach((node) => {
-        dagreGraph.setNode(node.id, { width: 220, height: 100 });
-    });
-
-    edges.forEach((edge) => {
-        dagreGraph.setEdge(edge.source, edge.target);
-    });
-
-    dagre.layout(dagreGraph);
-
-    const layoutedNodes = nodes.map((node) => {
-        const nodeWithPosition = dagreGraph.node(node.id);
+    const layoutedNodes = nodes.map((node, index) => {
+        const row = Math.floor(index / perRow);
+        const col = index % perRow;
         return {
             ...node,
-            targetPosition: isHorizontal ? 'left' : 'top',
-            sourcePosition: isHorizontal ? 'right' : 'bottom',
-            position: {
-                x: nodeWithPosition.x - 110, // center anchor
-                y: nodeWithPosition.y - 50,
+            targetPosition: Position.Left,
+            sourcePosition: Position.Right,
+            position: node.position ?? {
+                x: col * spacingX,
+                y: row * spacingY,
             },
         };
     });
@@ -66,7 +55,14 @@ interface WorkflowCanvasProps {
     onNodeClick?: (event: React.MouseEvent, node: Node) => void;
 }
 
-const LayoutHandler = ({ nodes, edges, setNodes, setEdges }: any) => {
+interface LayoutHandlerProps {
+    nodes: GenericNodeType[];
+    edges: Edge[];
+    setNodes: ReturnType<typeof useNodesState<GenericNodeType>>[1];
+    setEdges: ReturnType<typeof useEdgesState>[1];
+}
+
+const LayoutHandler = ({ nodes, edges, setNodes, setEdges }: LayoutHandlerProps) => {
     const { fitView } = useReactFlow();
 
     useEffect(() => {

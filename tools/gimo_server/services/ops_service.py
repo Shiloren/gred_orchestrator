@@ -12,6 +12,7 @@ from filelock import FileLock
 
 from ..config import OPS_DATA_DIR, OPS_RUN_TTL
 from ..ops_models import OpsApproved, OpsConfig, OpsDraft, OpsPlan, OpsRun
+from .gics_service import GicsService
 
 logger = logging.getLogger("orchestrator.ops")
 
@@ -39,6 +40,12 @@ class OpsService:
 
     CONFIG_FILE = OPS_DIR / "config.json"
     LOCK_FILE = OPS_DIR / ".ops.lock"
+    
+    _gics: Optional[GicsService] = None
+
+    @classmethod
+    def set_gics(cls, gics: Optional[GicsService]) -> None:
+        cls._gics = gics
 
     @classmethod
     def ensure_dirs(cls) -> None:
@@ -70,18 +77,33 @@ class OpsService:
 
     @classmethod
     def get_plan(cls) -> Optional[OpsPlan]:
-        if not cls.PLAN_FILE.exists():
-            return None
-        try:
-            return OpsPlan.model_validate_json(cls.PLAN_FILE.read_text(encoding="utf-8"))
-        except Exception as exc:
-            logger.error("Failed to load ops plan: %s", exc)
-            return None
+        # 1. Try local cache
+        if cls.PLAN_FILE.exists():
+            try:
+                return OpsPlan.model_validate_json(cls.PLAN_FILE.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.error("Failed to load ops plan: %s", exc)
+        
+        # 2. Try GICS (SSOT)
+        if cls._gics:
+            try:
+                result = cls._gics.get("ops:plan")
+                if result and "fields" in result:
+                    return OpsPlan.model_validate(result["fields"])
+            except Exception as e:
+                logger.error("Failed to fallback to GICS for ops plan: %s", e)
+        
+        return None
 
     @classmethod
     def set_plan(cls, plan: OpsPlan) -> None:
         cls.ensure_dirs()
         cls.PLAN_FILE.write_text(plan.model_dump_json(indent=2), encoding="utf-8")
+        if cls._gics:
+            try:
+                cls._gics.put("ops:plan", plan.model_dump())
+            except Exception as e:
+                logger.error("Failed to push ops plan to GICS: %s", e)
 
     # -----------------
     # Config
@@ -89,18 +111,33 @@ class OpsService:
 
     @classmethod
     def get_config(cls) -> OpsConfig:
-        if not cls.CONFIG_FILE.exists():
-            return OpsConfig()
-        try:
-            return OpsConfig.model_validate_json(cls.CONFIG_FILE.read_text(encoding="utf-8"))
-        except Exception as exc:
-            logger.error("Failed to load ops config: %s", exc)
-            return OpsConfig()
+        # 1. Try local cache
+        if cls.CONFIG_FILE.exists():
+            try:
+                return OpsConfig.model_validate_json(cls.CONFIG_FILE.read_text(encoding="utf-8"))
+            except Exception as exc:
+                logger.error("Failed to load ops config: %s", exc)
+        
+        # 2. Try GICS (SSOT)
+        if cls._gics:
+            try:
+                result = cls._gics.get("ops:config")
+                if result and "fields" in result:
+                    return OpsConfig.model_validate(result["fields"])
+            except Exception as e:
+                logger.error("Failed to fallback to GICS for ops config: %s", e)
+        
+        return OpsConfig()
 
     @classmethod
     def set_config(cls, config: OpsConfig) -> OpsConfig:
         cls.ensure_dirs()
         cls.CONFIG_FILE.write_text(config.model_dump_json(indent=2), encoding="utf-8")
+        if cls._gics:
+            try:
+                cls._gics.put("ops:config", config.model_dump())
+            except Exception as e:
+                logger.error("Failed to push ops config to GICS: %s", e)
         return config
 
     # -----------------
@@ -143,6 +180,11 @@ class OpsService:
             created_at=_utcnow(),
         )
         cls._draft_path(draft.id).write_text(draft.model_dump_json(indent=2), encoding="utf-8")
+        if cls._gics:
+            try:
+                cls._gics.put(f"ops:draft:{draft.id}", draft.model_dump())
+            except Exception as e:
+                logger.error("Failed to push draft %s to GICS: %s", draft.id, e)
         return draft
 
     @classmethod
@@ -203,6 +245,13 @@ class OpsService:
             )
             draft.status = "approved"  # type: ignore[assignment]
             cls._draft_path(draft.id).write_text(draft.model_dump_json(indent=2), encoding="utf-8")
+            
+            if cls._gics:
+                 try:
+                     cls._gics.put(f"ops:approved:{approved.id}", approved.model_dump())
+                     cls._gics.put(f"ops:draft:{draft.id}", draft.model_dump())
+                 except Exception as e:
+                     logger.error("Failed to push approved %s to GICS: %s", approved.id, e)
             return approved
 
     # -----------------

@@ -3,8 +3,18 @@ from __future__ import annotations
 from datetime import datetime, timezone
 from typing import Any, Dict, List, Literal, Optional
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
+
+
+ProviderType = Literal[
+    "ollama_local",
+    "openai",
+    "codex",
+    "groq",
+    "openrouter",
+    "custom_openai_compatible",
+]
 
 
 class OpsTask(BaseModel):
@@ -63,10 +73,81 @@ class OpsRun(BaseModel):
 
 
 class ProviderEntry(BaseModel):
-    type: Literal["openai_compat", "anthropic", "gemini"]
+    # Legacy-compatible input (kept for gradual migration)
+    type: str = "custom_openai_compatible"
+    # Canonical provider taxonomy
+    provider_type: Optional[ProviderType] = None
+    display_name: Optional[str] = None
     base_url: Optional[str] = None
     api_key: Optional[str] = None
-    model: str
+    auth_mode: Optional[str] = None
+    auth_ref: Optional[str] = None
+    model: str = "gpt-4o-mini"
+    model_id: Optional[str] = None
+    capabilities: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _sync_model_fields(self) -> "ProviderEntry":
+        if self.model_id and (not self.model or self.model == "gpt-4o-mini"):
+            self.model = self.model_id
+        if not self.model_id:
+            self.model_id = self.model
+        return self
+
+
+class NormalizedModelInfo(BaseModel):
+    id: str
+    label: str
+    context_window: Optional[int] = None
+    size: Optional[str] = None
+    installed: bool = False
+    downloadable: bool = False
+    quality_tier: Optional[str] = None
+
+
+class ProviderModelsCatalogResponse(BaseModel):
+    provider_type: ProviderType
+    installed_models: List[NormalizedModelInfo] = Field(default_factory=list)
+    available_models: List[NormalizedModelInfo] = Field(default_factory=list)
+    recommended_models: List[NormalizedModelInfo] = Field(default_factory=list)
+    can_install: bool = False
+    install_method: Literal["api", "command", "manual"] = "manual"
+    auth_modes_supported: List[str] = Field(default_factory=list)
+    warnings: List[str] = Field(default_factory=list)
+
+
+class ProviderModelInstallRequest(BaseModel):
+    model_id: str
+
+
+class ProviderModelInstallResponse(BaseModel):
+    status: Literal["queued", "running", "done", "error"]
+    message: str
+    progress: Optional[float] = None
+    job_id: Optional[str] = None
+
+
+class ProviderValidateRequest(BaseModel):
+    api_key: Optional[str] = None
+    base_url: Optional[str] = None
+    org: Optional[str] = None
+    account: Optional[str] = None
+
+
+class ProviderValidateResponse(BaseModel):
+    valid: bool
+    health: str
+    effective_model: Optional[str] = None
+    warnings: List[str] = Field(default_factory=list)
+    error_actionable: Optional[str] = None
+
+
+
+class McpServerConfig(BaseModel):
+    command: str
+    args: List[str] = Field(default_factory=list)
+    env: Dict[str, str] = Field(default_factory=dict)
+    enabled: bool = True
 
 
 class ProviderConfig(BaseModel):
@@ -75,8 +156,18 @@ class ProviderConfig(BaseModel):
     Matches the schema described in docs/OPS_RUNTIME_PLAN_v2.md.
     """
 
+    schema_version: int = 2
     active: str
     providers: Dict[str, ProviderEntry]
+    mcp_servers: Dict[str, McpServerConfig] = Field(default_factory=dict)
+    # v2 snapshot fields (non-sensitive)
+    provider_type: Optional[ProviderType] = None
+    model_id: Optional[str] = None
+    auth_mode: Optional[str] = None
+    auth_ref: Optional[str] = None
+    last_validated_at: Optional[str] = None
+    effective_state: Dict[str, Any] = Field(default_factory=dict)
+    capabilities_snapshot: Dict[str, Any] = Field(default_factory=dict)
 
 
 class OpsCreateDraftRequest(BaseModel):
@@ -90,6 +181,187 @@ class OpsUpdateDraftRequest(BaseModel):
     context: Optional[Dict[str, Any]] = None
 
 
+class ProviderBudget(BaseModel):
+    """Budget limit per provider, set by the user."""
+    provider: str
+    max_cost_usd: Optional[float] = None
+    period: Literal["daily", "weekly", "monthly", "total"] = "monthly"
+
+    @field_validator("max_cost_usd")
+    @classmethod
+    def validate_max_cost(cls, v):
+        if v is not None and v < 0:
+            raise ValueError("max_cost_usd must be >= 0")
+        return v
+
+
+class CascadeConfig(BaseModel):
+    """User-configured cascade behavior."""
+    enabled: bool = False
+    min_tier: str = "local"
+    max_tier: str = "opus"
+    quality_threshold: int = 65
+    max_escalations: int = 2
+
+    @field_validator("quality_threshold")
+    @classmethod
+    def validate_quality(cls, v: int) -> int:
+        if not (0 <= v <= 100):
+            raise ValueError("quality_threshold must be between 0 and 100")
+        return v
+
+    @field_validator("max_escalations")
+    @classmethod
+    def validate_escalations(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("max_escalations must be >= 0")
+        return v
+
+
+class EcoModeConfig(BaseModel):
+    """User-configured eco-mode behavior."""
+    mode: Literal["off", "binary", "smart"] = "off"
+    floor_tier: str = "local"
+    confidence_threshold_aggressive: float = 0.85
+    confidence_threshold_moderate: float = 0.70
+
+    @field_validator("confidence_threshold_aggressive", "confidence_threshold_moderate")
+    @classmethod
+    def validate_thresholds(cls, v: float) -> float:
+        if not (0.0 <= v <= 1.0):
+            raise ValueError("Confidence thresholds must be between 0.0 and 1.0")
+        return v
+
+
+class UserEconomyConfig(BaseModel):
+    """All token economy settings. User controls everything."""
+    autonomy_level: Literal["manual", "advisory", "guided", "autonomous"] = "manual"
+    global_budget_usd: Optional[float] = None
+    provider_budgets: List[ProviderBudget] = Field(default_factory=list)
+    alert_thresholds: List[int] = Field(default_factory=lambda: [50, 25, 10])
+    cascade: CascadeConfig = Field(default_factory=CascadeConfig)
+    eco_mode: EcoModeConfig = Field(default_factory=EcoModeConfig)
+    allow_roi_routing: bool = False
+    model_floor: Optional[str] = None
+    model_ceiling: Optional[str] = None
+    cache_enabled: bool = False
+    cache_ttl_hours: int = 24
+    show_cost_predictions: bool = False
+
+    @field_validator("global_budget_usd")
+    @classmethod
+    def validate_budget(cls, v: Optional[float]) -> Optional[float]:
+        if v is not None and v < 0:
+            raise ValueError("global_budget_usd must be >= 0")
+        return v
+
+    @field_validator("alert_thresholds")
+    @classmethod
+    def validate_alerts(cls, v: List[int]) -> List[int]:
+        for t in v:
+            if not (0 <= t <= 100):
+                raise ValueError("Alert thresholds must be percentages between 0 and 100")
+        return sorted(set(v), reverse=True)
+
+    @field_validator("cache_ttl_hours")
+    @classmethod
+    def validate_ttl(cls, v: int) -> int:
+        if v < 0:
+            raise ValueError("cache_ttl_hours must be >= 0")
+        return v
+
+
+class CostEvent(BaseModel):
+    id: str
+    workflow_id: str
+    node_id: str
+    model: str
+    provider: str
+    task_type: str
+    input_tokens: int = 0
+    output_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    quality_score: float = 0.0
+    cascade_level: int = 0
+    cache_hit: bool = False
+    duration_ms: int = 0
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class QualityRating(BaseModel):
+    """Formal quality rating for LLM outputs."""
+    score: int = Field(ge=0, le=100)
+    alerts: List[str] = Field(default_factory=list)
+    heuristics: Dict[str, bool] = Field(default_factory=dict)
+    timestamp: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class CascadeResult(BaseModel):
+    """Result of a cascading execution."""
+    final_output: Any
+    cascade_chain: List[Dict[str, Any]] = Field(default_factory=list)
+    total_input_tokens: int = 0
+    total_output_tokens: int = 0
+    total_tokens: int = 0
+    total_cost_usd: float = 0.0
+    savings: float = 0.0
+    success: bool = True
+
+
+class CascadeStatsEntry(BaseModel):
+    task_type: str
+    total_calls: int = 0
+    cascaded_calls: int = 0
+    avg_cascade_depth: float = 0.0
+    total_spent: float = 0.0
+
+
+class CacheStats(BaseModel):
+    total_calls: int = 0
+    cache_hits: int = 0
+    hit_rate: float = 0.0
+    estimated_savings_usd: float = 0.0
+
+
+class RoiLeaderboardEntry(BaseModel):
+    model: str
+    task_type: str
+    roi_score: float = 0.0
+    avg_quality: float = 0.0
+    avg_cost: float = 0.0
+    sample_count: int = 0
+
+
+class CostAnalytics(BaseModel):
+    daily_costs: List[Dict[str, Any]] = Field(default_factory=list)
+    by_model: List[Dict[str, Any]] = Field(default_factory=list)
+    by_task_type: List[Dict[str, Any]] = Field(default_factory=list)
+    by_provider: List[Dict[str, Any]] = Field(default_factory=list)
+    roi_leaderboard: List[Dict[str, Any]] = Field(default_factory=list)
+    cascade_stats: List[Dict[str, Any]] = Field(default_factory=list)
+    cache_stats: Dict[str, Any] = Field(default_factory=dict)
+    total_savings: float = 0.0
+
+
+class BudgetForecast(BaseModel):
+    scope: str = "global"
+    current_spend: float = 0.0
+    limit: Optional[float] = None
+    remaining: Optional[float] = None
+    remaining_pct: Optional[float] = None
+    burn_rate_hourly: float = 0.0
+    hours_to_exhaustion: Optional[float] = None
+    alert_level: Literal["none", "warning", "critical"] = "none"
+
+
+class MasteryStatus(BaseModel):
+    eco_mode_enabled: bool
+    total_savings_usd: float
+    efficiency_score: float
+    tips: List[str]
+
+
 class OpsConfig(BaseModel):
     """Global OPS runtime configuration persisted to .orch_data/ops/config.json."""
 
@@ -97,6 +369,7 @@ class OpsConfig(BaseModel):
     draft_cleanup_ttl_days: int = 7
     max_concurrent_runs: int = 3
     operator_can_generate: bool = False
+    economy: UserEconomyConfig = Field(default_factory=UserEconomyConfig)
 
 
 class OpsApproveResponse(BaseModel):
@@ -207,6 +480,7 @@ class ToolEntry(BaseModel):
     estimated_cost: float = 0.0
     requires_hitl: bool = False
     allowed_roles: List[str] = Field(default_factory=lambda: ["operator", "admin"])
+    metadata: Dict[str, Any] = Field(default_factory=dict)
 
 
 class PolicyRuleMatch(BaseModel):
@@ -219,6 +493,7 @@ class PolicyRule(BaseModel):
     action: Literal["allow", "deny", "require_review"] = "allow"
     override: Optional[Literal["never_auto_approve"]] = None
     min_trust_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
+    min_confidence_score: Optional[float] = Field(default=None, ge=0.0, le=1.0)
 
 
 class PolicyConfig(BaseModel):
@@ -234,6 +509,8 @@ class EvalGoldenCase(BaseModel):
 
 class EvalDataset(BaseModel):
     workflow_id: str
+    name: str
+    description: Optional[str] = None
     cases: List[EvalGoldenCase] = Field(default_factory=list)
 
 
@@ -260,6 +537,7 @@ class EvalCaseResult(BaseModel):
     case_id: str
     passed: bool
     score: float = Field(ge=0.0, le=1.0)
+    input_state: Dict[str, Any] = Field(default_factory=dict)
     expected_state: Dict[str, Any] = Field(default_factory=dict)
     actual_state: Dict[str, Any] = Field(default_factory=dict)
     reason: Optional[str] = None

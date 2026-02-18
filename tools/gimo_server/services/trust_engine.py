@@ -30,13 +30,13 @@ class TrustEngine:
 
     def __init__(
         self,
-        trust_store: Any,  # Typed as Any to avoid circular imports given current file structure, or import carefully
+        trust_store: Any,  # Can be the legacy TrustStore or the new TrustStorage
         thresholds: TrustThresholds | None = None,
         circuit_breaker: CircuitBreakerConfig | None = None,
     ):
         self.trust_store = trust_store
-        # Legacy access if needed, but we should go via trust_store
-        self.storage = trust_store.storage 
+        # Support both legacy trust_store.storage and new TrustStorage (which is its own storage)
+        self.storage = getattr(trust_store, "storage", trust_store)
         self.thresholds = thresholds or TrustThresholds()
         self.circuit_breaker = circuit_breaker or CircuitBreakerConfig()
 

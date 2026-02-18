@@ -2,6 +2,8 @@ import React from 'react';
 import { CheckCircle2, Circle, PlayCircle, XCircle, MessageSquare, ListTodo } from 'lucide-react';
 import { AgentPlan, TaskStatus } from '../types';
 import { useAgentControl } from '../hooks/useAgentControl';
+import { ConfidenceMeter } from './ConfidenceMeter';
+import { Wallet } from 'lucide-react';
 
 interface AgentPlanPanelProps {
     plan?: AgentPlan;
@@ -66,6 +68,18 @@ export const AgentPlanPanel: React.FC<AgentPlanPanelProps> = ({ plan, agentId })
                                     <p className={`text-xs leading-relaxed ${task.status === 'done' ? 'text-[#86868b] line-through opacity-70' : 'text-[#f5f5f7]'}`}>
                                         {task.description}
                                     </p>
+
+                                    {(task.confidence || task.cost_usd) && (
+                                        <div className="mt-2 flex items-center gap-3">
+                                            {task.confidence && <ConfidenceMeter data={task.confidence} />}
+                                            {task.cost_usd && (
+                                                <div className="flex items-center gap-1 text-[10px] text-[#32d74b] font-mono">
+                                                    <Wallet size={10} />
+                                                    ${task.cost_usd.toFixed(4)}
+                                                </div>
+                                            )}
+                                        </div>
+                                    )}
                                     {task.output && (
                                         <div className="mt-2 p-2 rounded-lg bg-[#000000]/50 border border-[#1c1c1e] font-mono text-[10px] text-[#32d74b] opacity-80 overflow-x-auto">
                                             {task.output}

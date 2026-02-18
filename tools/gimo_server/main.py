@@ -6,7 +6,7 @@ from contextlib import asynccontextmanager
 from fastapi import FastAPI
 from fastapi.responses import FileResponse, JSONResponse
 
-from tools.gimo_server.config import BASE_DIR, get_settings
+from tools.gimo_server.config import BASE_DIR, DEBUG, LOG_LEVEL, get_settings
 from tools.gimo_server.middlewares import register_middlewares
 from tools.gimo_server.routes import register_routes
 from tools.gimo_server.version import __version__
@@ -15,10 +15,13 @@ from tools.gimo_server.services.gics_service import GicsService
 from tools.gimo_server.static_app import mount_static
 from tools.gimo_server.tasks import snapshot_cleanup_loop
 from tools.gimo_server.ops_routes import router as ops_router
+from tools.gimo_server.routers.auth_router import router as auth_router
 
-# Configure logging
-logging.basicConfig(level=logging.INFO)
+# Configure logging with dynamic level from env
+logging.basicConfig(level=getattr(logging, LOG_LEVEL, logging.INFO))
 logger = logging.getLogger("orchestrator")
+if DEBUG:
+    logger.info("DEBUG mode enabled (LOG_LEVEL=%s)", LOG_LEVEL)
 
 
 @asynccontextmanager
@@ -37,6 +40,27 @@ async def lifespan(app: FastAPI):
 
     # Ensure OPS storage dirs exist
     settings = get_settings()
+
+    # ── LICENSE GATE ──────────────────────────────────────────────────
+    # Must pass before ANY other service starts.
+    from tools.gimo_server.security.license_guard import LicenseGuard
+    import sys as _sys
+    _guard = LicenseGuard(settings)
+    _license_status = await _guard.validate()
+    if not _license_status.valid:
+        logger.critical("=" * 60)
+        logger.critical("  LICENSE VALIDATION FAILED")
+        logger.critical("  Reason: %s", _license_status.reason)
+        logger.critical("  Get your license at https://gimo-web.vercel.app")
+        logger.critical("=" * 60)
+        _sys.exit(1)
+    logger.info("LICENSE: Valid (plan=%s)", _license_status.plan)
+    app.state.license_guard = _guard
+    # Re-validate in background every 24h
+    import asyncio as _asyncio
+    _asyncio.create_task(_guard.periodic_recheck())
+    # ──────────────────────────────────────────────────────────────────
+
     settings.ops_data_dir.mkdir(parents=True, exist_ok=True)
     (settings.ops_data_dir / "drafts").mkdir(parents=True, exist_ok=True)
     (settings.ops_data_dir / "approved").mkdir(parents=True, exist_ok=True)
@@ -135,6 +159,7 @@ def create_app() -> FastAPI:
 
     # Register all API routes
     register_routes(app)
+    app.include_router(auth_router)
     app.include_router(ops_router)
 
     mount_static(app)
@@ -155,6 +180,6 @@ if __name__ == "__main__":
         "tools.gimo_server.main:app",
         host="0.0.0.0",  # nosec B104 - CLI entrypoint for local/dev use
         port=port,
-        reload=False,
-        log_level="info",
+        reload=DEBUG,
+        log_level=LOG_LEVEL.lower(),
     )

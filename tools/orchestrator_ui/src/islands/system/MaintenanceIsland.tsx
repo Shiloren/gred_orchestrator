@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { useSystemService } from '../../hooks/useSystemService';
 import { useAuditLog } from '../../hooks/useAuditLog';
 import { useSecurityService } from '../../hooks/useSecurityService';
@@ -54,6 +54,51 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
     const { repos, activeRepo, bootstrap, selectRepo, isLoading: isRepoLoading } = useRepoService(token);
 
     const [selectedRepoPath, setSelectedRepoPath] = useState<string>('');
+    const [uptimeLabel, setUptimeLabel] = useState<string>('—');
+
+    useEffect(() => {
+        let cancelled = false;
+
+        const formatUptime = (uptimeSeconds: number): string => {
+            if (!Number.isFinite(uptimeSeconds) || uptimeSeconds < 0) return '—';
+            const total = Math.floor(uptimeSeconds);
+            const days = Math.floor(total / 86400);
+            const hours = Math.floor((total % 86400) / 3600);
+            const minutes = Math.floor((total % 3600) / 60);
+            const seconds = total % 60;
+
+            if (days > 0) return `${days}d ${hours}h`;
+            if (hours > 0) return `${hours}h ${minutes}m`;
+            if (minutes > 0) return `${minutes}m ${seconds}s`;
+            return `${seconds}s`;
+        };
+
+        const fetchUiStatus = async () => {
+            try {
+                const response = await fetch(`${API_BASE}/ui/status`, {
+                    credentials: 'include',
+                });
+                if (!response.ok) {
+                    if (!cancelled) setUptimeLabel('—');
+                    return;
+                }
+
+                const data = await response.json() as { uptime_seconds?: number };
+                if (!cancelled) {
+                    setUptimeLabel(formatUptime(data.uptime_seconds ?? NaN));
+                }
+            } catch {
+                if (!cancelled) setUptimeLabel('—');
+            }
+        };
+
+        fetchUiStatus();
+        const interval = setInterval(fetchUiStatus, 10000);
+        return () => {
+            cancelled = true;
+            clearInterval(interval);
+        };
+    }, []);
 
     const apiLabel = (() => {
         try {
@@ -188,6 +233,12 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                     <span className="flex-1">{serviceError || securityError}</span>
                 </div>
             )}
+
+            <div className="p-3 rounded-xl border border-[#2c2c2e] bg-[#141414] text-xs text-[#86868b]">
+                <strong className="text-[#f5f5f7]">Nota:</strong> <span className="text-[#f5f5f7]">Status</span> (servicio RUNNING/STOPPED)
+                {' '}y <span className="text-[#f5f5f7]">Security Level</span> (NOMINAL/ALERT/GUARDED/LOCKDOWN) son métricas independientes.
+            </div>
+
             {/* Top Grid: Status & Controls */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 {/* System Core status */}
@@ -230,7 +281,7 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                     <div className="mt-6 flex items-center justify-between text-[11px] font-medium text-zinc-500">
                         <div className="flex items-center space-x-2">
                             <Clock className="w-3 h-3 opacity-40" />
-                            <span>Uptime: —</span>
+                            <span>Uptime: {uptimeLabel}</span>
                         </div>
                         <div className="flex items-center space-x-2">
                             <Database className="w-3 h-3 opacity-40" />

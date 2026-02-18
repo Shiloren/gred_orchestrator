@@ -20,18 +20,18 @@ describe('useSecurityService', () => {
 
         await waitFor(() => {
             expect(result.current.lockdown).toBe(false)
-            expect(result.current.events).toEqual(mockEvents)
+            expect(result.current.threatLevel).toBe(0)
         })
     })
 
-    it('includes authorization header when token provided', async () => {
+    it('usa sesión por cookies aunque se pase token', async () => {
         renderHook(() => useSecurityService('test-token'))
 
         await waitFor(() => {
             expect(fetch).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    headers: { Authorization: 'Bearer test-token' }
+                    credentials: 'include'
                 })
             )
         })
@@ -100,7 +100,7 @@ describe('useSecurityService', () => {
         })
 
         expect(fetch).toHaveBeenCalledWith(
-            expect.stringContaining('/ui/security/resolve?action=clear_panic'),
+            expect.stringContaining('/ops/trust/reset'),
             expect.objectContaining({ method: 'POST' })
         )
     })
@@ -109,7 +109,7 @@ describe('useSecurityService', () => {
         const { result } = renderHook(() => useSecurityService())
 
         await waitFor(() => {
-            expect(result.current.events.length).toBe(1)
+            expect(result.current.threatLevel).toBe(0)
         })
 
         vi.mocked(fetch).mockResolvedValueOnce({
@@ -120,6 +120,6 @@ describe('useSecurityService', () => {
             await result.current.clearLockdown()
         })
 
-        expect(result.current.error).toBe('Failed to clear lockdown')
+        expect(result.current.error).toBe('Failed to clear_all security')
     })
 })

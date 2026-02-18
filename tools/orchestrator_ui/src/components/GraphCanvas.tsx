@@ -15,8 +15,6 @@ import { OrchestratorNode } from './OrchestratorNode';
 import { RepoNode } from './RepoNode';
 import { ClusterNode } from './ClusterNode';
 
-import { TrustLevel } from '../types';
-
 const nodeTypes = {
     bridge: BridgeNode,
     orchestrator: OrchestratorNode,
@@ -27,16 +25,17 @@ const nodeTypes = {
 interface GraphCanvasProps {
     onNodeSelect: (nodeId: string | null) => void;
     selectedNodeId: string | null;
+    onNodeCountChange?: (count: number) => void;
 }
 
-export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onNodeSelect, selectedNodeId }) => {
+export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onNodeSelect, selectedNodeId, onNodeCountChange }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
 
     const fetchGraphData = useCallback(async () => {
         try {
             const response = await fetch('/ui/graph', {
-                headers: { 'Authorization': 'Bearer demo-token' }
+                credentials: 'include'
             });
             const data = await response.json();
 
@@ -53,60 +52,31 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({ onNodeSelect, selected
                 },
             }));
 
-            const mockPlan = {
-                id: 'p1',
-                tasks: [
-                    { id: 't1', description: 'Analyze repository structure and dependencies', status: 'done', output: 'Found 12 modules, 3 main entry points.' },
-                    { id: 't2', description: 'Evaluate GICS reasoning quality for current session', status: 'running' },
-                    { id: 't3', description: 'Generate architectural refactoring proposal', status: 'pending' },
-                    { id: 't4', description: 'Execute decomposition of God-file main.py', status: 'pending' },
-                ],
-                reasoning: [
-                    { id: 'r1', content: 'Scanning codebase for architectural patterns...' },
-                    { id: 'r2', content: 'Detected high coupling in main.py (430 lines).' },
-                    { id: 'r3', content: 'Initiating Phase 2 visualization engine...' },
-                    { id: 'r4', content: 'Awaiting GICS validation of reasoning pipeline.' }
-                ]
-            };
-
-            const nodesWithMockPlans = data.nodes.map((n: any) => {
-                const isAgent = n.type === 'orchestrator' || n.type === 'bridge';
-                let trustLevel: TrustLevel | undefined;
-                if (n.type === 'orchestrator') trustLevel = 'autonomous';
-                else if (n.type === 'bridge') trustLevel = 'supervised';
-
-                const pendingQuestions = n.type === 'bridge' ? [
-                    {
-                        id: 'q1',
-                        question: 'Should I escalate the reasoning quality analysis to the fractal layer?',
-                        context: 'Detected pattern that suggests sub-decomposition might be more token-efficient.',
-                        timestamp: new Date().toISOString(),
-                        status: 'pending'
-                    }
-                ] : undefined;
-
+            const nodesWithLiveState = data.nodes.map((n: any) => {
                 return {
                     ...n,
                     data: {
                         ...n.data,
-                        plan: isAgent ? mockPlan : undefined,
-                        trustLevel,
-                        pendingQuestions,
-                        quality: isAgent ? {
-                            score: n.type === 'orchestrator' ? 95 : 65,
-                            alerts: n.type === 'bridge' ? ['repetition'] : [],
-                            lastCheck: new Date().toISOString()
-                        } : undefined
+                        // Backend now provides these fields dynamically
+                        status: n.data.status || 'pending',
+                        confidence: n.data.confidence,
+                        pendingQuestions: n.data.pendingQuestions,
+                        plan: n.data.plan,
+                        quality: n.data.quality,
+                        trustLevel: n.data.trustLevel || 'autonomous'
                     }
                 };
             });
 
-            setNodes(nodesWithMockPlans);
+            onNodeCountChange?.(nodesWithLiveState.length);
+
+            setNodes(nodesWithLiveState);
             setEdges(formattedEdges);
         } catch (error) {
             console.error('Error fetching graph data:', error);
+            onNodeCountChange?.(0);
         }
-    }, [setNodes, setEdges]);
+    }, [setNodes, setEdges, onNodeCountChange]);
 
     useEffect(() => {
         fetchGraphData();

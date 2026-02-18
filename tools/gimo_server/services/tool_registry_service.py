@@ -5,7 +5,8 @@ from pathlib import Path
 from typing import Dict, List, Optional
 
 from ..config import OPS_DATA_DIR
-from ..ops_models import ToolEntry
+from ..config import OPS_DATA_DIR
+from ..ops_models import ToolEntry, McpServerConfig
 
 
 class ToolRegistryService:
@@ -84,6 +85,7 @@ class ToolRegistryService:
         outputs: Optional[Dict] = None,
         estimated_cost: float = 0.0,
         requires_hitl: bool = True,
+        metadata: Optional[Dict] = None,
     ) -> ToolEntry:
         """Record dynamically discovered tool metadata without auto-allowing it broadly.
 
@@ -101,6 +103,7 @@ class ToolRegistryService:
                 "estimated_cost": float(estimated_cost or payload.get("estimated_cost", 0.0) or 0.0),
                 "requires_hitl": bool(requires_hitl),
                 "allowed_roles": payload.get("allowed_roles", ["admin"]),
+                "metadata": payload.get("metadata", {}),
                 "discovered": True,
             }
         )
@@ -137,3 +140,49 @@ class ToolRegistryService:
         if role and tool.allowed_roles and role not in set(tool.allowed_roles):
             return False
         return True
+
+    @classmethod
+    async def sync_mcp_tools(cls, server_name: str, config: McpServerConfig) -> List[ToolEntry]:
+        """Connect to MCP server, list tools, and register them as discovered."""
+        if not config.enabled:
+            return []
+
+        from ..adapters.mcp_client import McpClient
+
+        async with McpClient(server_name, config) as client:
+            tools = await client.list_tools()
+        
+        registered = []
+        for tool in tools:
+            # Prefix tool name with server name to avoid collisions
+            # E.g. "github_read_file" -> "github_read_file"? 
+            # Or "github:read_file"?
+            # Let's use underscore for now as it's safer for function calling conventions in some LLMs
+            tool_name = tool.get("name")
+            if not tool_name:
+                continue
+                
+            full_name = f"{server_name}_{tool_name}"
+            
+            # Map MCP tool definition to ToolEntry
+            # MCP inputs schema is JSON Schema.
+            inputs = tool.get("inputSchema") or {}
+            description = tool.get("description") or ""
+            
+            entry = cls.report_tool(
+                name=full_name,
+                description=description,
+                inputs=inputs,
+                risk="read", # Default to read, admin can override
+                requires_hitl=True, # Default to HITL for safety
+            )
+            # Update metadata ensuring we persist the link
+            entry.metadata.update({
+                "mcp_server": server_name,
+                "mcp_tool": tool_name
+            })
+            cls.upsert_tool(entry) # Persist metadata updates
+            
+            registered.append(entry)
+            
+        return registered

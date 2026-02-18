@@ -145,30 +145,17 @@ GIMO es el **sustrato de gobernanza** donde los agentes de IA operan de forma se
 ### FASE 1: Foundations (semanas 1–4)
 **Objetivo:** Sentar las bases técnicas para todo lo que viene después.
 
-#### 1.1 Agent Adapter — Claude Code (prioridad máxima)
+#### 1.1 Atomización de Rutas (ops_routes.py) — [x] COMPLETADO
 
-**Qué:** Wrapper que permite a GIMO orquestar Claude Code como agente efímero.
+**Qué:** Dividir el archivo monolítico `ops_routes.py` en sub-routers por dominio en `tools/gimo_server/routers/ops/`.
 
-**Por qué primero:** Claude Code ya tiene MCP servers y hooks. Es el agente con mejor integración posible. Demuestra el modelo BYOT desde el día 1.
+**Por qué:** Reducir el Blast Radius y facilitar el mantenimiento.
 
 **Entregables:**
-- `adapters/base.py`: interfaz `AgentAdapter` abstracta
-  ```
-  spawn(task, context, policy) → AgentSession
-  capture_proposal() → ProposedAction[]
-  allow(action_id) / deny(action_id)
-  get_result() → AgentResult
-  kill()
-  ```
-- `adapters/claude_code.py`: implementación via MCP server + hooks
-  - GIMO se registra como MCP server de Claude Code
-  - Intercepta tool calls via hooks (pre-tool, post-tool)
-  - Captura propuestas antes de ejecución
-  - Aplica policy gate (allow/deny/require_review)
-  - Captura resultado + métricas (tokens, duración)
-- `adapters/generic_cli.py`: wrapper genérico para CLIs via stdin/stdout
-  - Base para Codex y Gemini CLI (implementación concreta en Fase 3)
-- Tests: spawn → capture → allow → result round-trip
+- [x] Paquete `tools/gimo_server/routers/ops/`.
+- [x] Sub-routers: `plan_router.py`, `run_router.py`, `eval_router.py`, `trust_router.py`, `config_router.py`, `observability_router.py`.
+- [x] Refactorización de `ops_routes.py` para montar los sub-routers.
+- [x] Verificación con `pytest tests/test_ops_v2.py` (38 passed).
 
 #### 1.2 Graph Engine MVP
 

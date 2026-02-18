@@ -36,17 +36,21 @@ def test_panic_catcher_middleware(auth_client):
             assert "Internal System Failure" in data["error"]
 
 
-def test_panic_mode_check_middleware(auth_client):
-    with patch(
-        "tools.gimo_server.security.load_security_db", return_value={"panic_mode": True}
-    ):
-        response = auth_client.get("/ui/repos")
-        assert response.status_code == 503
-        assert "LOCKDOWN" in response.text
+def test_lockdown_check_middleware(auth_client):
+    import os
+    from tools.gimo_server.security import threat_engine
+    from tools.gimo_server.security.threat_level import ThreatLevel, AUTH_FAILURE_LOCKDOWN_THRESHOLD
 
-        # /status should be blocked during panic
-        response_status = auth_client.get("/status")
-        assert response_status.status_code == 503
+    # Escalate to LOCKDOWN via simulated attacker (must happen AFTER TestClient lifespan)
+    for _ in range(AUTH_FAILURE_LOCKDOWN_THRESHOLD):
+        threat_engine.record_auth_failure("attacker-1.2.3.4")
+    assert threat_engine.level >= ThreatLevel.LOCKDOWN
+
+    # Authenticated request (via real token in header) should pass even in LOCKDOWN
+    token = os.environ.get("ORCH_TOKEN", "test-token-a1B2c3D4e5F6g7H8i9J0k1L2m3N4o5P6q7R8s9T0")
+    response = auth_client.get("/status", headers={"Authorization": f"Bearer {token}"})
+    assert response.status_code == 200
+    assert response.headers.get("X-Threat-Level") == "LOCKDOWN"
 
 
 def test_allow_options_preflight(auth_client):

@@ -5,6 +5,8 @@ import time
 import pytest
 import requests
 
+pytestmark = pytest.mark.adversarial
+
 from tests.metrics.runtime_metrics import MetricsCollector
 
 # Configuration

@@ -20,7 +20,10 @@ export function usePlanEngine() {
         try {
             const response = await fetch(`${API_BASE}/ui/plan/create`, {
                 method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
                 body: JSON.stringify(req),
             });
             if (!response.ok) throw new Error('Failed to create plan');
@@ -39,7 +42,9 @@ export function usePlanEngine() {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE}/ui/plan/${planId}`);
+            const response = await fetch(`${API_BASE}/ui/plan/${planId}`, {
+                credentials: 'include',
+            });
             if (!response.ok) throw new Error('Failed to fetch plan');
             const plan: Plan = await response.json();
             setCurrentPlan(plan);
@@ -58,6 +63,7 @@ export function usePlanEngine() {
         try {
             const response = await fetch(`${API_BASE}/ui/plan/${planId}/approve`, {
                 method: 'POST',
+                credentials: 'include',
             });
             if (!response.ok) throw new Error('Failed to approve plan');
             // Optimistic update not needed as socket will trigger
@@ -76,7 +82,10 @@ export function usePlanEngine() {
         try {
             const response = await fetch(`${API_BASE}/ui/plan/${planId}`, {
                 method: 'PATCH',
-                headers: { 'Content-Type': 'application/json' },
+                headers: {
+                    'Content-Type': 'application/json',
+                },
+                credentials: 'include',
                 body: JSON.stringify(updates),
             });
             if (!response.ok) throw new Error('Failed to update plan');

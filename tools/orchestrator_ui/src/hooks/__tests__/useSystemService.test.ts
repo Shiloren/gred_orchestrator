@@ -25,14 +25,14 @@ describe('useSystemService', () => {
         expect(result.current.status).toBe('UNKNOWN')
     })
 
-    it('includes authorization header when token provided', async () => {
+    it('usa sesión por cookies aunque se pase token', async () => {
         renderHook(() => useSystemService('test-token'))
 
         await waitFor(() => {
             expect(fetch).toHaveBeenCalledWith(
                 expect.any(String),
                 expect.objectContaining({
-                    headers: { Authorization: 'Bearer test-token' }
+                    credentials: 'include'
                 })
             )
         })

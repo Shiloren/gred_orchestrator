@@ -56,11 +56,20 @@ class Settings:
     audit_log_max_bytes: int
     audit_log_backup_count: int
     ops_data_dir: Path
-    ops_data_dir: Path
     ops_run_ttl: int
     gics_daemon_script: Path
     gics_socket_path: Path
     gics_token_path: Path
+    data_dir: Path
+    debug: bool
+    log_level: str
+    # License system
+    license_key: str
+    license_validate_url: str
+    license_public_key_pem: str
+    license_cache_path: Path
+    license_grace_days: int
+    license_recheck_hours: int
 
 
 def _load_or_create_token(token_file: Path | None = None, env_key: str = "ORCH_TOKEN") -> str:
@@ -156,6 +165,8 @@ def _build_settings() -> Settings:
     audit_log_backup_count = int(os.environ.get("ORCH_AUDIT_LOG_BACKUP_COUNT", "5"))
     ops_data_dir = base_dir / ".orch_data" / "ops"
     ops_run_ttl = int(os.environ.get("ORCH_OPS_RUN_TTL", "86400"))
+    debug = os.environ.get("DEBUG", "false").lower() in ("true", "1", "yes")
+    log_level = os.environ.get("LOG_LEVEL", "DEBUG" if debug else "INFO").upper()
     return Settings(
         base_dir=base_dir,
         repo_root_dir=repo_root_dir,
@@ -190,6 +201,18 @@ def _build_settings() -> Settings:
         gics_daemon_script=base_dir.parent / "vendor" / "gics" / "dist" / "src" / "daemon" / "server.js",
         gics_socket_path=ops_data_dir / "gics.sock",
         gics_token_path=ops_data_dir / "gics.token",
+        data_dir=base_dir / "tools" / "gimo_server" / "data",
+        debug=debug,
+        log_level=log_level,
+        license_key=os.environ.get("ORCH_LICENSE_KEY", ""),
+        license_validate_url=os.environ.get(
+            "ORCH_LICENSE_URL",
+            "https://gimo-web.vercel.app/api/license/validate",
+        ),
+        license_public_key_pem=os.environ.get("ORCH_LICENSE_PUBLIC_KEY", ""),
+        license_cache_path=base_dir / ".gimo_license",
+        license_grace_days=int(os.environ.get("ORCH_LICENSE_GRACE_DAYS", "7")),
+        license_recheck_hours=int(os.environ.get("ORCH_LICENSE_RECHECK_HOURS", "24")),
     )
 
 
@@ -229,8 +252,10 @@ AUDIT_LOG_PATH = _SETTINGS.audit_log_path
 AUDIT_LOG_MAX_BYTES = _SETTINGS.audit_log_max_bytes
 AUDIT_LOG_BACKUP_COUNT = _SETTINGS.audit_log_backup_count
 OPS_DATA_DIR = _SETTINGS.ops_data_dir
-OPS_DATA_DIR = _SETTINGS.ops_data_dir
 OPS_RUN_TTL = _SETTINGS.ops_run_ttl
 GICS_DAEMON_SCRIPT = _SETTINGS.gics_daemon_script
 GICS_SOCKET_PATH = _SETTINGS.gics_socket_path
 GICS_TOKEN_PATH = _SETTINGS.gics_token_path
+DATA_DIR = _SETTINGS.data_dir
+DEBUG = _SETTINGS.debug
+LOG_LEVEL = _SETTINGS.log_level

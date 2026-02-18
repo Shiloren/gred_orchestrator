@@ -30,7 +30,7 @@ export const Accordion: React.FC<AccordionProps> = ({
                 className="w-full flex items-center justify-between px-4 py-3 hover:bg-white/5 transition-colors"
             >
                 <div className="flex items-center space-x-3">
-                    <span className="text-[11px] font-black uppercase tracking-[0.15em] text-slate-300">
+                    <span className="text-[11px] font-black uppercase tracking-[0.15em] text-[#f5f5f7]">
                         {title}
                     </span>
                     {badge && (
@@ -40,7 +40,7 @@ export const Accordion: React.FC<AccordionProps> = ({
                     )}
                 </div>
                 <ChevronDown
-                    className={`w-4 h-4 text-slate-500 transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
+                    className={`w-4 h-4 text-[#86868b] transition-transform duration-300 ${isOpen ? 'rotate-180' : ''}`}
                 />
             </button>
 
@@ -79,7 +79,7 @@ export const SettingsSlider: React.FC<SliderProps> = ({
     return (
         <div className="space-y-2">
             <div className="flex items-center justify-between">
-                <span className="text-[10px] font-bold uppercase tracking-wider text-slate-400">{label}</span>
+                <span className="text-[10px] font-bold uppercase tracking-wider text-[#86868b]">{label}</span>
                 <span className="text-[11px] font-mono text-accent-primary">{value}{unit}</span>
             </div>
             <div className="relative h-2 bg-black/40 rounded-full overflow-hidden">
@@ -96,7 +96,7 @@ export const SettingsSlider: React.FC<SliderProps> = ({
                     className="absolute inset-0 w-full opacity-0 cursor-pointer"
                 />
             </div>
-            <div className="flex justify-between text-[9px] text-slate-600 font-medium">
+            <div className="flex justify-between text-[9px] text-[#6e6e73] font-medium">
                 <span>{min}{unit}</span>
                 <span>{max}{unit}</span>
             </div>

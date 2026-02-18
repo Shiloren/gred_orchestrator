@@ -5,7 +5,7 @@ import socket
 import subprocess
 import time
 from pathlib import Path
-from typing import Any, Dict, Optional
+from typing import Any, Dict, List, Optional
 
 from ..config import GICS_DAEMON_SCRIPT, GICS_SOCKET_PATH, GICS_TOKEN_PATH, OPS_DATA_DIR
 
@@ -213,7 +213,13 @@ class GicsService:
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
         return self.send_command("get", {"key": key})
-        
+
+    def scan(self, prefix: str = "", include_fields: bool = True) -> List[Dict[str, Any]]:
+        result = self.send_command("scan", {"prefix": prefix, "includeFields": include_fields})
+        if result and "items" in result:
+            return result["items"]
+        return []
+
     def flush(self) -> Any:
          # Trigger a manual flush to warm
          # This isn't exposed in the switch-case in server.js explicitly? 

@@ -25,9 +25,7 @@ export const GraphView = () => {
     const fetchGraphData = useCallback(async () => {
         try {
             const response = await fetch('/ui/graph', {
-                headers: {
-                    'Authorization': 'Bearer demo-token' // Assuming a demo token for now as per routes.py
-                }
+                credentials: 'include',
             });
             const data = await response.json();
 

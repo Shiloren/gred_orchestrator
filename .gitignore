@@ -64,6 +64,14 @@ pytest_final.txt
 pytest_short.txt
 nul
 .orch_actions_token
+.vite/
+tools/gimo_server/.tmp_cookie.txt
+lghub_settings_debug.json
+extract_lighting.py
+inspect_lghub_db.py
+search_g733.py
+get_schema.py
+/examples/
 
 # UI build/test artifacts
 tools/orchestrator_ui/coverage/
@@ -89,3 +97,7 @@ tests/metrics/*.md
 # Vendor dependencies
 vendor/gics
 *.tar.gz
+
+# License system — archivos sensibles (nunca deben subirse al repo)
+private_key.pem
+.gimo_license

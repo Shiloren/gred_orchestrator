@@ -27,6 +27,7 @@ from tools.gimo_server.security.auth import AuthContext
 from tools.gimo_server.services.file_service import FileService
 from tools.gimo_server.services.repo_service import RepoService
 from tools.gimo_server.services.system_service import SystemService
+from tools.gimo_server.routers.ops.common import _WORKFLOW_ENGINES
 from tools.gimo_server.version import __version__
 
 READ_ONLY_ACTIONS_PATHS = {
@@ -181,6 +182,81 @@ def get_ui_allowlist_handler(
             logger.warning("Failed to relativize allowlist path %s: %s", item.get("path"), exc)
             continue
     return {"paths": safe_items}
+
+
+def get_ui_graph_handler(
+    auth: AuthContext = Depends(require_read_only_access),
+    rl: None = Depends(check_rate_limit),
+):
+    """Generate dynamic graph structure for the UI based on active engines."""
+    # Find most recent active engine
+    engine = None
+    if _WORKFLOW_ENGINES:
+        # Get the move recent one (insertion order in python 3.7+)
+        engine = list(_WORKFLOW_ENGINES.values())[-1]
+
+    if not engine:
+        # Fallback to a basic structural view if no active engine
+        return {"nodes": [], "edges": []}
+
+    graph = engine.graph
+    state_data = engine.state.data
+    node_confidence = state_data.get("node_confidence", {})
+
+    nodes = []
+    for node in graph.nodes:
+        # Map WorkflowNode to UI GraphNode format
+        confidence = node_confidence.get(node.id)
+        
+        # Determine status
+        status = "pending"
+        # Check checkpoints for status
+        for cp in reversed(engine.state.checkpoints):
+            if cp.node_id == node.id:
+                status = cp.status if cp.status != "completed" else "done"
+                break
+        
+        # If it's paused due to doubt
+        if state_data.get("execution_paused") and state_data.get("pause_reason") == "agent_doubt":
+            # Check if this node is the one that paused
+            # We don't have a direct 'current_node' but we have _resume_from_node_id
+            if getattr(engine, "_resume_from_node_id", None) == node.id:
+                status = "doubt"
+
+        # Map questions if any
+        pending_questions = []
+        if confidence and confidence.get("questions"):
+            for i, q in enumerate(confidence["questions"]):
+                pending_questions.append({
+                    "id": f"doubt_{node.id}_{i}",
+                    "question": q,
+                    "timestamp": datetime.now(timezone.utc).isoformat(),
+                    "status": "pending"
+                })
+
+        nodes.append({
+            "id": node.id,
+            "type": "orchestrator" if node.type == "agent_task" else "bridge",
+            "data": {
+                "label": node.config.get("label", node.id),
+                "status": status,
+                "confidence": confidence,
+                "pendingQuestions": pending_questions,
+                "trustLevel": state_data.get(f"trust_{node.id}", "autonomous"),
+            },
+            "position": {"x": 0, "y": 0} # Frontend layouting usually handles this, or we can mock
+        })
+
+    edges = []
+    for edge in graph.edges:
+        edges.append({
+            "id": f"e-{edge.from_node}-{edge.to_node}",
+            "source": edge.from_node,
+            "target": edge.to_node,
+            "animated": True
+        })
+
+    return {"nodes": nodes, "edges": edges}
 
 
 def list_repos_handler(
@@ -442,6 +518,143 @@ def register_routes(app: FastAPI):
     app.get("/ui/repos/active")(get_active_repo_handler)
     app.post("/ui/repos/open")(open_repo_handler)
     app.post("/ui/repos/select")(select_repo_handler)
+    app.get("/ui/graph")(get_ui_graph_handler)
+
+    @app.get("/ui/providers")
+    async def list_ui_providers_bridge(
+        auth: AuthContext = Depends(require_read_only_access),
+        rl: None = Depends(check_rate_limit),
+    ):
+        """Bridge endpoint for legacy UI. Source of truth is OPS provider config."""
+        from tools.gimo_server.services.provider_service import ProviderService
+
+        cfg = ProviderService.get_public_config()
+        if not cfg:
+            return []
+
+        result = []
+        for pid, entry in cfg.providers.items():
+            caps = entry.capabilities or {}
+            provider_type = entry.provider_type or entry.type
+            result.append(
+                {
+                    "id": pid,
+                    "type": provider_type,
+                    "is_local": not bool(caps.get("requires_remote_api", True)),
+                    "config": {
+                        "display_name": entry.display_name,
+                        "base_url": entry.base_url,
+                        "model": entry.model,
+                        "capabilities": caps,
+                    },
+                    "deprecated": True,
+                    "deprecation_note": "Use /ops/provider as canonical source.",
+                }
+            )
+        return result
+
+    @app.post("/ui/providers")
+    async def add_ui_provider_bridge(
+        body: dict,
+        auth: AuthContext = Depends(require_read_only_access),
+        rl: None = Depends(check_rate_limit),
+    ):
+        from tools.gimo_server.ops_models import ProviderEntry, ProviderConfig
+        from tools.gimo_server.services.provider_service import ProviderService
+
+        if auth.role != "admin":
+            raise HTTPException(status_code=403, detail="admin role or higher required")
+
+        cfg = ProviderService.get_config()
+        if not cfg:
+            raise HTTPException(status_code=404, detail="Provider config missing")
+
+        provider_id = str(body.get("id") or body.get("name") or "").strip()
+        if not provider_id:
+            raise HTTPException(status_code=400, detail="provider id is required")
+
+        raw_type = str(body.get("provider_type") or body.get("type") or "custom_openai_compatible")
+        canonical_type = ProviderService.normalize_provider_type(raw_type)
+        model = str(body.get("model") or body.get("default_model") or "gpt-4o-mini")
+        base_url = body.get("base_url")
+        if canonical_type == "ollama_local" and not base_url:
+            base_url = "http://localhost:11434/v1"
+
+        cfg.providers[provider_id] = ProviderEntry(
+            type=raw_type,
+            provider_type=canonical_type,
+            display_name=body.get("display_name") or provider_id,
+            base_url=base_url,
+            api_key=body.get("api_key"),
+            model=model,
+            capabilities=ProviderService.capabilities_for(canonical_type),
+        )
+
+        updated = ProviderService.set_config(
+            ProviderConfig(active=cfg.active if cfg.active in cfg.providers else provider_id, providers=cfg.providers, mcp_servers=cfg.mcp_servers)
+        )
+        audit_log("UI", "LEGACY_PROVIDER_ADD", provider_id, actor=f"{auth.role}:legacy_bridge")
+        return {"id": provider_id, "status": "registered", "active": updated.active, "deprecated": True}
+
+    @app.delete("/ui/providers/{provider_id}")
+    async def remove_ui_provider_bridge(
+        provider_id: str,
+        auth: AuthContext = Depends(require_read_only_access),
+        rl: None = Depends(check_rate_limit),
+    ):
+        from tools.gimo_server.ops_models import ProviderConfig
+        from tools.gimo_server.services.provider_service import ProviderService
+
+        if auth.role != "admin":
+            raise HTTPException(status_code=403, detail="admin role or higher required")
+
+        cfg = ProviderService.get_config()
+        if not cfg:
+            raise HTTPException(status_code=404, detail="Provider config missing")
+        if provider_id not in cfg.providers:
+            raise HTTPException(status_code=404, detail="Provider not found")
+
+        cfg.providers.pop(provider_id, None)
+        if not cfg.providers:
+            raise HTTPException(status_code=400, detail="At least one provider is required")
+        if cfg.active == provider_id:
+            cfg.active = next(iter(cfg.providers.keys()))
+        ProviderService.set_config(ProviderConfig(active=cfg.active, providers=cfg.providers, mcp_servers=cfg.mcp_servers))
+        audit_log("UI", "LEGACY_PROVIDER_REMOVE", provider_id, actor=f"{auth.role}:legacy_bridge")
+        return {"status": "removed", "id": provider_id, "deprecated": True}
+
+    @app.post("/ui/providers/{provider_id}/test")
+    async def test_ui_provider_bridge(
+        provider_id: str,
+        auth: AuthContext = Depends(require_read_only_access),
+        rl: None = Depends(check_rate_limit),
+    ):
+        from tools.gimo_server.services.provider_service import ProviderService
+
+        cfg = ProviderService.get_config()
+        if not cfg or provider_id not in cfg.providers:
+            raise HTTPException(status_code=404, detail="Provider not found")
+
+        healthy = await ProviderService.health_check() if provider_id == cfg.active else True
+        return {
+            "status": "ok" if healthy else "error",
+            "message": "Provider reachable" if healthy else "Provider unreachable",
+            "deprecated": True,
+        }
+
+    @app.get("/ui/nodes")
+    async def list_ui_nodes_bridge(
+        auth: AuthContext = Depends(require_read_only_access),
+        rl: None = Depends(check_rate_limit),
+    ):
+        """Bridge endpoint kept for legacy UI compatibility."""
+        return {}
+    
+    @app.get("/ui/cost/compare")
+    async def compare_costs(model_a: str, model_b: str):
+        from tools.gimo_server.services.cost_service import CostService
+        return CostService.get_impact_comparison(model_a, model_b)
+
     app.get("/ui/security/events")(get_security_events_handler)
     app.post("/ui/security/resolve")(resolve_security_handler)
     app.get("/ui/service/status")(get_service_status_handler)

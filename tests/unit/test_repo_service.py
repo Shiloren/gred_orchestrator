@@ -3,7 +3,7 @@ from unittest.mock import patch
 
 import pytest
 
-from tools.gimo_server.models import RepoEntry
+from tools.repo_orchestrator.models import RepoEntry
 from tools.gimo_server.services.repo_service import RepoService
 
 
@@ -25,9 +25,9 @@ def test_list_repos(mock_list):
     assert isinstance(repos[0], RepoEntry)
 
 
-@patch("tools.gimo_server.services.repo_service.load_repo_registry")
-@patch("tools.gimo_server.services.repo_service.save_repo_registry")
-def test_ensure_repo_registry(mock_save, mock_load, tmp_path):
+@patch("tools.repo_orchestrator.services.registry_service.RegistryService.save_registry")
+@patch("tools.repo_orchestrator.services.registry_service.RegistryService.load_registry")
+def test_ensure_repo_registry(mock_load, mock_save, tmp_path):
     repo_path = tmp_path / "new"
     # Case: active_repo not in current list
     mock_load.return_value = {

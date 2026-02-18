@@ -37,7 +37,7 @@ class SubAgentManager:
             "type": "sub_agent_update",
             "agent_id": sub_id,
             "parent_id": parent_id,
-            "payload": agent.dict()
+            "payload": agent.model_dump()
         })
         
         return agent
@@ -63,7 +63,7 @@ class SubAgentManager:
             await manager.broadcast({
                 "type": "sub_agent_update",
                 "agent_id": sub_id,
-                "payload": agent.dict()
+                "payload": agent.model_dump()
             })
 
     @classmethod
@@ -82,7 +82,7 @@ class SubAgentManager:
         await manager.broadcast({
             "type": "sub_agent_update",
             "agent_id": sub_id,
-            "payload": agent.dict()
+            "payload": agent.model_dump()
         })
         
         try:
@@ -101,7 +101,7 @@ class SubAgentManager:
             await manager.broadcast({
                 "type": "sub_agent_update",
                 "agent_id": sub_id,
-                "payload": agent.dict()
+                "payload": agent.model_dump()
             })
             
             return response
@@ -113,6 +113,6 @@ class SubAgentManager:
             await manager.broadcast({
                 "type": "sub_agent_update",
                 "agent_id": sub_id,
-                "payload": agent.dict()
+                "payload": agent.model_dump()
             })
             raise e

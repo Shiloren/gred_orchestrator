@@ -23,7 +23,13 @@ logger = logging.getLogger("orchestrator.adapters.generic_cli")
 
 
 class GenericCLISession(AgentSession):
-    """Session for a generic CLI agent via stdin/stdout."""
+    """Session for a generic CLI agent via stdin/stdout.
+
+    Implements the standard specific agent protocol:
+    - Listens for `PROPOSAL:{json}` on stdout.
+    - Sends `ALLOW {id}` or `DENY {id}` to stdin.
+    - Parses metrics and status updates.
+    """
 
     PROPOSAL_PREFIX = "PROPOSAL:"
     ALLOW_CMD_PREFIX = "ALLOW"
@@ -149,34 +155,49 @@ class GenericCLISession(AgentSession):
         if action_id not in self._proposal_index:
             raise ValueError(f"Unknown proposal id: {action_id}")
         action = self._proposal_index[action_id]
+        
+        await self._validate_tool_registry(action, action_id)
         tool_entry = ToolRegistryService.get_tool(action.tool)
+        
+        await self._validate_idempotency(action, action_id, tool_entry)
+        
+        await self._validate_policy(action, action_id)
+
+        self._decision_log[action_id] = "allowed"
+        await self._send_stdin_line(f"{self.ALLOW_CMD_PREFIX} {action_id}")
+        self._emit_trust_event(action_id=action_id, outcome="approved")
+
+    async def _validate_tool_registry(self, action: ProposedAction, action_id: str) -> None:
         if not ToolRegistryService.is_allowed(action.tool):
             self._decision_log[action_id] = "blocked:not_in_tool_registry"
             await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=tool_not_registered")
             self._emit_trust_event(action_id=action_id, outcome="rejected")
             raise PermissionError(f"Tool not registered: {action.tool}")
 
-        # Idempotency guard for write/destructive operations (Roadmap v2 Fase 2.4).
+    async def _validate_idempotency(self, action: ProposedAction, action_id: str, tool_entry: Any) -> None:
         risk = str(getattr(tool_entry, "risk", "read") or "read")
-        if risk in {"write", "destructive"}:
-            idem_key = str(action.params.get("idempotency_key") or "").strip()
-            if not idem_key:
-                self._decision_log[action_id] = "blocked:missing_idempotency_key"
-                await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=missing_idempotency_key")
-                self._emit_trust_event(action_id=action_id, outcome="rejected")
-                raise PermissionError(f"Missing idempotency_key for {risk} tool: {action.tool}")
+        if risk not in {"write", "destructive"}:
+            return
 
-            accepted = StorageService().register_tool_call_idempotency_key(
-                idempotency_key=idem_key,
-                tool=action.tool,
-                context=str(action.params.get("path") or action.params.get("cmd") or "*"),
-            )
-            if not accepted:
-                self._decision_log[action_id] = "blocked:duplicate_idempotency_key"
-                await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=duplicate_idempotency_key")
-                self._emit_trust_event(action_id=action_id, outcome="rejected")
-                raise PermissionError(f"Duplicate idempotency_key for tool call: {action.tool}")
+        idem_key = str(action.params.get("idempotency_key") or "").strip()
+        if not idem_key:
+            self._decision_log[action_id] = "blocked:missing_idempotency_key"
+            await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=missing_idempotency_key")
+            self._emit_trust_event(action_id=action_id, outcome="rejected")
+            raise PermissionError(f"Missing idempotency_key for {risk} tool: {action.tool}")
 
+        accepted = StorageService().register_tool_call_idempotency_key(
+            idempotency_key=idem_key,
+            tool=action.tool,
+            context=str(action.params.get("path") or action.params.get("cmd") or "*"),
+        )
+        if not accepted:
+            self._decision_log[action_id] = "blocked:duplicate_idempotency_key"
+            await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=duplicate_idempotency_key")
+            self._emit_trust_event(action_id=action_id, outcome="rejected")
+            raise PermissionError(f"Duplicate idempotency_key for tool call: {action.tool}")
+
+    async def _validate_policy(self, action: ProposedAction, action_id: str) -> None:
         context_value = str(action.params.get("path") or action.params.get("cmd") or "*")
         dimension_key = f"{action.tool}|*|{self._model_name}|{self._task_type}"
         trust_score = 0.0
@@ -213,10 +234,6 @@ class GenericCLISession(AgentSession):
             await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=policy_never_auto_approve")
             self._emit_trust_event(action_id=action_id, outcome="rejected")
             raise PermissionError(f"Policy override requires manual review: {action.tool}")
-
-        self._decision_log[action_id] = "allowed"
-        await self._send_stdin_line(f"{self.ALLOW_CMD_PREFIX} {action_id}")
-        self._emit_trust_event(action_id=action_id, outcome="approved")
 
     async def deny(self, action_id: str, reason: Optional[str] = None) -> None:
         if action_id not in self._proposal_index:

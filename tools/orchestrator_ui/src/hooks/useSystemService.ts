@@ -3,17 +3,14 @@ import { API_BASE } from '../types';
 
 export type ServiceStatus = 'RUNNING' | 'STOPPED' | 'STARTING' | 'STOPPING' | 'UNKNOWN';
 
-export const useSystemService = (token?: string) => {
+export const useSystemService = (_token?: string) => {
     const [status, setStatus] = useState<ServiceStatus>('UNKNOWN');
     const [isLoading, setIsLoading] = useState(false);
     const [error, setError] = useState<string | null>(null);
 
     const fetchStatus = useCallback(async () => {
         try {
-            const headers: HeadersInit = {};
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
-            const res = await fetch(`${API_BASE}/ui/service/status`, { headers });
+            const res = await fetch(`${API_BASE}/ui/service/status`, { credentials: 'include' });
             if (!res.ok) throw new Error('Failed to fetch service status');
             const data = await res.json();
             setStatus(data.status);
@@ -21,18 +18,16 @@ export const useSystemService = (token?: string) => {
         } catch (err) {
             setError(err instanceof Error ? err.message : 'Unknown error');
         }
-    }, [token]);
+    }, []);
 
     const controlService = useCallback(async (action: 'restart' | 'stop') => {
         setIsLoading(true);
         setError(null);
         try {
-            const headers: HeadersInit = { 'Content-Type': 'application/json' };
-            if (token) headers['Authorization'] = `Bearer ${token}`;
-
             const res = await fetch(`${API_BASE}/ui/service/${action}`, {
                 method: 'POST',
-                headers
+                headers: { 'Content-Type': 'application/json' },
+                credentials: 'include',
             });
             if (!res.ok) throw new Error(`Failed to ${action} service`);
 
@@ -43,7 +38,7 @@ export const useSystemService = (token?: string) => {
         } finally {
             setIsLoading(false);
         }
-    }, [token, fetchStatus]);
+    }, [fetchStatus]);
 
     useEffect(() => {
         fetchStatus();

@@ -8,10 +8,12 @@ class ProviderAdapter(ABC):
     """Provider adapter interface."""
 
     @abstractmethod
-    async def generate(self, prompt: str, context: Dict[str, Any]) -> str:
+    async def generate(self, prompt: str, context: Dict[str, Any]) -> Dict[str, Any]:
         """Generate draft content for a prompt.
 
-        Must return a string (the draft content).
+        Returns a dictionary with:
+        - "content": str (the generated text)
+        - "usage": dict (optional tokens usage info)
         """
 
     @abstractmethod

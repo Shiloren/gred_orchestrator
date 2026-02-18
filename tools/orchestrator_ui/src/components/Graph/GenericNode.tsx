@@ -2,7 +2,6 @@ import { memo } from 'react';
 import { Handle, Position, NodeProps, Node } from '@xyflow/react';
 import { CheckCircle2, Clock, FileCode, AlertCircle, RefreshCw } from 'lucide-react';
 import clsx from 'clsx';
-import { motion } from 'framer-motion';
 
 export type GenericNodeData = {
     label: string;
@@ -38,9 +37,7 @@ export const GenericNode = memo(({ data, selected }: NodeProps<GenericNodeType>)
     const style = statusColors[status] || statusColors.pending;
 
     return (
-        <motion.div
-            initial={{ scale: 0.9, opacity: 0 }}
-            animate={{ scale: 1, opacity: 1 }}
+        <div
             className={clsx(
                 "relative min-w-[200px] rounded-xl border backdrop-blur-md transition-all duration-300",
                 "flex flex-col overflow-hidden group",
@@ -87,12 +84,7 @@ export const GenericNode = memo(({ data, selected }: NodeProps<GenericNodeType>)
             {/* Progress Bar (if running) */}
             {status === 'running' && (
                 <div className="h-0.5 w-full bg-amber-900/30 overflow-hidden">
-                    <motion.div
-                        className="h-full bg-amber-500"
-                        initial={{ x: '-100%' }}
-                        animate={{ x: '100%' }}
-                        transition={{ repeat: Infinity, duration: 1, ease: 'linear' }}
-                    />
+                    <div className="h-full w-1/3 bg-amber-500 animate-pulse" />
                 </div>
             )}
 
@@ -102,6 +94,6 @@ export const GenericNode = memo(({ data, selected }: NodeProps<GenericNodeType>)
                 position={Position.Right}
                 className="!w-2 !h-8 !bg-zinc-800 !border-none !rounded-l-full !-right-2 transition-colors group-hover:!bg-blue-500"
             />
-        </motion.div>
+        </div>
     );
 });

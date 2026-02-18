@@ -1,7 +1,14 @@
-// API Configuration
 export const API_BASE = import.meta.env.VITE_API_URL || `http://${globalThis.location?.hostname ?? 'localhost'}:9325`;
+export const ORCH_TOKEN = import.meta.env.VITE_ORCH_TOKEN || 'demo-token';
 
 export type TrustLevel = 'autonomous' | 'supervised' | 'restricted';
+
+export interface ConfidenceScore {
+    score: number;
+    percentage: string;
+    level: string;
+    reason: string;
+}
 
 export interface GraphNode {
     id: string;
@@ -42,6 +49,9 @@ export interface AgentTask {
     description: string;
     status: TaskStatus;
     output?: string;
+    tokens_used?: number;
+    cost_usd?: number;
+    confidence?: ConfidenceScore;
 }
 
 export interface AgentThought {
@@ -54,6 +64,7 @@ export interface AgentPlan {
     tasks: AgentTask[];
     currentStep?: number;
     reasoning?: AgentThought[];
+    confidence?: ConfidenceScore;
 }
 
 export interface GraphEdge {
@@ -140,7 +151,15 @@ export interface DelegationRequest {
 
 // --- Phase 11: Hybrid Provider System ---
 
-export type ProviderType = 'ollama' | 'groq' | 'openrouter' | 'codex' | 'custom';
+export type ProviderType =
+    | 'ollama'
+    | 'groq'
+    | 'openrouter'
+    | 'codex'
+    | 'custom'
+    | 'ollama_local'
+    | 'openai'
+    | 'custom_openai_compatible';
 
 export interface ProviderConfig {
     id: string;
@@ -264,3 +283,207 @@ export interface RemoteProviderConfig {
     active: string;
     providers: Record<string, ProviderEntry>;
 }
+
+export interface EvalCase {
+    case_id?: string;
+    input_state: Record<string, any>;
+    expected_state: Record<string, any>;
+    threshold?: number;
+}
+
+export interface EvalDataset {
+    id?: number;
+    workflow_id: string;
+    name: string;
+    description?: string;
+    cases: EvalCase[];
+    created_at?: string;
+    version?: string;
+    dataset_id?: number; // Virtual ID from list_eval_datasets fallback
+    version_tag?: string;
+}
+
+export interface EvalRunRequest {
+    workflow_id: string;
+    dataset_id?: number;
+    dataset?: EvalDataset;
+    judge: string;
+    gate?: string;
+    case_limit?: number;
+}
+
+export interface EvalCaseResult {
+    case_id: string;
+    passed: boolean;
+    score: number;
+    input_state: Record<string, any>;
+    expected_state: Record<string, any>;
+    actual_state: Record<string, any>;
+    reason?: string;
+}
+
+export interface EvalRunReport {
+    eval_run_id?: number;
+    workflow_id: string;
+    dataset_id: number;
+    total_cases: number;
+    passed_cases: number;
+    pass_rate: number;
+    gate_passed: boolean;
+    average_score: number;
+    details: EvalCaseResult[];
+    created_at?: string;
+}
+
+export interface EvalRunSummary {
+    run_id: number;
+    workflow_id: string;
+    gate_passed: boolean;
+    pass_rate: number;
+    avg_score: number;
+    total_cases: number;
+    passed_cases: number;
+    failed_cases: number;
+    created_at: string;
+    dataset_id?: number;
+}
+
+export interface EvalRunDetail {
+    run_id: number;
+    workflow_id: string;
+    created_at: string;
+    report: EvalRunReport;
+}
+
+// --- Phase 3.2: Observability ---
+
+export interface Span {
+    trace_id: string;
+    span_id: string;
+    parent_id?: string | null;
+    name: string;
+    start_time: string;
+    end_time?: string | null;
+    status: 'ok' | 'error';
+    attributes: Record<string, any>;
+    events: Array<{ name: string; timestamp: string; attributes?: Record<string, any> }>;
+}
+
+export interface Trace {
+    trace_id: string;
+    root_span: Span;
+    spans: Span[];
+    start_time: string;
+    end_time?: string | null;
+    duration_ms?: number;
+    status: 'ok' | 'error' | 'pending';
+    workflow_id?: string;
+}
+
+export interface ObservabilityMetrics {
+    total_workflows: number;
+    active_workflows: number;
+    total_tokens: number;
+    estimated_cost: number;
+    error_rate: number;
+    avg_latency_ms: number;
+}
+
+// --- Phase 10: Token Mastery ---
+
+export interface ProviderBudget {
+    provider: string;
+    max_cost_usd: number | null;
+    period: 'daily' | 'weekly' | 'monthly' | 'total';
+}
+
+export interface CascadeConfig {
+    enabled: boolean;
+    min_tier: string;
+    max_tier: string;
+    quality_threshold: number;
+    max_escalations: number;
+}
+
+export interface EcoModeConfig {
+    mode: 'off' | 'binary' | 'smart';
+    floor_tier: string;
+    confidence_threshold_aggressive?: number;
+    confidence_threshold_moderate?: number;
+}
+
+export interface UserEconomyConfig {
+    autonomy_level: 'manual' | 'advisory' | 'guided' | 'autonomous';
+    global_budget_usd: number | null;
+    provider_budgets: ProviderBudget[];
+    alert_thresholds: number[];
+    cascade: CascadeConfig;
+    eco_mode: EcoModeConfig;
+    allow_roi_routing: boolean;
+    model_floor: string | null;
+    model_ceiling: string | null;
+    cache_enabled: boolean;
+    cache_ttl_hours: number;
+    show_cost_predictions: boolean;
+}
+
+export interface MasteryStatus {
+    eco_mode_enabled: boolean;
+    total_savings_usd: number;
+    efficiency_score: number;
+    tips: string[];
+}
+
+export interface BudgetForecast {
+    scope: string; // "global" or provider name
+    current_spend: number;
+    limit: number | null;
+    remaining: number | null;
+    remaining_pct: number | null;
+    burn_rate_hourly: number;
+    hours_to_exhaustion: number | null;
+    alert_level: 'none' | 'warning' | 'critical';
+}
+
+export interface RoiLeaderboardEntry {
+    model: string;
+    task_type: string;
+    roi_score: number;
+    avg_quality: number;
+    avg_cost: number;
+    sample_count: number;
+}
+
+export interface CascadeStats {
+    task_type: string;
+    total_calls: number;
+    cascaded_calls: number;
+    avg_cascade_depth: number;
+    total_spent: number;
+}
+
+export interface CacheStats {
+    total_calls: number;
+    cache_hits: number;
+    hit_rate: number;
+    estimated_savings_usd: number;
+}
+
+export interface CostAnalytics {
+    daily_costs: Array<{ date: string; cost: number; tokens: number }>;
+    by_model: Array<{ model: string; cost: number; count: number }>;
+    by_task_type: Array<{ task_type: string; cost: number; quality: number }>;
+    by_provider: Array<{ provider: string; cost: number; total_tokens: number; count: number }>;
+    roi_leaderboard: RoiLeaderboardEntry[];
+    cascade_stats: CascadeStats[];
+    cache_stats: CacheStats;
+    total_savings: number;
+}
+
+export interface MasteryRecommendation {
+    task_type: string;
+    suggested_model: string;
+    reason: string;
+}
+
+

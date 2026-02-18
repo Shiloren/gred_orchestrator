@@ -45,7 +45,11 @@ class CodexSession(GenericCLISession):
 
 
 class CodexAdapter(AgentAdapter):
-    """Adapter for orchestrating Codex CLI."""
+    """Adapter for orchestrating Codex CLI.
+
+    Spawns a custom Codex CLI and maps CODEX_PRE_TOOL prefixes to the
+    generic specific proposal format.
+    """
 
     def __init__(
         self,

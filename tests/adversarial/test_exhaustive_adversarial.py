@@ -13,6 +13,9 @@ import os
 import time
 from datetime import datetime
 from pathlib import Path
+
+import pytest
+pytestmark = pytest.mark.adversarial
 from typing import Any
 
 import pytest
@@ -420,29 +423,30 @@ class TestPanicEvasion:
     def test_panic_evasion_vectors(
         self, llm, llm_available, metrics, test_client, valid_token
     ):
-        """Trigger panic, validate fail-closed semantics, then test Qwen evasion payloads."""
-        # Phase 1: trigger panic (threshold = 5 invalid tokens >= 16 chars)
-        for i in range(6):
-            resp = test_client.get(
-                "/status",
-                headers={"Authorization": f"Bearer adversarial-panic-trigger-{i:020d}"},
-            )
-            _require_orchestrator_response(resp, "panic trigger")
+        """Trigger lockdown, validate fail-closed semantics, then test Qwen evasion payloads."""
+        from tools.gimo_server.security import threat_engine
+        from tools.gimo_server.security.threat_level import ThreatLevel, AUTH_FAILURE_LOCKDOWN_THRESHOLD
 
-        # Verify panic is active (invalid token → 503 from middleware)
+        # Phase 1: trigger LOCKDOWN via simulated external attacker
+        # (TestClient source is whitelisted, so direct threat_engine calls needed)
+        for _ in range(AUTH_FAILURE_LOCKDOWN_THRESHOLD):
+            threat_engine.record_auth_failure("adversarial-attacker-192.168.1.99")
+        assert threat_engine.level >= ThreatLevel.LOCKDOWN, "LOCKDOWN not triggered - precondition failed"
+
+        # Verify lockdown is active (invalid token → 503 from middleware)
         baseline = test_client.get(
             "/status",
             headers={"Authorization": "Bearer not-a-real-token-panic-check-active"},  # NOSONAR S8217
         )
-        _require_orchestrator_response(baseline, "panic baseline")
-        assert baseline.status_code == 503, "Panic mode not triggered - precondition failed"
+        _require_orchestrator_response(baseline, "lockdown baseline")
+        assert baseline.status_code == 503, "LOCKDOWN not triggered - precondition failed"
 
         # Verify valid token still works (fail-closed blocks attackers, not operators)
         legit = test_client.get(
             "/status", headers={"Authorization": f"Bearer {valid_token}"}
         )
-        _require_orchestrator_response(legit, "panic legit token")
-        assert legit.status_code == 200, "Valid token blocked during panic - misconfigured"
+        _require_orchestrator_response(legit, "lockdown legit token")
+        assert legit.status_code == 200, "Valid token blocked during lockdown - misconfigured"
 
         # Phase 2: Qwen generates evasion attempts
         prompt = ATTACK_VECTORS["panic_evasion"]

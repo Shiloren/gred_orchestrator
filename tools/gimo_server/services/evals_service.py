@@ -46,6 +46,7 @@ class EvalsService:
                     case_id=case.case_id,
                     passed=passed,
                     score=round(score, 4),
+                    input_state=dict(case.input_state),
                     expected_state=dict(case.expected_state),
                     actual_state=cls._project_actual_state(actual_state, case.expected_state, judge),
                     reason=reason,

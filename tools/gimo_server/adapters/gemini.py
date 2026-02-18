@@ -42,7 +42,17 @@ class GeminiSession(GenericCLISession):
 
 
 class GeminiAdapter(AgentAdapter):
-    """Adapter for orchestrating Gemini CLI."""
+    """Adapter for orchestrating Gemini CLI.
+
+    This adapter spawns a Gemini CLI process and communicates via
+    standard input/output using a JSON stream format.
+
+    Attributes:
+        binary_path (str): Path to the gemini executable.
+        trust_event_sink (callable): Callback for trust events.
+        model_name (str): Identifier for the model (e.g., "gemini-1.5-pro").
+        actor (str): Actor identifier for logging and trust attribution.
+    """
 
     def __init__(
         self,

@@ -9,7 +9,7 @@ export const LiveLogs = () => {
         const fetchLogs = async () => {
             try {
                 const response = await fetch('/ui/audit?limit=50', {
-                    headers: { 'Authorization': 'Bearer demo-token' }
+                    credentials: 'include'
                 });
                 const data = await response.json();
                 if (data.lines) {
@@ -36,12 +36,15 @@ export const LiveLogs = () => {
             <div className="bg-[#1c1c1e] px-4 py-2 border-b border-[#38383a] flex items-center justify-between">
                 <div className="flex items-center gap-2">
                     <Terminal size={14} className="text-[#86868b]" />
-                    <span className="text-xs font-mono text-[#86868b] uppercase tracking-wider">Audit Stream</span>
+                    <span className="text-xs font-mono text-[#86868b] uppercase tracking-wider">Audit Stream (Legacy)</span>
                 </div>
                 <div className="flex items-center gap-2">
                     <div className="w-2 h-2 rounded-full bg-[#32d74b] animate-pulse"></div>
                     <span className="text-[10px] text-[#32d74b]">LIVE</span>
                 </div>
+            </div>
+            <div className="px-4 py-2 text-[10px] text-[#86868b] border-b border-[#38383a] bg-[#0a0a0a]">
+                Vista legacy. Para filtros, búsqueda y export usa <span className="text-[#f5f5f7]">Maintenance → Audit log</span>.
             </div>
             <div
                 ref={scrollRef}
@@ -49,7 +52,6 @@ export const LiveLogs = () => {
             >
                 {logs.map((log, i) => (
                     <div key={i} className="text-[#32d74b] opacity-80 border-l-2 border-[#32d74b] border-opacity-20 pl-2">
-                        <span className="text-[#86868b] mr-2">[{new Date().toLocaleTimeString()}]</span>
                         {log}
                     </div>
                 ))}

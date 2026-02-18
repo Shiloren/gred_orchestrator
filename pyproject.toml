@@ -54,11 +54,13 @@ testpaths = ["tests"]
 python_files = ["test_*.py"]
 python_classes = ["Test*"]
 python_functions = ["test_*"]
-addopts = "-v --strict-markers"
+addopts = "-v --strict-markers -m 'not adversarial and not slow_integration'"
 markers = [
     "slow: marks tests as slow",
     "integration: marks tests as integration tests",
     "security: marks tests as security tests",
+    "adversarial: marks adversarial/pentest tests that need LLM running (excluded by default)",
+    "slow_integration: marks slow integration tests excluded from default suite",
 ]
 
 [tool.coverage.run]

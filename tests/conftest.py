@@ -2,11 +2,12 @@
 
 import os
 from pathlib import Path
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
 
-IGNORED_COLLECTION_FILES = {"test_diag_2.txt", "test_failures.txt"}
+IGonRED_COLLECTION_FILES = {"test_diag_2.txt", "test_failures.txt"}
 
 # Set environment variables for testing BEFORE importing the app
 # Default token - will be reset by clean_environment fixture
@@ -23,7 +24,7 @@ from tools.gimo_server.main import app  # noqa: E402
 
 def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool | None:
     """Ignore non-test diagnostic artifacts stored in the repo root."""
-    if collection_path.name in IGNORED_COLLECTION_FILES:
+    if collection_path.name in IGonRED_COLLECTION_FILES:
         return True
     return None
 
@@ -110,3 +111,31 @@ def reset_test_state():
         logging.getLogger("orchestrator.tests").warning("Failed to reset security state: %s", exc)
 
     yield
+
+
+@pytest.fixture(autouse=True)
+def disable_observability_sdk():
+    """Disable OpenTelemetry SDK initialization during tests and mock counters."""
+    from tools.gimo_server.services.observability_service import ObservabilityService
+    
+    # Mock the counters so record_* methods don't crash
+    with patch.object(ObservabilityService, "_initialize_sdk", return_value=None):
+        ObservabilityService._workflows_counter = MagicMock()
+        ObservabilityService._nodes_counter = MagicMock()
+        ObservabilityService._nodes_failed_counter = MagicMock()
+        ObservabilityService._tokens_counter = MagicMock()
+        ObservabilityService._cost_counter = MagicMock()
+        ObservabilityService._tracer = MagicMock()
+        # Ensure start_span returns a context manager mock
+        ObservabilityService._tracer.start_span.return_value = MagicMock()
+        ObservabilityService._tracer.start_as_current_span.return_value.__enter__.return_value = MagicMock()
+        
+        yield
+        
+        # Reset (though autouse=True session/function scope might handle it, explicit is better)
+        ObservabilityService._workflows_counter = None
+        ObservabilityService._nodes_counter = None
+        ObservabilityService._nodes_failed_counter = None
+        ObservabilityService._tokens_counter = None
+        ObservabilityService._cost_counter = None
+        ObservabilityService._tracer = None

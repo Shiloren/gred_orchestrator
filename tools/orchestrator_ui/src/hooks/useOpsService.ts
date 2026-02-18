@@ -7,7 +7,7 @@ import {
 
 const POLL_INTERVAL_MS = 3000;
 
-export const useOpsService = (token?: string) => {
+export const useOpsService = (_token?: string) => {
     const [plan, setPlan] = useState<OpsPlan | null>(null);
     const [drafts, setDrafts] = useState<OpsDraft[]>([]);
     const [approved, setApproved] = useState<OpsApproved[]>([]);
@@ -19,21 +19,19 @@ export const useOpsService = (token?: string) => {
     const pollRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
     const getHeaders = useCallback(() => {
-        const headers: HeadersInit = { 'Content-Type': 'application/json' };
-        if (token) headers['Authorization'] = `Bearer ${token}`;
-        return headers;
-    }, [token]);
+        return { 'Content-Type': 'application/json' } as HeadersInit;
+    }, []);
 
     const fetchAll = useCallback(async () => {
         setIsLoading(true);
         try {
             const h = getHeaders();
             const [pRes, dRes, aRes, rRes, cRes] = await Promise.all([
-                fetch(`${API_BASE}/ops/plan`, { headers: h }),
-                fetch(`${API_BASE}/ops/drafts`, { headers: h }),
-                fetch(`${API_BASE}/ops/approved`, { headers: h }),
-                fetch(`${API_BASE}/ops/runs`, { headers: h }),
-                fetch(`${API_BASE}/ops/config`, { headers: h }),
+                fetch(`${API_BASE}/ops/plan`, { headers: h, credentials: 'include' }),
+                fetch(`${API_BASE}/ops/drafts`, { headers: h, credentials: 'include' }),
+                fetch(`${API_BASE}/ops/approved`, { headers: h, credentials: 'include' }),
+                fetch(`${API_BASE}/ops/runs`, { headers: h, credentials: 'include' }),
+                fetch(`${API_BASE}/ops/config`, { headers: h, credentials: 'include' }),
             ]);
 
             if (pRes.ok) setPlan(await pRes.json());
@@ -53,7 +51,7 @@ export const useOpsService = (token?: string) => {
     // Poll runs when there are active (pending/running) runs
     const refreshRuns = useCallback(async () => {
         try {
-            const res = await fetch(`${API_BASE}/ops/runs`, { headers: getHeaders() });
+            const res = await fetch(`${API_BASE}/ops/runs`, { headers: getHeaders(), credentials: 'include' });
             if (res.ok) setRuns(await res.json());
         } catch { /* silent */ }
     }, [getHeaders]);
@@ -74,7 +72,7 @@ export const useOpsService = (token?: string) => {
     const updatePlan = async (newPlan: OpsPlan) => {
         try {
             const res = await fetch(`${API_BASE}/ops/plan`, {
-                method: 'PUT', headers: getHeaders(), body: JSON.stringify(newPlan)
+                method: 'PUT', headers: getHeaders(), credentials: 'include', body: JSON.stringify(newPlan)
             });
             if (!res.ok) throw new Error('Failed to update plan');
             setPlan(newPlan);
@@ -87,7 +85,7 @@ export const useOpsService = (token?: string) => {
         setIsLoading(true);
         try {
             const res = await fetch(`${API_BASE}/ops/generate?prompt=${encodeURIComponent(prompt)}`, {
-                method: 'POST', headers: getHeaders()
+                method: 'POST', headers: getHeaders(), credentials: 'include'
             });
             if (!res.ok) throw new Error('Generation failed');
             const newDraft = await res.json();
@@ -104,7 +102,7 @@ export const useOpsService = (token?: string) => {
         try {
             const params = autoRun !== undefined ? `?auto_run=${autoRun}` : '';
             const res = await fetch(`${API_BASE}/ops/drafts/${id}/approve${params}`, {
-                method: 'POST', headers: getHeaders()
+                method: 'POST', headers: getHeaders(), credentials: 'include'
             });
             if (!res.ok) throw new Error('Approval failed');
             const data: OpsApproveResponse = await res.json();
@@ -120,7 +118,7 @@ export const useOpsService = (token?: string) => {
     const rejectDraft = async (id: string) => {
         try {
             const res = await fetch(`${API_BASE}/ops/drafts/${id}/reject`, {
-                method: 'POST', headers: getHeaders()
+                method: 'POST', headers: getHeaders(), credentials: 'include'
             });
             if (!res.ok) throw new Error('Rejection failed');
             setDrafts(prev => prev.map(d => d.id === id ? { ...d, status: 'rejected' as const } : d));
@@ -132,7 +130,7 @@ export const useOpsService = (token?: string) => {
     const startRun = async (approvedId: string) => {
         try {
             const res = await fetch(`${API_BASE}/ops/runs`, {
-                method: 'POST', headers: getHeaders(),
+                method: 'POST', headers: getHeaders(), credentials: 'include',
                 body: JSON.stringify({ approved_id: approvedId })
             });
             if (!res.ok) throw new Error('Failed to start run');
@@ -147,7 +145,7 @@ export const useOpsService = (token?: string) => {
     const cancelRun = async (runId: string) => {
         try {
             const res = await fetch(`${API_BASE}/ops/runs/${runId}/cancel`, {
-                method: 'POST', headers: getHeaders()
+                method: 'POST', headers: getHeaders(), credentials: 'include'
             });
             if (!res.ok) throw new Error('Cancel failed');
             const updated = await res.json();
@@ -160,7 +158,7 @@ export const useOpsService = (token?: string) => {
     const updateConfig = async (newConfig: OpsConfig) => {
         try {
             const res = await fetch(`${API_BASE}/ops/config`, {
-                method: 'PUT', headers: getHeaders(),
+                method: 'PUT', headers: getHeaders(), credentials: 'include',
                 body: JSON.stringify(newConfig)
             });
             if (!res.ok) throw new Error('Config update failed');

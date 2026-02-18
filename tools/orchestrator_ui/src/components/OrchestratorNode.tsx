@@ -2,8 +2,17 @@ import { memo } from 'react';
 import { Handle, Position } from 'reactflow';
 import { Cpu } from 'lucide-react';
 import { QualityIndicator } from './QualityIndicator';
+import { ConfidenceMeter } from './ConfidenceMeter';
+
+const getStatusColor = (status: string) => {
+    if (status === 'doubt' || status === 'agent_doubt') return 'text-[#ffd60a]';
+    if (status === 'failed') return 'text-[#ff453a]';
+    return 'text-[#32d74b]';
+};
 
 export const OrchestratorNode = memo(({ data, selected }: any) => {
+    const isDoubt = data.status === 'doubt' || data.status === 'agent_doubt';
+
     return (
         <div className={`
             px-5 py-4 rounded-xl bg-[#141414] border-2 transition-all duration-200 min-w-[180px]
@@ -22,7 +31,12 @@ export const OrchestratorNode = memo(({ data, selected }: any) => {
                 </div>
                 <div>
                     <div className="text-sm font-semibold text-[#f5f5f7]">{data.label}</div>
-                    <div className="text-[10px] text-[#32d74b] uppercase tracking-wider font-bold font-mono">{data.status}</div>
+                    <div className="flex items-center gap-2 mt-1">
+                        <div className={`text-[10px] uppercase tracking-wider font-bold font-mono ${getStatusColor(data.status)}`}>
+                            {isDoubt ? 'DUDAS' : data.status}
+                        </div>
+                        {data.confidence && <ConfidenceMeter data={data.confidence} />}
+                    </div>
                 </div>
             </div>
             <Handle type="target" position={Position.Left} className="!w-2 !h-2 !bg-[#0a84ff] !border-[#141414] !border-2" />

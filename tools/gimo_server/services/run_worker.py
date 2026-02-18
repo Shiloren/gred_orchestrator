@@ -102,10 +102,12 @@ class RunWorker:
             )
 
             try:
-                provider_name, result = await asyncio.wait_for(
-                    ProviderService.generate(prompt, context={"mode": "execute"}),
+                resp = await asyncio.wait_for(
+                    ProviderService.static_generate(prompt, context={"mode": "execute"}),
                     timeout=DEFAULT_RUN_TIMEOUT,
                 )
+                provider_name = resp["provider"]
+                result = resp["content"]
                 OpsService.append_log(run_id, level="INFO", msg=f"Provider: {provider_name}")
                 OpsService.append_log(run_id, level="INFO", msg=f"Result:\n{result[:2000]}")
                 OpsService.update_run_status(run_id, "done", msg="Execution completed")

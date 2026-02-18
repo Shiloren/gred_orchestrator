@@ -1,6 +1,11 @@
 # Production Dependencies
 # Install with: pip install -r requirements.txt
 
+# Licensing & Cryptography (GIMO License System)
+cryptography>=43.0.0       # Ed25519 signing/verification, AES-256-GCM cache
+PyJWT[crypto]>=2.9.0       # JWT creation and verification (Ed25519 algorithm)
+httpx>=0.27.0              # Async HTTP client for online license validation
+
 # Core Web Framework
 fastapi>=0.115.0
 uvicorn[standard]>=0.34.2
@@ -14,6 +19,12 @@ requests==2.32.4
 anthropic==0.79.0
 python-dotenv==1.2.1
 rich==14.3.2
+
+# Observability (OpenTelemetry)
+opentelemetry-api==1.27.0
+opentelemetry-sdk==1.27.0
+opentelemetry-exporter-otlp==1.27.0
+opentelemetry-instrumentation-fastapi==0.48b0
 
 # Multipart Form Data (for file uploads)
 python-multipart>=0.0.22  # Security fix CVE-2026-24486

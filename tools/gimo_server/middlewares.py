@@ -21,8 +21,8 @@ async def threat_level_middleware(
     request: Request, call_next: Callable[[Request], Coroutine[None, None, Response]]
 ) -> Response:
     """Adaptive security middleware based on threat levels."""
-    # Always allow root, health, and resolve endpoints
-    if request.url.path in ["/", "/health", "/ui/security/resolve"]:
+    # Always allow root, health, auth, and resolve endpoints
+    if request.url.path in ["/", "/health", "/ui/security/resolve"] or request.url.path.startswith("/auth/"):
         return await call_next(request)
 
     from tools.gimo_server.security import threat_engine
@@ -36,11 +36,16 @@ async def threat_level_middleware(
         return response
 
     # 2. Check if request is authenticated - auth users are NEVER blocked
-    auth_header = request.headers.get("Authorization", "")
     is_authenticated = False
+    auth_header = request.headers.get("Authorization", "")
     if auth_header.startswith("Bearer "):
         token = auth_header[7:].strip()
         if token in TOKENS:
+            is_authenticated = True
+    if not is_authenticated:
+        from tools.gimo_server.security.auth import session_store, SESSION_COOKIE_NAME
+        cookie = request.cookies.get(SESSION_COOKIE_NAME)
+        if cookie and session_store.validate(cookie):
             is_authenticated = True
 
     if is_authenticated:
