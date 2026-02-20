@@ -1,24 +1,33 @@
 from __future__ import annotations
 
+import os
 from typing import Any, Dict, Optional
 
 from .direct_response_engine import RuleBasedDirectResponseEngine
 from .intent_engine import RuleBasedIntentEngine
 from .models import CognitiveDecision, DetectedIntent
 from .security_guard import RuleBasedSecurityGuard
+from .gios_bridge import GiosTfIdfIntentEngine, GiosSecurityGuard, GiosDirectResponseEngine
 
 
 class CognitiveService:
     def __init__(
         self,
         *,
-        intent_engine: Optional[RuleBasedIntentEngine] = None,
-        security_guard: Optional[RuleBasedSecurityGuard] = None,
-        direct_response_engine: Optional[RuleBasedDirectResponseEngine] = None,
+        intent_engine=None,
+        security_guard=None,
+        direct_response_engine=None,
     ) -> None:
-        self.intent_engine = intent_engine or RuleBasedIntentEngine()
-        self.security_guard = security_guard or RuleBasedSecurityGuard()
-        self.direct_response_engine = direct_response_engine or RuleBasedDirectResponseEngine()
+        self.bridge_enabled = os.environ.get("COGNITIVE_GIOS_BRIDGE_ENABLED", "false").lower() == "true"
+        
+        if self.bridge_enabled:
+            self.intent_engine = intent_engine or GiosTfIdfIntentEngine()
+            self.security_guard = security_guard or GiosSecurityGuard()
+            self.direct_response_engine = direct_response_engine or GiosDirectResponseEngine()
+        else:
+            self.intent_engine = intent_engine or RuleBasedIntentEngine()
+            self.security_guard = security_guard or RuleBasedSecurityGuard()
+            self.direct_response_engine = direct_response_engine or RuleBasedDirectResponseEngine()
 
     def evaluate(self, input_text: str, context: Optional[Dict[str, Any]] = None) -> CognitiveDecision:
         ctx = dict(context or {})
@@ -38,6 +47,7 @@ class CognitiveService:
                     "decision_path": "security_block",
                     "security_flags": list(security.flags),
                     "security_reason": security.reason,
+                    "engine_used": "gios_bridge" if self.bridge_enabled else "rule_based"
                 },
             )
 
@@ -58,6 +68,7 @@ class CognitiveService:
                     "decision_path": "direct_response",
                     "security_flags": list(security.flags),
                     "cognitive_metadata": draft.metadata,
+                    "engine_used": "gios_bridge" if self.bridge_enabled else "rule_based"
                 },
             )
 
@@ -72,5 +83,6 @@ class CognitiveService:
                 "detected_intent": intent.name,
                 "decision_path": "llm_generate",
                 "security_flags": list(security.flags),
+                "engine_used": "gios_bridge" if self.bridge_enabled else "rule_based"
             },
         )

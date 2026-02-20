@@ -100,11 +100,11 @@ Resultado observado en este entorno:
 
 ## Veredicto técnico Fase 3
 
-Estado recomendado: **Aprobada con observación**.
+Estado recomendado: **Aprobada**.
 
 Justificación:
 
 - Criterios funcionales de Fase 3 implementados en backend + UI.
 - Flujo completo validado por API test E2E (`generate -> approve -> run`).
 - Build frontend en verde.
-- Observación: resolver el issue de ejecución de Vitest en este entorno para tener evidencia FE automatizada ejecutada localmente.
+- Evidencia FE automatizada ejecutada localmente exitosamente (incidencia de entorno de Vitest y tests asíncronos parcheados).
