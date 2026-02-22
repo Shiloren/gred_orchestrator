@@ -1,0 +1,14 @@
+{
+    "gimo": {
+        "command": "python",
+        "args": [
+            "-m",
+            "tools.gimo_mcp.server"
+        ],
+        "cwd": "${GIMO_REPO_ROOT}",
+        "env": {
+            "PYTHONIOENCODING": "utf-8",
+            "ORCH_REPO_ROOT": "${ORCH_REPO_ROOT}"
+        }
+    }
+}
