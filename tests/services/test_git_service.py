@@ -1,7 +1,7 @@
 import pytest
 from pathlib import Path
 from unittest.mock import patch, MagicMock
-from tools.repo_orchestrator.services.git_service import GitService
+from tools.gimo_server.services.git_service import GitService
 
 
 def test_get_diff_success(tmp_path):
@@ -9,7 +9,7 @@ def test_get_diff_success(tmp_path):
     mock_process.communicate.return_value = ("file1.py | 5 ++-\n", "")
     mock_process.returncode = 0
 
-    with patch("tools.repo_orchestrator.services.git_service.subprocess.Popen", return_value=mock_process):
+    with patch("tools.gimo_server.services.git_service.subprocess.Popen", return_value=mock_process):
         result = GitService.get_diff(tmp_path, "main", "HEAD")
 
     assert "file1.py" in result
@@ -20,7 +20,7 @@ def test_get_diff_error(tmp_path):
     mock_process.communicate.return_value = ("", "fatal: bad revision")
     mock_process.returncode = 1
 
-    with patch("tools.repo_orchestrator.services.git_service.subprocess.Popen", return_value=mock_process):
+    with patch("tools.gimo_server.services.git_service.subprocess.Popen", return_value=mock_process):
         with pytest.raises(RuntimeError, match="Git error"):
             GitService.get_diff(tmp_path, "invalid", "HEAD")
 
@@ -29,7 +29,7 @@ def test_get_diff_timeout(tmp_path):
     mock_process = MagicMock()
     mock_process.communicate.side_effect = TimeoutError("timed out")
 
-    with patch("tools.repo_orchestrator.services.git_service.subprocess.Popen", return_value=mock_process):
+    with patch("tools.gimo_server.services.git_service.subprocess.Popen", return_value=mock_process):
         with pytest.raises(RuntimeError, match="Internal git execution error"):
             GitService.get_diff(tmp_path)
 

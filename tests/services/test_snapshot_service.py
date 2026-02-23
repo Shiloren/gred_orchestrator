@@ -2,13 +2,13 @@ import pytest
 import time
 from pathlib import Path
 from unittest.mock import patch
-from tools.repo_orchestrator.services.snapshot_service import SnapshotService
+from tools.gimo_server.services.snapshot_service import SnapshotService
 
 
 @pytest.fixture
 def snapshot_dir(tmp_path):
     snap_dir = tmp_path / "snapshots"
-    with patch("tools.repo_orchestrator.services.snapshot_service.SNAPSHOT_DIR", snap_dir):
+    with patch("tools.gimo_server.services.snapshot_service.SNAPSHOT_DIR", snap_dir):
         yield snap_dir
 
 
@@ -45,7 +45,7 @@ def test_cleanup_old_snapshots(snapshot_dir):
     old_time = time.time() - 3600
     os.utime(old_file, (old_time, old_time))
 
-    with patch("tools.repo_orchestrator.services.snapshot_service.SNAPSHOT_TTL", 300):
+    with patch("tools.gimo_server.services.snapshot_service.SNAPSHOT_TTL", 300):
         SnapshotService.cleanup_old_snapshots()
 
     assert fresh_file.exists()
@@ -53,6 +53,6 @@ def test_cleanup_old_snapshots(snapshot_dir):
 
 
 def test_cleanup_nonexistent_dir():
-    with patch("tools.repo_orchestrator.services.snapshot_service.SNAPSHOT_DIR", Path("/nonexistent")):
+    with patch("tools.gimo_server.services.snapshot_service.SNAPSHOT_DIR", Path("/nonexistent")):
         # Should not raise
         SnapshotService.cleanup_old_snapshots()

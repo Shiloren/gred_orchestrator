@@ -101,3 +101,7 @@ vendor/gics
 # License system — archivos sensibles (nunca deben subirse al repo)
 private_key.pem
 .gimo_license
+
+# Root-level accidental files
+/package-lock.json
+gimo_debug.log

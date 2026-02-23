@@ -323,6 +323,176 @@ grep -rn "from tools.gimo_mcp" tools/gimo_server tests --include="*.py"
 
 ---
 
+## FASE 5.5 — Rediseño de Test Suite
+
+### Diagnóstico
+
+| Métrica | Antes | Target |
+|---------|-------|--------|
+| Tests totales | 648 | ~400-450 |
+| Archivos test | 84 | ~35 |
+| Subdirectorios | 7 (`unit/`, `services/`, `adversarial/`, `llm/`, `metrics/`, `llm_security/`, `gptactions/`) | 2 (`unit/`, `integration/`) |
+| Security tests | 175 en 17+ archivos | ~80 en 4 archivos |
+| Tests de módulo muerto | 44 (gptactions) + ~40 (llm_security) | 0 |
+| Duplicados detectados | ~15-20 tests | 0 |
+
+### Distribución actual por dominio
+
+| Dominio | Tests | Archivos | Problema |
+|---------|-------|----------|----------|
+| Security/Trust/Adversarial | 175 (28%) | 17+ | Fragmentación extrema: `test_security_hardened`, `test_security_core`, `test_unit_security`, `test_security_validation`, `test_adaptive_security` — 5 archivos con nombres similares |
+| GPT Actions | 44 | 1 (`tests/gptactions/test_gateway_security.py`) | Módulo `gptactions_gateway/` eliminado en Fase 2 → tests muertos |
+| LLM Security | ~40 | 9 (`tests/llm_security/`) | Módulo `llm_security/` eliminado en Fase 2 → migrar lo útil |
+| OPS (routes/plans/runs) | 108 | ~5 | Razonable, mantener |
+| Cost/Economy/Mastery | 68 | 8 | Algo de duplicación (`test_provider_budget` existe en root Y en services/) |
+| Core (services, auth, etc.) | ~213 | ~30 | Razonable, mantener |
+
+### 5.5.1 Eliminar tests de módulos muertos (~84 tests)
+
+**Eliminar completamente:**
+```
+tests/gptactions/                          # 44 tests → todo el directorio (gptactions_gateway eliminado)
+tests/llm_security/test_anomaly_detector.py  # testa tools.llm_security (eliminado)
+tests/llm_security/test_audit.py
+tests/llm_security/test_cache.py
+tests/llm_security/test_llm_client.py
+tests/llm_security/test_metrics.py
+tests/llm_security/test_prompts.py
+tests/llm_security/test_scope_limiter.py
+```
+
+**Migrar antes de eliminar** (funcionalidad que se mueve a `gimo_server`):
+```
+tests/llm_security/test_input_sanitizer.py   → tests/unit/test_security.py (si sanitizer migra)
+tests/llm_security/test_output_validator.py  → tests/unit/test_security.py (si validator migra)
+```
+
+**Tests de `repo_orchestrator` que necesitan actualizar imports:**
+```
+tests/services/test_file_service.py      → actualizar imports a gimo_server
+tests/services/test_git_service.py       → actualizar imports a gimo_server
+tests/services/test_snapshot_service.py  → actualizar imports a gimo_server
+tests/test_quality_service.py            → actualizar imports a gimo_server
+```
+
+### 5.5.2 Consolidar security tests (175 → ~80, 17 archivos → 4)
+
+**Estructura target:**
+
+| Archivo nuevo | Fusiona | Tests aprox |
+|---------------|---------|-------------|
+| `tests/unit/test_auth.py` | `test_auth_validation.py` (13) + tests auth de `test_ops_v2.py` + `test_api_security.py` (8) | ~25 |
+| `tests/unit/test_trust.py` | `test_trust_engine.py` (4) + `test_trust_engine_latency.py` (3) + `test_trust_event_buffer.py` (2) + `test_trust_store.py` (1) + `test_trust_routes.py` (19) + partes de `test_security_core.py` | ~25 |
+| `tests/unit/test_security_guards.py` | `test_security_validation.py` (19) + `test_security_hardened.py` (5) + `test_unit_security.py` (4) + `test_adaptive_security.py` (12) + `test_cognitive_security_guard.py` (2) + `test_llm_security_leakage.py` (19 → reducir a ~10 representativos) | ~30 |
+| `tests/integration/test_adversarial.py` | `test_exhaustive_adversarial.py` (7) + `test_adaptive_attack_vectors.py` (3) + `test_fuzzing.py` (2) + `test_threat_engine_custom.py` (4) | ~15 |
+
+**Regla de consolidación:** Si dos tests hacen assert sobre el mismo endpoint o la misma función con inputs similares → merge en un test parametrizado.
+
+**Ejemplo de deduplicación con parametrize:**
+```python
+# ANTES: 5 tests separados en 3 archivos
+def test_sql_injection_blocked(): ...
+def test_xss_blocked(): ...
+def test_path_traversal_blocked(): ...
+def test_command_injection_blocked(): ...
+def test_null_byte_blocked(): ...
+
+# DESPUÉS: 1 test parametrizado
+@pytest.mark.parametrize("payload,attack_type", [
+    ("' OR 1=1 --", "sql_injection"),
+    ("<script>alert(1)</script>", "xss"),
+    ("../../etc/passwd", "path_traversal"),
+    ("; rm -rf /", "command_injection"),
+    ("file\x00.txt", "null_byte"),
+])
+def test_malicious_input_blocked(payload, attack_type): ...
+```
+
+### 5.5.3 Deduplicar tests de dominio
+
+**Duplicados concretos a fusionar:**
+- `tests/test_provider_budget.py` + `tests/services/test_provider_budget.py` → uno solo en `tests/unit/`
+- `tests/test_model_router_service.py` + `tests/services/test_model_router_v2.py` → uno solo
+- `tests/services/test_economy_config.py` + `tests/unit/test_user_economy_config.py` → uno solo
+
+### 5.5.4 Aplanar estructura de directorios
+
+**Antes (7 subdirs):**
+```
+tests/
+├── adversarial/      # 1 archivo
+├── gptactions/       # 1 archivo (MUERTO)
+├── llm/              # 1 archivo
+├── llm_security/     # 9 archivos (MUERTOS)
+├── metrics/          # 1 archivo
+├── services/         # 14 archivos
+├── unit/             # 12 archivos
+├── test_*.py         # 30 archivos en root
+└── conftest.py
+```
+
+**Después (2 subdirs):**
+```
+tests/
+├── unit/              # Tests unitarios (mocks, sin I/O real)
+│   ├── test_auth.py
+│   ├── test_trust.py
+│   ├── test_security_guards.py
+│   ├── test_cost_service.py
+│   ├── test_economy_config.py
+│   ├── test_budget_forecast.py
+│   ├── test_model_router.py
+│   ├── test_provider_service.py
+│   ├── test_graph_engine.py
+│   ├── test_storage.py
+│   ├── test_file_service.py
+│   ├── test_license_guard.py
+│   ├── test_routes.py
+│   ├── test_services.py
+│   └── test_config.py
+├── integration/       # Tests E2E (TestClient, requieren app running)
+│   ├── test_ops_e2e.py         # (viene de test_ops_v2.py)
+│   ├── test_adversarial.py
+│   ├── test_api_security.py
+│   ├── test_adapters.py
+│   └── test_mastery_integration.py
+├── conftest.py
+└── fixtures/          # Shared test data si hace falta
+```
+
+### 5.5.5 Reglas para la reescritura
+
+1. **Usar `pytest.mark.parametrize`** agresivamente — si hay 5 tests que solo cambian el input, es un parametrize
+2. **Un archivo = un dominio** — no `test_security_core` + `test_security_validation` + `test_security_hardened`
+3. **Naming:** `test_{dominio}.py` en singular, no `test_{dominio}_v2` o `test_{dominio}_remaining`
+4. **Fixtures compartidas** van en `conftest.py`, no duplicadas en cada archivo
+5. **No testear implementación interna** — testear comportamiento público. Si un refactor rompe un test sin cambiar la API, el test era frágil
+6. **Cada test debe tener un propósito claro** — si no puedes explicar en 1 frase qué regresión previene, elimínalo
+
+### 5.5.6 Orden de ejecución
+
+```
+1. Eliminar tests/gptactions/ completo (0 riesgo, módulo muerto)
+2. Eliminar tests/llm_security/ excepto input_sanitizer y output_validator
+3. Migrar los 2 tests de llm_security a tests/unit/test_security_guards.py
+4. Actualizar imports de repo_orchestrator en 4 archivos de tests/services/
+5. Consolidar security: fusionar 17 archivos → 4
+6. Deduplicar: provider_budget, model_router, economy_config
+7. Mover archivos a estructura unit/ + integration/
+8. Ejecutar pytest -x -q → verificar 100% pass
+9. Eliminar subdirectorios vacíos
+```
+
+**Criterio Fase 5.5:**
+- [ ] `find tests -name "test_*.py" | wc -l` → ≤35
+- [ ] `ls tests/` → solo `unit/`, `integration/`, `conftest.py`, `fixtures/`
+- [ ] `python -m pytest --co -q` → ~400-450 tests
+- [ ] `python -m pytest -x -q` → 100% pass
+- [ ] Zero archivos con `_v2`, `_remaining`, `_hardened` en el nombre
+- [ ] Zero tests que importen de módulos eliminados
+
+---
+
 ## FASE 6 — Frontend (Ejecutar UI_IMPROVEMENT_PLAN)
 
 Esta fase es el documento separado `docs/UI_IMPROVEMENT_PLAN_2026-02-23.md` con sus 3 sub-fases propias. Resumen:
@@ -394,22 +564,28 @@ cd tools/orchestrator_ui && npx vitest run
 ## Orden de Ejecución
 
 ```
-FASE 0 → Snapshot (CRÍTICO, hacer primero)
+FASE 0   → Snapshot (CRÍTICO, hacer primero)
    ↓
-FASE 1 → Purga de basura (5 min, zero riesgo)
+FASE 1   → Purga de basura (5 min, zero riesgo)
    ↓
-FASE 2 → Consolidar tools/ (30 min, riesgo medio — requiere migrar imports)
+FASE 2   → Consolidar tools/ (30 min, riesgo medio — requiere migrar imports)
    ↓
-FASE 3 → Consolidar scripts/ (10 min, bajo riesgo)
+FASE 3   → Consolidar scripts/ (10 min, bajo riesgo)
    ↓
-FASE 4 → Consolidar docs/ (20 min, zero riesgo)
+FASE 4   → Consolidar docs/ (20 min, zero riesgo)
    ↓
-FASE 5 → Higiene backend (15 min, bajo riesgo)
+FASE 5   → Higiene backend (15 min, bajo riesgo)
    ↓
-FASE 6 → Frontend (UI_IMPROVEMENT_PLAN, varias horas)
+FASE 5.5 → Rediseño test suite (648→~420 tests, 84→~35 archivos)
    ↓
-FASE 7 → Polish final (15 min)
+FASE 6   → Frontend (UI_IMPROVEMENT_PLAN, varias horas)
+   ↓
+FASE 7   → Polish final (15 min)
 ```
+
+**Dependencias críticas:**
+- Fase 5.5 DEBE ir después de Fase 2 (eliminar tools/ legacy) y Fase 5 (limpiar imports)
+- Los tests de módulos eliminados en Fase 2 se borran en 5.5, no antes (para no romper pytest entre fases)
 
 ## Criterio Global de Éxito
 
@@ -420,7 +596,9 @@ FASE 7 → Polish final (15 min)
 - [ ] Zero archivos basura en root (no .json debug, no lock vacíos)
 - [ ] Zero `__pycache__` en workspace
 - [ ] Zero imports a módulos eliminados
-- [ ] `python -m pytest -x -q` → 100% pass
+- [ ] `python -m pytest -x -q` → 100% pass, ~400-450 tests
+- [ ] `find tests -name "test_*.py" | wc -l` → ≤35 archivos
+- [ ] Zero tests con `_v2`, `_remaining`, `_hardened` en el nombre
 - [ ] Frontend sin bugs de auth, sin botones muertos, idioma unificado
 - [ ] Un ingeniero nuevo puede entender el proyecto leyendo README + SYSTEM.md en <10 min
 

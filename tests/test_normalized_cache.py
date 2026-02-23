@@ -4,7 +4,7 @@ import hashlib
 from pathlib import Path
 from datetime import datetime, timedelta, timezone
 from unittest.mock import MagicMock, patch, AsyncMock
-from tools.llm_security.cache import NormalizedLLMCache
+from tools.gimo_server.services.llm_cache import NormalizedLLMCache
 from tools.gimo_server.services.provider_service import ProviderService
 from tools.gimo_server.ops_models import OpsConfig, UserEconomyConfig
 

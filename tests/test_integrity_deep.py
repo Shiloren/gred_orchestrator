@@ -25,11 +25,11 @@ def test_critical_file_integrity():
     manifest_path = BASE_DIR / "tests" / "integrity_manifest.json"
     
     critical_files = [
-        "tools/repo_orchestrator/main.py",
-        "tools/repo_orchestrator/security/__init__.py",
-        "tools/repo_orchestrator/security/validation.py",
-        "tools/repo_orchestrator/security/auth.py",
-        "tools/repo_orchestrator/security/audit.py",
+        "tools/gimo_server/main.py",
+        "tools/gimo_server/security/__init__.py",
+        "tools/gimo_server/security/validation.py",
+        "tools/gimo_server/security/auth.py",
+        "tools/gimo_server/security/audit.py",
     ]
     
     if not manifest_path.exists():

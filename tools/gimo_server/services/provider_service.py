@@ -11,7 +11,7 @@ from .provider_capability_service import ProviderCapabilityService
 from .provider_connector_service import ProviderConnectorService
 from .provider_auth_service import ProviderAuthService
 from .provider_state_service import ProviderStateService
-from ...llm_security.cache import NormalizedLLMCache
+from .llm_cache import NormalizedLLMCache
 
 logger = logging.getLogger("orchestrator.ops.provider")
 
