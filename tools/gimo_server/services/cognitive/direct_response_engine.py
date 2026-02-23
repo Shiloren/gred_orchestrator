@@ -4,6 +4,7 @@ from .models import DetectedIntent, ExecutionPlanDraft
 
 
 class RuleBasedDirectResponseEngine:
+    """Genera respuestas sincronas rapidas usando reglas."""
     def can_bypass_llm(self, intent: DetectedIntent, context: dict) -> bool:
         return intent.name in {"ASK_STATUS", "HELP"}
 

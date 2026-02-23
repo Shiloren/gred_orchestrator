@@ -23,6 +23,7 @@ def _sanitize_git_ref(ref: str) -> str:
 
 
 class GitService:
+    """Gestiona repositorios locales, worktrees y operaciones Git."""
     @staticmethod
     def get_diff(base_dir: Path, base: str = "main", head: str = "HEAD") -> str:
         try:

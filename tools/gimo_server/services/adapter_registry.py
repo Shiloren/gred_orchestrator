@@ -9,6 +9,7 @@ from ..adapters.gemini import GeminiAdapter
 from ..adapters.openai_compatible import OpenAICompatibleAdapter
 
 class AdapterRegistry:
+    """Registro central de adaptadores de protocolo MCP y OpenAPI."""
     _adapters: Dict[str, AgentAdapter] = {}
     _availability: Dict[str, bool] = {}
 

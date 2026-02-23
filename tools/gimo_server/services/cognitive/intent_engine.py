@@ -4,6 +4,7 @@ from .models import DetectedIntent
 
 
 class RuleBasedIntentEngine:
+    """Infiere la intencion del usuario basandose en heuristicas."""
     def detect_intent(self, input_text: str, context: dict) -> DetectedIntent:
         text = (input_text or "").strip().lower()
 

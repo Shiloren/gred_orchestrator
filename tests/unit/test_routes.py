@@ -79,15 +79,16 @@ def test_list_repos(client):
         ],
     ):
         with patch(
-            "tools.gimo_server.routes.RepoService.ensure_repo_registry",
-            return_value={"active_repo": "C:\\Users\\someuser\\repo"},
+            "tools.gimo_server.routes.load_repo_registry",
+            return_value={"active_repo": "C:\\Users\\someuser\\repo", "repos": []},
         ):
-            # Use a generic user path to avoid hardcoding a real workstation username.
-            with patch("tools.gimo_server.routes.REPO_ROOT_DIR", Path("C:\\Users\\someuser")):
-                response = client.get("/ui/repos")
-                assert response.status_code == 200
-                assert "[USER]" in response.json()["active_repo"]
-                assert response.json()["repos"][1]["path"] == ""
+            with patch("tools.gimo_server.routes.save_repo_registry"):
+                # Use a generic user path to avoid hardcoding a real workstation username.
+                with patch("tools.gimo_server.routes.REPO_ROOT_DIR", Path("C:\\Users\\someuser")):
+                    response = client.get("/ui/repos")
+                    assert response.status_code == 200
+                    assert "[USER]" in response.json()["active_repo"]
+                    assert response.json()["repos"][1]["path"] == ""
 
 
 def test_get_active_repo(client):

@@ -12,6 +12,7 @@ from .cost_service import CostService
 
 @dataclass
 class RoutingDecision:
+    """Encapsula la seleccion de proveedor y modelo (heuristica o NPU)."""
     model: str
     reason: str
     tier: Optional[str] = None

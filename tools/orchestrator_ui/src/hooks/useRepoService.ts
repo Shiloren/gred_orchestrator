@@ -32,7 +32,7 @@ export const useRepoService = (_token?: string) => {
         try {
             const headers: HeadersInit = {};
 
-            const MODERN_BOOTSTRAP_ENDPOINT = `${API_BASE}/ui/repos/bootstrap?path=${encodeURIComponent(path)}`;
+            const MODERN_BOOTSTRAP_ENDPOINT = `${API_BASE}/ui/repos/vitaminize?path=${encodeURIComponent(path)}`;
             const res = await fetch(MODERN_BOOTSTRAP_ENDPOINT, {
                 method: 'POST',
                 headers,

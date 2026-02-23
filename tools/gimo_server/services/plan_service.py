@@ -3,6 +3,7 @@ from typing import List, Dict, Optional
 from tools.repo_orchestrator.models import Plan, PlanTask, AgentAssignment, PlanUpdateRequest
 
 class PlanService:
+    """Orquesta la planificacion cognitiva y preparacion de sub-tareas."""
     _plans: Dict[str, Plan] = {}
 
     @classmethod

@@ -30,6 +30,7 @@ _OLLAMA_RECOMMENDED = [
 
 
 class ProviderCatalogService:
+    """Lleva el registro de proveedores LLM, modelos e integracion."""
     _CATALOG_CACHE: Dict[str, Tuple[float, ProviderModelsCatalogResponse]] = {}
     _INSTALL_JOBS: Dict[str, Dict[str, Any]] = {}
     _CATALOG_TTL_SECONDS: Dict[str, int] = {

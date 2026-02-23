@@ -7,6 +7,7 @@ logger = logging.getLogger("orchestrator.services.codex_auth")
 
 
 class CodexAuthService:
+    """Gestiona la autenticacion Device Code Flow para Codex."""
     @classmethod
     async def start_device_flow(cls) -> Dict[str, Any]:
         """

@@ -189,6 +189,7 @@ class GiosSecurityGuard:
 
 
 class GiosDirectResponseEngine:
+    """Proxy de respuestas directas conectando con GIOS subyacente."""
     def can_bypass_llm(self, intent: DetectedIntent, context: dict) -> bool:
         return intent.name in {"ASK_STATUS", "HELP"}
 

@@ -16,6 +16,7 @@ from ...llm_security.cache import NormalizedLLMCache
 logger = logging.getLogger("orchestrator.ops.provider")
 
 class ProviderService:
+    """Punto de entrada unificado para interactuar y enviar prompts a LLMs."""
     CONFIG_FILE = OPS_DATA_DIR / "provider.json"
 
     @classmethod

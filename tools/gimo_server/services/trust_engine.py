@@ -11,6 +11,7 @@ from .storage_service import StorageService
 
 @dataclass
 class TrustThresholds:
+    """Limites estaticos de fallos para control continuo (CircuitBreaker)."""
     auto_approve_score: float = 0.90
     auto_approve_min_approvals: int = 20
     review_score: float = 0.50
@@ -19,6 +20,7 @@ class TrustThresholds:
 
 @dataclass
 class CircuitBreakerConfig:
+    """Tiempos de cooldown y retry para proveedores inestables."""
     window: int = 20
     failure_threshold: int = 5
     recovery_probes: int = 3

@@ -3,7 +3,7 @@ import logging
 from typing import Dict, List, Optional
 from pathlib import Path
 from tools.gimo_server.models import SubAgent, SubAgentConfig
-from tools.gimo_server.services.model_service import ModelService
+from tools.gimo_server.services.provider_service import ProviderService
 from tools.gimo_server.services.git_service import GitService
 from tools.gimo_server.config import WORKTREES_DIR, REPO_ROOT_DIR
 from tools.gimo_server.services.provider_catalog_service import ProviderCatalogService
@@ -11,6 +11,7 @@ from tools.gimo_server.services.provider_catalog_service import ProviderCatalogS
 logger = logging.getLogger("orchestrator.sub_agent_manager")
 
 class SubAgentManager:
+    """Gestiona el ciclo de vida, spawn y estado de agentes secundarios."""
     _sub_agents: Dict[str, SubAgent] = {}
     _synced_models: set[str] = set()
 
@@ -136,10 +137,12 @@ class SubAgentManager:
                     agent.status = "offline"
                     raise RuntimeError("Ollama service is offline and could not be started.")
 
-            if not await ModelService.is_backend_ready():
-                 ModelService.initialize()
-
-            response = await ModelService.generate(task, agent.model, temperature=agent.config.temperature)
+            # Smart Wake already ensures Ollama is ready if needed
+            result = await ProviderService.static_generate(
+                prompt=task, 
+                context={"model": agent.model, "temperature": agent.config.temperature}
+            )
+            response = result.get("content", "")
             
             agent.status = "idle"
             agent.currentTask = None

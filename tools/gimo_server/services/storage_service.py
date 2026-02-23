@@ -1,13 +1,9 @@
 from __future__ import annotations
 
 import logging
-import sqlite3
 from typing import Any, Dict, List, Optional
-
-from ..config import OPS_DATA_DIR
 from ..ops_models import EvalDataset, EvalRunReport, TrustEvent
 
-from .storage.base_storage import BaseStorage
 from .storage.workflow_storage import WorkflowStorage
 from .storage.eval_storage import EvalStorage
 from .storage.trust_storage import TrustStorage
@@ -18,55 +14,23 @@ from .gics_service import GicsService
 logger = logging.getLogger("orchestrator.services.storage")
 
 class StorageService:
-    """SQLite storage service for operational data (Facade for domain-specific storage)."""
+    """Storage service for operational data (Facade for domain-specific storage).
+    Powered entirely by GICS.
+    """
 
-    DB_PATH = BaseStorage.DB_PATH
-
-    def __init__(self, conn: Optional[sqlite3.Connection] = None, gics: Optional[GicsService] = None):
-        self._conn = conn
+    def __init__(self, gics: Optional[GicsService] = None, conn: Optional[Any] = None):
+        if not gics:
+            # Enforce having GICS
+            logger.warning("StorageService running without GICS instance. Most storage operations will no-op.")
+            
         self.gics = gics
-        self.ensure_db()
         
-        # Initialize sub-storages sharing the same connection and GICS instance
-        self.workflows = WorkflowStorage(self._conn, gics=self.gics)
-        self.eval = EvalStorage(self._conn, gics=self.gics)
-        self.trust = TrustStorage(self._conn, gics_service=self.gics)
-        self.config = ConfigStorage(self._conn, gics=self.gics)
-        self.cost = CostStorage(self._conn, gics=self.gics)
-
-    def ensure_db(self) -> None:
-        if self._conn is None:
-            OPS_DATA_DIR.mkdir(parents=True, exist_ok=True)
-            self._conn = sqlite3.connect(self.DB_PATH, check_same_thread=False)
-            self._conn.row_factory = sqlite3.Row
-            # Enable WAL mode for better concurrency
-            self._conn.execute("PRAGMA journal_mode=WAL")
-            self._create_tables()
-
-    def _create_tables(self) -> None:
-        """Centralized table creation for all domains."""
-        # Delegates table creation to each sub-storage
-        # Note: We need to instantiate them briefly if not already done, 
-        # but since this is called from __init__ before they are assigned, 
-        # we can just run the queries here or via temp instances.
-        WorkflowStorage(self._conn).ensure_tables()
-        EvalStorage(self._conn).ensure_tables()
-        TrustStorage(self._conn).ensure_tables()
-        ConfigStorage(self._conn).ensure_tables()
-        CostStorage(self._conn).ensure_tables()
-        
-        # Audit entries and tool idempotency (config domain covers the latter)
-        with self._conn:
-            self._conn.execute("""
-                CREATE TABLE IF NOT EXISTS audit_entries (
-                    id INTEGER PRIMARY KEY AUTOINCREMENT,
-                    actor TEXT NOT NULL,
-                    action TEXT NOT NULL,
-                    resource TEXT NOT NULL,
-                    status TEXT NOT NULL,
-                    timestamp TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-                )
-            """)
+        # Initialize sub-storages sharing the GICS instance
+        self.workflows = WorkflowStorage(gics=self.gics)
+        self.eval = EvalStorage(gics=self.gics)
+        self.trust = TrustStorage(gics_service=self.gics)
+        self.config = ConfigStorage(gics=self.gics)
+        self.cost = CostStorage(gics=self.gics)
 
     # --- Workflow Domain ---
     def save_workflow(self, workflow_id: str, data: str) -> None:
@@ -133,7 +97,5 @@ class StorageService:
         return self.eval.get_eval_report(run_id)
 
     def close(self) -> None:
-        if self._conn:
-            self._conn.close()
-            self._conn = None
-            # Sub-storages share the connection, so they are effectively closed too
+        # GICS lifecycle is managed by GIMO App, so we don't close it here.
+        pass

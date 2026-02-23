@@ -7,6 +7,7 @@ from ..ops_models import ProviderConfig
 
 
 class ProviderStateService:
+    """Controla el estado online/offline y salud de los proveedores LLM."""
     @staticmethod
     def _safe_auth_ref(auth_ref: str | None) -> str | None:
         if not auth_ref:

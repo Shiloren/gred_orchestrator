@@ -1,250 +1,175 @@
-
 from __future__ import annotations
 
 import logging
-import sqlite3
-import time
 from datetime import datetime, timedelta, timezone
-from pathlib import Path
 from typing import Any, Dict, List, Optional
+from collections import defaultdict
 
-from filelock import FileLock
-from pydantic import BaseModel
-
-from ...config import OPS_DATA_DIR
-from ...ops_models import CostEvent, CostAnalytics
-from ..gics_service import GicsService
-from .base_storage import BaseStorage
+from ...ops_models import CostEvent
 
 logger = logging.getLogger("orchestrator.ops.cost")
 
-class CostStorage(BaseStorage):
+class CostStorage:
     """Storage service for cost and usage metrics.
     
-    Persists events to SQLite for aggregation and GICS for real-time syncing.
+    Persists events to GICS for real-time syncing and aggregation.
     """
 
-    def __init__(self, conn: Optional[sqlite3.Connection] = None, gics: Optional[GicsService] = None):
-        super().__init__(conn, gics)
+    def __init__(self, conn: Optional[Any] = None, gics: Optional[Any] = None):
+        self._conn = conn # Maintained temporarily for API compatibility
+        self.gics = gics
 
     def ensure_tables(self):
-        """Ensure database and tables exist."""
-        # OPS_DATA_DIR check handled by BaseStorage/StorageService
-        self._conn.execute("""
-            CREATE TABLE IF NOT EXISTS cost_events (
-                id TEXT PRIMARY KEY,
-                workflow_id TEXT,
-                node_id TEXT,
-                model TEXT,
-                provider TEXT,
-                task_type TEXT,
-                input_tokens INTEGER,
-                output_tokens INTEGER,
-                total_tokens INTEGER,
-                cost_usd REAL,
-                quality_score REAL,
-                cascade_level INTEGER,
-                cache_hit BOOLEAN,
-                duration_ms INTEGER,
-                timestamp TEXT
-            )
-        """)
-        # Indices for fast aggregation
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_cost_workflow ON cost_events(workflow_id)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_cost_timestamp ON cost_events(timestamp)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_cost_model ON cost_events(model)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_cost_provider ON cost_events(provider)")
-        self._conn.execute("CREATE INDEX IF NOT EXISTS idx_cost_task_type ON cost_events(task_type)")
-        if self._conn.in_transaction:
-            self._conn.commit()
+        """No-op: using GICS."""
+        pass
 
     def save_cost_event(self, event: CostEvent) -> None:
         """Save a cost event to storage."""
+        if not self.gics:
+            return
         try:
-            # 1. Write to SQLite
-            with self._conn:
-                self._conn.execute("""
-                    INSERT INTO cost_events (
-                        id, workflow_id, node_id, model, provider, task_type,
-                        input_tokens, output_tokens, total_tokens, cost_usd,
-                        quality_score, cascade_level, cache_hit, duration_ms, timestamp
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-                """, (
-                    event.id, event.workflow_id, event.node_id, event.model, event.provider, event.task_type,
-                    event.input_tokens, event.output_tokens, event.total_tokens, event.cost_usd,
-                    event.quality_score, event.cascade_level, event.cache_hit, event.duration_ms,
-                    event.timestamp.isoformat()
-                ))
-
-            # 2. Sync to GICS (Best effort)
-            if self.gics:
-                key = f"ce:{event.workflow_id}:{event.node_id}:{int(event.timestamp.timestamp())}"
-                self.gics.put(key, event.model_dump())
-
+            key = f"ce:{event.workflow_id}:{event.node_id}:{int(event.timestamp.timestamp())}"
+            self.gics.put(key, event.model_dump())
         except Exception as e:
             logger.error(f"Failed to save cost event {event.id}: {e}")
 
-    def get_provider_spend(self, provider: str, days: int = 30) -> float:
-        """Get total spend for a provider in the last N days."""
+    def _fetch_events(self, days: Optional[int] = 30, hours: Optional[int] = None) -> List[Dict[str, Any]]:
+        if not self.gics:
+            return []
         try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT SUM(cost_usd) FROM cost_events 
-                WHERE provider = ? AND timestamp >= ?
-            """, (provider, cutoff))
-            result = cursor.fetchone()[0]
-            return result if result else 0.0
+            now = datetime.now(timezone.utc)
+            if hours is not None:
+                cutoff = now - timedelta(hours=hours)
+            elif days is not None:
+                cutoff = now - timedelta(days=days)
+            else:
+                cutoff = now - timedelta(days=3650) # 10 years fallback
+                
+            items = self.gics.scan("ce:", include_fields=True)
+            events = []
+            for item in items:
+                fields = item.get("fields", {})
+                if "timestamp" in fields:
+                    try:
+                        ts_str = fields["timestamp"]
+                        if ts_str.endswith('Z'):
+                            ts_str = ts_str[:-1] + '+00:00'
+                        ts = datetime.fromisoformat(ts_str)
+                        if ts.tzinfo is None:
+                            ts = ts.replace(tzinfo=timezone.utc)
+                        if ts >= cutoff:
+                            events.append(fields)
+                    except ValueError:
+                        pass
+            return events
         except Exception as e:
-            logger.error(f"Failed to get provider spend: {e}")
-            return 0.0
+            logger.error(f"Failed to fetch cost events: {e}")
+            return []
+
+    def get_provider_spend(self, provider: str, days: int = 30) -> float:
+        events = self._fetch_events(days=days)
+        return sum(e.get("cost_usd", 0.0) for e in events if e.get("provider") == provider)
 
     def get_total_spend(self, days: int = 30) -> float:
-        """Get total spend across all providers in the last N days."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT SUM(cost_usd) FROM cost_events 
-                WHERE timestamp >= ?
-            """, (cutoff,))
-            result = cursor.fetchone()[0]
-            return result if result else 0.0
-        except Exception as e:
-            logger.error(f"Failed to get total spend: {e}")
-            return 0.0
+        events = self._fetch_events(days=days)
+        return sum(e.get("cost_usd", 0.0) for e in events)
 
     def aggregate_by_model(self, days: int = 30) -> List[Dict[str, Any]]:
-        """Get usage aggregation by model."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            # conn.row_factory is set in StorageService/BaseStorage
-            cursor = self._conn.execute("""
-                SELECT
-                    model,
-                    SUM(cost_usd) as cost,
-                    COUNT(*) as count
-                FROM cost_events
-                WHERE timestamp >= ?
-                GROUP BY model
-                ORDER BY cost DESC
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to aggregate by model: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"cost": 0.0, "count": 0})
+        for e in events:
+            model = e.get("model", "unknown")
+            agg[model]["cost"] += e.get("cost_usd", 0.0)
+            agg[model]["count"] += 1
+            
+        result = [{"model": k, "cost": v["cost"], "count": v["count"]} for k, v in agg.items()]
+        return sorted(result, key=lambda x: x["cost"], reverse=True)
 
     def get_daily_costs(self, days: int = 30) -> List[Dict[str, Any]]:
-         """Get daily cost timeseries."""
-         try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            # Group by date part of timestamp (ISO format YYYY-MM-DD...)
-            cursor = self._conn.execute("""
-                SELECT 
-                    substr(timestamp, 1, 10) as date,
-                    SUM(cost_usd) as cost,
-                    SUM(total_tokens) as tokens
-                FROM cost_events
-                WHERE timestamp >= ?
-                GROUP BY date
-                ORDER BY date ASC
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-         except Exception as e:
-            logger.error(f"Failed to get daily costs: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"cost": 0.0, "tokens": 0})
+        for e in events:
+            if "timestamp" in e:
+                date = e["timestamp"][:10] # YYYY-MM-DD
+                agg[date]["cost"] += e.get("cost_usd", 0.0)
+                agg[date]["tokens"] += e.get("total_tokens", 0)
+                
+        result = [{"date": k, "cost": v["cost"], "tokens": v["tokens"]} for k, v in agg.items()]
+        return sorted(result, key=lambda x: x["date"])
 
     def get_roi_leaderboard(self, days: int = 30) -> List[Dict[str, Any]]:
-        """Get model ROI leaderboard by task_type."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT 
-                    model,
-                    task_type,
-                    COUNT(*) as sample_count,
-                    AVG(quality_score) as avg_quality,
-                    AVG(cost_usd) as avg_cost,
-                    (AVG(quality_score) / (AVG(cost_usd) + 0.000001)) as roi_score
-                FROM cost_events
-                WHERE timestamp >= ? AND quality_score > 0
-                GROUP BY model, task_type
-                ORDER BY task_type ASC, roi_score DESC
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to get ROI leaderboard: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"count": 0, "sum_quality": 0.0, "sum_cost": 0.0})
+        for e in events:
+            qs = e.get("quality_score", 0.0)
+            if qs > 0:
+                key = (e.get("model", "unknown"), e.get("task_type", "unknown"))
+                agg[key]["count"] += 1
+                agg[key]["sum_quality"] += qs
+                agg[key]["sum_cost"] += e.get("cost_usd", 0.0)
+                
+        result = []
+        for (model, task_type), v in agg.items():
+            avg_quality = v["sum_quality"] / v["count"]
+            avg_cost = v["sum_cost"] / v["count"]
+            roi_score = avg_quality / (avg_cost + 0.000001)
+            result.append({
+                "model": model,
+                "task_type": task_type,
+                "sample_count": v["count"],
+                "avg_quality": avg_quality,
+                "avg_cost": avg_cost,
+                "roi_score": roi_score
+            })
+        # Order by task_type ASC, roi_score DESC
+        return sorted(result, key=lambda x: (x["task_type"], -x["roi_score"]))
 
     def get_cascade_stats(self, days: int = 30) -> List[Dict[str, Any]]:
-        """Get stats on cascading efficiency."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT 
-                    task_type,
-                    COUNT(*) as total_calls,
-                    SUM(CASE WHEN cascade_level > 0 THEN 1 ELSE 0 END) as cascaded_calls,
-                    AVG(cascade_level) as avg_cascade_depth,
-                    SUM(cost_usd) as total_spent
-                FROM cost_events
-                WHERE timestamp >= ?
-                GROUP BY task_type
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to get cascade stats: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"total_calls": 0, "cascaded_calls": 0, "sum_cascade_depth": 0, "total_spent": 0.0})
+        for e in events:
+            tt = e.get("task_type", "unknown")
+            casc_lvl = e.get("cascade_level", 0)
+            
+            agg[tt]["total_calls"] += 1
+            if casc_lvl > 0:
+                agg[tt]["cascaded_calls"] += 1
+            agg[tt]["sum_cascade_depth"] += casc_lvl
+            agg[tt]["total_spent"] += e.get("cost_usd", 0.0)
+            
+        result = []
+        for tt, v in agg.items():
+            result.append({
+                "task_type": tt,
+                "total_calls": v["total_calls"],
+                "cascaded_calls": v["cascaded_calls"],
+                "avg_cascade_depth": v["sum_cascade_depth"] / max(1, v["total_calls"]),
+                "total_spent": v["total_spent"]
+            })
+        return result
 
     def get_total_savings(self, days: int = 30) -> float:
-        """Calculates total estimated savings from cache hits and cascading.
+        events = self._fetch_events(days=days)
         
-        NOTE: This is an estimation. Real savings = (Cost of full Opus/Sonnet call - Actual Cost)
-        for every hit or cascade.
-        """
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            # 1. Savings from Cache Hits (Assuming avg cost of a generic call if not hit)
-            # We'll use a conservative estimate based on the average cost of non-cache-hit events.
-            cursor = self._conn.execute("""
-                SELECT SUM(avg_cost) FROM (
-                    SELECT AVG(cost_usd) as avg_cost 
-                    FROM cost_events 
-                    WHERE cache_hit = 0 AND timestamp >= ?
-                )
-            """, (cutoff,))
-            avg_non_cache_cost = cursor.fetchone()[0] or 0.005 # Fallback to 0.5 cents
-            
-            cursor = self._conn.execute("""
-                SELECT COUNT(*) FROM cost_events WHERE cache_hit = 1 AND timestamp >= ?
-            """, (cutoff,))
-            cache_hits = cursor.fetchone()[0] or 0
-            cache_savings = cache_hits * avg_non_cache_cost
-            
-            # 2. Savings from Cascading
-            # Estimated as: Successful calls at level 0 that would have been higher tier.
-            # We use (Avg cost of high tier [Sonnet ~0.015] - cost of this low tier) for successful level 0 calls.
-            cursor = self._conn.execute("""
-                SELECT SUM(0.015 - cost_usd) 
-                FROM cost_events 
-                WHERE cascade_level = 0 AND quality_score >= 80 AND cost_usd < 0.01 AND timestamp >= ?
-            """, (cutoff,))
-            cascade_savings = cursor.fetchone()[0] or 0.0
-            
-            total_savings = round(cache_savings + cascade_savings, 2)
-            return total_savings
-            
-        except Exception as e:
-            logger.error(f"Failed to calculate total savings: {e}")
-            return 0.0
+        non_cache_costs = [e.get("cost_usd", 0.0) for e in events if not e.get("cache_hit", False)]
+        avg_non_cache_cost = sum(non_cache_costs) / len(non_cache_costs) if non_cache_costs else 0.005
+        
+        cache_hits = sum(1 for e in events if e.get("cache_hit", False))
+        cache_savings = cache_hits * avg_non_cache_cost
+        
+        cascade_savings = sum(
+            (0.015 - e.get("cost_usd", 0.0))
+            for e in events
+            if e.get("cascade_level", 0) == 0 and e.get("quality_score", 0.0) >= 80 and e.get("cost_usd", 0.0) < 0.01
+        )
+        
+        return round(cache_savings + cascade_savings, 2)
 
     def check_budget_alerts(self, global_budget: float, thresholds: List[int]) -> List[Dict[str, Any]]:
-        """Checks if current spend breaches any percentage thresholds."""
         if not global_budget:
             return []
-        
-        # We assume monthly budget/thresholds for now as per plan
         current_spend = self.get_total_spend(days=30)
         percentage = (current_spend / global_budget) * 100
-        
         alerts = []
         for t in sorted(thresholds, reverse=True): 
             if percentage >= (100 - t): 
@@ -257,118 +182,72 @@ class CostStorage(BaseStorage):
         return alerts
 
     def get_cache_stats(self, days: int = 30) -> Dict[str, Any]:
-        """Returns hit rate and savings from cache."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT 
-                    COUNT(*) as total,
-                    SUM(CASE WHEN cache_hit = 1 THEN 1 ELSE 0 END) as hits
-                FROM cost_events
-                WHERE timestamp >= ?
-            """, (cutoff,))
-            row = cursor.fetchone()
-            total = row[0] or 0
-            hits = row[1] or 0
-            
-            # Simple avg cost of non-hit calls for saving estimation
-            cursor = self._conn.execute("""
-                SELECT AVG(cost_usd) FROM cost_events WHERE cache_hit = 0 AND timestamp >= ?
-            """, (cutoff,))
-            avg_cost = cursor.fetchone()[0] or 0.005
-            
-            return {
-                "total_calls": total,
-                "cache_hits": hits,
-                "hit_rate": round(hits / total, 3) if total > 0 else 0.0,
-                "estimated_savings_usd": round(hits * avg_cost, 4)
-            }
-        except Exception as e:
-            logger.error(f"Failed to get cache stats: {e}")
-            return {"hit_rate": 0, "estimated_savings_usd": 0}
+        events = self._fetch_events(days=days)
+        total = len(events)
+        hits = sum(1 for e in events if e.get("cache_hit", False))
+        
+        non_cache_costs = [e.get("cost_usd", 0.0) for e in events if not e.get("cache_hit", False)]
+        avg_cost = sum(non_cache_costs) / len(non_cache_costs) if non_cache_costs else 0.005
+        
+        return {
+            "total_calls": total,
+            "cache_hits": hits,
+            "hit_rate": round(hits / total, 3) if total > 0 else 0.0,
+            "estimated_savings_usd": round(hits * avg_cost, 4)
+        }
 
     def aggregate_by_task_type(self, days: int = 30) -> List[Dict[str, Any]]:
-        """Usage aggregation by task type."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT
-                    task_type,
-                    SUM(cost_usd) as cost,
-                    AVG(quality_score) as quality,
-                    COUNT(*) as count
-                FROM cost_events
-                WHERE timestamp >= ?
-                GROUP BY task_type
-                ORDER BY cost DESC
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to aggregate by task type: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"cost": 0.0, "sum_quality": 0.0, "count": 0})
+        for e in events:
+            tt = e.get("task_type", "unknown")
+            agg[tt]["cost"] += e.get("cost_usd", 0.0)
+            agg[tt]["sum_quality"] += e.get("quality_score", 0.0)
+            agg[tt]["count"] += 1
+            
+        result = [
+            {
+                "task_type": k,
+                "cost": v["cost"],
+                "quality": v["sum_quality"] / v["count"] if v["count"] > 0 else 0.0,
+                "count": v["count"]
+            }
+            for k, v in agg.items()
+        ]
+        return sorted(result, key=lambda x: x["cost"], reverse=True)
 
     def aggregate_by_provider(self, days: int = 30) -> List[Dict[str, Any]]:
-        """Usage aggregation by provider."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT
-                    provider,
-                    SUM(cost_usd) as cost,
-                    SUM(total_tokens) as total_tokens,
-                    COUNT(*) as count
-                FROM cost_events
-                WHERE timestamp >= ?
-                GROUP BY provider
-                ORDER BY cost DESC
-            """, (cutoff,))
-            return [dict(row) for row in cursor.fetchall()]
-        except Exception as e:
-            logger.error(f"Failed to aggregate by provider: {e}")
-            return []
+        events = self._fetch_events(days=days)
+        agg = defaultdict(lambda: {"cost": 0.0, "tokens": 0, "count": 0})
+        for e in events:
+            p = e.get("provider", "unknown")
+            agg[p]["cost"] += e.get("cost_usd", 0.0)
+            agg[p]["tokens"] += e.get("total_tokens", 0)
+            agg[p]["count"] += 1
+            
+        result = [
+            {"provider": k, "cost": v["cost"], "total_tokens": v["tokens"], "count": v["count"]}
+            for k, v in agg.items()
+        ]
+        return sorted(result, key=lambda x: x["cost"], reverse=True)
 
     def get_avg_cost_by_task_type(self, task_type: str, model: Optional[str] = None, days: int = 90) -> Dict[str, Any]:
-        """Calculates average metrics for a task_type (and optionally model) based on historical data.
+        events = self._fetch_events(days=days)
+        valid_events = [e for e in events if e.get("task_type") == task_type and (not model or e.get("model") == model)]
         
-        Used for predictive cost estimation.
-        """
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
-            query = """
-                SELECT 
-                    AVG(cost_usd) as avg_cost,
-                    AVG(total_tokens) as avg_tokens,
-                    AVG(input_tokens) as avg_input_tokens,
-                    AVG(output_tokens) as avg_output_tokens,
-                    COUNT(*) as sample_count
-                FROM cost_events
-                WHERE task_type = ? AND timestamp >= ?
-            """
-            params = [task_type, cutoff]
+        if not valid_events:
+            return {"avg_cost": 0.0, "avg_tokens": 0, "avg_input_tokens": 0, "avg_output_tokens": 0, "sample_count": 0}
             
-            if model:
-                query += " AND model = ?"
-                params.append(model)
-                
-            cursor = self._conn.execute(query, params)
-            row = cursor.fetchone()
-            if row and row["sample_count"] > 0:
-                return dict(row)
-            return {"avg_cost": 0.0, "avg_tokens": 0, "avg_input_tokens": 0, "avg_output_tokens": 0, "sample_count": 0}
-        except Exception as e:
-            logger.error(f"Failed to get average cost for task_type '{task_type}' (model={model}): {e}")
-            return {"avg_cost": 0.0, "avg_tokens": 0, "avg_input_tokens": 0, "avg_output_tokens": 0, "sample_count": 0}
+        count = len(valid_events)
+        return {
+            "avg_cost": sum(e.get("cost_usd", 0.0) for e in valid_events) / count,
+            "avg_tokens": sum(e.get("total_tokens", 0) for e in valid_events) / count,
+            "avg_input_tokens": sum(e.get("input_tokens", 0) for e in valid_events) / count,
+            "avg_output_tokens": sum(e.get("output_tokens", 0) for e in valid_events) / count,
+            "sample_count": count
+        }
 
     def get_spend_rate(self, hours: int = 24) -> float:
-        """Calculates the average spend rate (USD/hour) over the last N hours."""
-        try:
-            cutoff = (datetime.now(timezone.utc) - timedelta(hours=hours)).isoformat()
-            cursor = self._conn.execute("""
-                SELECT SUM(cost_usd) FROM cost_events 
-                WHERE timestamp >= ?
-            """, (cutoff,))
-            total_spend = cursor.fetchone()[0] or 0.0
-            return total_spend / hours
-        except Exception as e:
-            logger.error(f"Failed to get spend rate: {e}")
-            return 0.0
+        events = self._fetch_events(hours=hours)
+        total_spend = sum(e.get("cost_usd", 0.0) for e in events)
+        return total_spend / hours

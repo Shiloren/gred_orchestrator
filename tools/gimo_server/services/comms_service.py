@@ -4,6 +4,7 @@ from typing import List, Dict
 from tools.repo_orchestrator.models import AgentMessage
 
 class CommsService:
+    """Gestiona la comunicacion en tiempo real (SSE) o WebSockets."""
     _messages: Dict[str, List[AgentMessage]] = {}
 
     @classmethod

@@ -9,6 +9,7 @@ from .providers.openrouter_provider import OpenRouterProvider
 logger = logging.getLogger("orchestrator.provider_registry")
 
 class ProviderRegistry:
+    """Registro en memoria de todos los proveedores AI detectados."""
     _providers: Dict[str, BaseProvider] = {}
     
     @classmethod

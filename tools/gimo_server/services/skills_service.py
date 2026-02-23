@@ -38,6 +38,7 @@ class Skill(BaseModel):
 
 
 class SkillCreateRequest(BaseModel):
+    """Esquema para registrar un nuevo Skill re-utilizable."""
     name: str
     description: str = ""
     icon: str = "⚡"
@@ -48,6 +49,7 @@ class SkillCreateRequest(BaseModel):
 
 
 class SkillUpdateRequest(BaseModel):
+    """Esquema para modificar parametros de un Skill existente."""
     name: Optional[str] = None
     description: Optional[str] = None
     icon: Optional[str] = None

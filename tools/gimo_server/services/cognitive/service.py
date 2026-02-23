@@ -11,6 +11,7 @@ from .gios_bridge import GiosTfIdfIntentEngine, GiosSecurityGuard, GiosDirectRes
 
 
 class CognitiveService:
+    """Orquesta la comprension de instrucciones y planes de ejecucion."""
     def __init__(
         self,
         *,

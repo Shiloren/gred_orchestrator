@@ -11,6 +11,7 @@ _ENV_PATTERN = re.compile(r"^\$\{([A-Z0-9_]+)\}$")
 
 
 class ProviderAuthService:
+    """Administra credenciales y autenticacion de proveedores LLM."""
     @staticmethod
     def parse_env_ref(auth_ref: Optional[str]) -> Optional[str]:
         if not auth_ref:

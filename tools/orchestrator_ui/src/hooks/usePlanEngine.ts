@@ -42,7 +42,7 @@ export function usePlanEngine() {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE}/ui/plan/${planId}`, {
+            const response = await fetch(`${API_BASE}/ops/drafts/${planId}`, {
                 credentials: 'include',
             });
             if (!response.ok) throw new Error('Failed to fetch plan');
@@ -61,7 +61,7 @@ export function usePlanEngine() {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE}/ui/plan/${planId}/approve`, {
+            const response = await fetch(`${API_BASE}/ops/drafts/${planId}/approve`, {
                 method: 'POST',
                 credentials: 'include',
             });
@@ -80,8 +80,8 @@ export function usePlanEngine() {
         setLoading(true);
         setError(null);
         try {
-            const response = await fetch(`${API_BASE}/ui/plan/${planId}`, {
-                method: 'PATCH',
+            const response = await fetch(`${API_BASE}/ops/drafts/${planId}`, {
+                method: 'PUT',
                 headers: {
                     'Content-Type': 'application/json',
                 },

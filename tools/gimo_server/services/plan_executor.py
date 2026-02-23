@@ -15,6 +15,7 @@ logger = logging.getLogger("orchestrator.plan_executor")
 
 
 class PlanExecutor:
+    """Ejecuta los drafts de planes cognitivos usando GraphEngine."""
 
     @staticmethod
     def resolve_parallel_groups(tasks: List[PlanTask]) -> List[List[PlanTask]]:

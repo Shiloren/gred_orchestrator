@@ -8,6 +8,7 @@ from tools.gimo_server.services.snapshot_service import SnapshotService
 
 
 class FileService:
+    """Centraliza las operaciones de lectura y escritura de archivos en el workspace."""
     @staticmethod
     def tail_audit_lines(limit: int = 200) -> List[str]:
         if not AUDIT_LOG_PATH.exists():

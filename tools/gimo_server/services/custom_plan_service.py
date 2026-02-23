@@ -22,6 +22,7 @@ PLANS_DIR = OPS_DATA_DIR / "custom_plans"
 
 
 class PlanNodePosition(BaseModel):
+    """Define las coordenadas de un nodo en el plano 2D visual."""
     x: float = 0
     y: float = 0
 
@@ -63,6 +64,7 @@ class CustomPlan(BaseModel):
 
 
 class CreatePlanRequest(BaseModel):
+    """Esquema para crear un plan de ejecucion (CustomPlan)."""
     name: str
     description: str = ""
     nodes: List[PlanNode] = Field(default_factory=list)
@@ -70,6 +72,7 @@ class CreatePlanRequest(BaseModel):
 
 
 class UpdatePlanRequest(BaseModel):
+    """Esquema para actualizar metadatos de un CustomPlan."""
     name: Optional[str] = None
     description: Optional[str] = None
     nodes: Optional[List[PlanNode]] = None

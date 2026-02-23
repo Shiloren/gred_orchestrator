@@ -147,7 +147,7 @@ export default function App() {
 
     const handleRejectPlan = async (draftId: string) => {
         try {
-            const res = await fetch(`${API_BASE}/ui/drafts/${draftId}/reject`, {
+            const res = await fetch(`${API_BASE}/ops/drafts/${draftId}/reject`, {
                 method: 'POST',
                 credentials: 'include',
             });

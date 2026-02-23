@@ -8,6 +8,7 @@ from tools.gimo_server.config import SNAPSHOT_DIR, SNAPSHOT_TTL
 
 
 class SnapshotService:
+    """Crea instantaneas (snapshots) del estado del workspace para recuperacion."""
     @staticmethod
     def ensure_snapshot_dir():
         SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)

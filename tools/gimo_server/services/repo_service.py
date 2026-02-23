@@ -2,29 +2,26 @@ import os
 import shutil
 from pathlib import Path
 from typing import List, Optional
-from tools.repo_orchestrator.config import (
+from tools.gimo_server.config import (
     BASE_DIR,
     REPO_ROOT_DIR,
     VITAMINIZE_PACKAGE,
     ALLOWED_EXTENSIONS,
     SEARCH_EXCLUDE_DIRS,
 )
-from tools.repo_orchestrator.security import (
+from tools.gimo_server.security import (
     redact_sensitive_data,
 )
-from tools.repo_orchestrator.services.registry_service import RegistryService
-from tools.repo_orchestrator.services.git_service import GitService
-from tools.repo_orchestrator.models import RepoEntry
+from tools.gimo_server.services.git_service import GitService
+from tools.gimo_server.models import RepoEntry
 
 class RepoService:
+    """Administra repositorios externos y herramientas disponibles en cada uno."""
     @staticmethod
     def list_repos() -> List[RepoEntry]:
         repos_data = GitService.list_repos(REPO_ROOT_DIR)
         return [RepoEntry(name=r["name"], path=r["path"]) for r in repos_data]
 
-    @staticmethod
-    def ensure_repo_registry(repos: List[RepoEntry]) -> dict:
-        return RegistryService.ensure_repo_in_registry(repos)
 
     @staticmethod
     def vitaminize_repo(target_repo: Path) -> List[str]:

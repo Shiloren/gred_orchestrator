@@ -11,15 +11,17 @@ from tools.repo_orchestrator.config import (
     ALLOWLIST_TTL_SECONDS,
 )
 
-from tools.repo_orchestrator.services.registry_service import RegistryService
-
 def get_active_repo_dir() -> Path:
-    # Proxy to the new service for backward compatibility during refactor if needed, 
-    # but best to replace usage.
-    # However, keeping it as a wrapper for now to minimize import breakage in other files 
-    # that might trust this module provided the imports are updated.
-    # actually, I will remove them and update importers.
-    return RegistryService.get_active_repo_dir()
+    import json
+    from tools.repo_orchestrator.config import BASE_DIR
+    try:
+        data = json.loads(REPO_REGISTRY_PATH.read_text(encoding="utf-8"))
+        repo = data.get("active_repo")
+        if repo and Path(repo).exists():
+            return Path(repo).resolve()
+    except Exception:
+        pass
+    return BASE_DIR
 
 
 def _normalize_path(path_str: str, base_dir: Path) -> Optional[Path]:

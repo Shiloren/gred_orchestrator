@@ -275,7 +275,26 @@ def list_repos_handler(
     auth: AuthContext = Depends(require_read_only_access), rl: None = Depends(check_rate_limit)
 ):
     repos = RepoService.list_repos()
-    registry = RepoService.ensure_repo_registry(repos)
+    registry = load_repo_registry()
+    
+    current_paths = set(str(Path(p).resolve()) for p in registry.get("repos", []))
+    changed = False
+    new_repos_list = list(registry.get("repos", []))
+    
+    for r in repos:
+        try:
+            rp = str(Path(r.path).resolve())
+            if rp not in current_paths:
+                new_repos_list.append(rp)
+                current_paths.add(rp)
+                changed = True
+        except ValueError:
+            pass
+
+    if changed:
+        registry["repos"] = new_repos_list
+        save_repo_registry(registry)
+
     active_repo = registry.get("active_repo")
 
     # Sanitize paths to prevent information disclosure

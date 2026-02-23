@@ -3,6 +3,7 @@ from pathlib import Path
 from tools.repo_orchestrator.config import REPO_REGISTRY_PATH
 
 class RegistryService:
+    """Centraliza el patron registry para delegar configuraciones."""
     @staticmethod
     def load_registry() -> dict:
         if not REPO_REGISTRY_PATH.exists():

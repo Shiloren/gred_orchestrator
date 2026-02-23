@@ -9,6 +9,21 @@ interface GimoThread {
     status: string;
     updated_at: string;
 }
+interface OpsDraft {
+    id: string;
+    prompt: string;
+    status: 'draft' | 'approved' | 'rejected' | 'error';
+    content?: string;
+    error?: string;
+    context?: Record<string, any>;
+    created_at: string;
+    updated_at: string;
+}
+
+interface OpsApproveResponse {
+    approved: any;
+    run?: any;
+}
 
 export const ThreadView: React.FC = () => {
     const [threads, setThreads] = useState<GimoThread[]>([]);
@@ -16,10 +31,10 @@ export const ThreadView: React.FC = () => {
     const [loading, setLoading] = useState(true);
     const [inputValue, setInputValue] = useState('');
     const [sending, setSending] = useState(false);
+    const [pendingDrafts, setPendingDrafts] = useState<Record<string, OpsDraft>>({});
     const chatEndRef = useRef<HTMLDivElement>(null);
 
     useEffect(() => {
-        // SSE Listener for real-time updates
         const eventSource = new EventSource('/ops/notifications/stream');
         eventSource.onmessage = (event) => {
             const { event: type, data } = JSON.parse(event.data);
@@ -75,19 +90,89 @@ export const ThreadView: React.FC = () => {
     const handleSendMessage = async () => {
         if (!inputValue.trim() || !selectedThread || sending) return;
 
+        const text = inputValue.trim();
+        setInputValue('');
         setSending(true);
+
         try {
-            const resp = await fetch(`/ops/threads/${selectedThread.id}/messages?content=${encodeURIComponent(inputValue)}`, {
-                method: 'POST'
+            // Optimistic User Turn
+            const userTurn: any = {
+                id: `temp-${Date.now()}`,
+                agent_id: 'User',
+                created_at: new Date().toISOString(),
+                items: [{ id: `item-${Date.now()}`, type: 'text', content: text, status: 'completed' }]
+            };
+            setSelectedThread(prev => prev ? { ...prev, turns: [...prev.turns, userTurn] } : prev);
+
+            // Generate Draft directly from the Chat
+            const generateResponse = await fetch(`/ops/generate?prompt=${encodeURIComponent(text)}`, {
+                method: 'POST',
             });
-            if (resp.ok) {
-                setInputValue('');
-                // SSE will update the selectedThread state
+
+            if (!generateResponse.ok) throw new Error(`HTTP ${generateResponse.status}`);
+            const draft: OpsDraft = await generateResponse.json();
+
+            // Agent Turn with Draft
+            const agentTurn: any = {
+                id: `agent-${Date.now()}`,
+                agent_id: 'Orchestrator',
+                created_at: new Date().toISOString(),
+                items: [
+                    {
+                        id: draft.id,
+                        type: draft.status === 'error' ? 'error' : 'text',
+                        content: draft.content || draft.error || 'Draft generated successfully.',
+                        status: 'completed',
+                        metadata: { draftId: draft.id, status: draft.status }
+                    }
+                ]
+            };
+            setSelectedThread(prev => prev ? { ...prev, turns: [...prev.turns, agentTurn] } : prev);
+
+            if (draft.status === 'draft') {
+                setPendingDrafts(prev => ({ ...prev, [draft.id]: draft }));
             }
+
         } catch (err) {
             console.error('Failed to send message', err);
         } finally {
             setSending(false);
+        }
+    };
+
+    const handleApproveDraft = async (draftId: string, turnId: string) => {
+        try {
+            const res = await fetch(`/ops/drafts/${draftId}/approve`, { method: 'POST' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            const approvalData: OpsApproveResponse = await res.json();
+
+            setPendingDrafts(prev => { const updated = { ...prev }; delete updated[draftId]; return updated; });
+            setSelectedThread(prev => {
+                if (!prev) return prev;
+                return { ...prev, turns: prev.turns.map(t => t.id === turnId ? { ...t, items: [...t.items, { id: `exec-${Date.now()}`, type: 'tool_call', content: 'Executing approved plan...', status: 'started' }] } : t) };
+            });
+
+            if (approvalData.approved?.id && !approvalData.run?.id) {
+                await fetch(`/ops/runs`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({ approved_id: approvalData.approved.id }),
+                });
+            }
+        } catch (err) { console.error(err); }
+    };
+
+    const handleRejectDraft = async (draftId: string, turnId: string) => {
+        try {
+            const res = await fetch(`/ops/drafts/${draftId}/reject`, { method: 'POST' });
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            setPendingDrafts(prev => { const updated = { ...prev }; delete updated[draftId]; return updated; });
+            setSelectedThread(prev => {
+                if (!prev) return prev;
+                return { ...prev, turns: prev.turns.map(t => t.id === turnId ? { ...t, items: [...t.items, { id: `reject-${Date.now()}`, type: 'text', content: 'Draft rejected.', status: 'completed' }] } : t) };
+            });
+        } catch (err) {
+            console.error('Failed to reject draft', err);
         }
     };
 
@@ -165,32 +250,71 @@ export const ThreadView: React.FC = () => {
                         </div>
 
                         {/* Message Area */}
-                        <div className="flex-1 overflow-y-auto px-6 py-8">
+                        <div className="flex-1 overflow-y-auto px-6 py-8 scroll-smooth">
                             {selectedThread.turns.map((turn) => (
-                                <TurnItem key={turn.id} turn={turn} />
+                                <div key={turn.id} className="relative group animate-in slide-in-from-bottom-2 fade-in duration-300">
+                                    <TurnItem turn={turn} />
+                                    {turn.items.map((item: any) => {
+                                        if (item.metadata?.draftId && pendingDrafts[item.metadata.draftId]) {
+                                            return (
+                                                <div key={`actions-${item.id}`} className="absolute -bottom-2 left-12 flex items-center gap-2 bg-[#2c2c2e]/90 backdrop-blur-md p-1.5 rounded-lg border border-[#3c3c3e] shadow-2xl z-10 opacity-0 group-hover:opacity-100 transition-all duration-200 transform translate-y-2 group-hover:translate-y-0">
+                                                    <button
+                                                        onClick={() => handleApproveDraft(item.metadata.draftId, turn.id)}
+                                                        className="px-3 py-1 bg-[#32d74b]/15 text-[#32d74b] hover:bg-[#32d74b]/30 border border-[#32d74b]/30 hover:border-[#32d74b]/50 rounded-md text-[11px] font-medium transition-all duration-200 active:scale-95"
+                                                    >
+                                                        Aprobar & Ejecutar
+                                                    </button>
+                                                    <button
+                                                        onClick={() => handleRejectDraft(item.metadata.draftId, turn.id)}
+                                                        className="px-3 py-1 bg-[#ff453a]/15 text-[#ff453a] hover:bg-[#ff453a]/30 border border-[#ff453a]/30 hover:border-[#ff453a]/50 rounded-md text-[11px] font-medium transition-all duration-200 active:scale-95"
+                                                    >
+                                                        Rechazar
+                                                    </button>
+                                                </div>
+                                            );
+                                        }
+                                        return null;
+                                    })}
+                                </div>
                             ))}
+                            {sending && (
+                                <div className="flex items-center gap-3 ml-12 mb-6 animate-pulse opacity-70">
+                                    <div className="flex gap-1 items-center">
+                                        <div className="w-1.5 h-1.5 rounded-full bg-[#0a84ff] animate-bounce" style={{ animationDelay: '0ms' }}></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-[#0a84ff] animate-bounce" style={{ animationDelay: '150ms' }}></div>
+                                        <div className="w-1.5 h-1.5 rounded-full bg-[#0a84ff] animate-bounce" style={{ animationDelay: '300ms' }}></div>
+                                    </div>
+                                    <span className="text-[10px] text-[#86868b] uppercase tracking-widest font-semibold">Generando draft...</span>
+                                </div>
+                            )}
                             <div ref={chatEndRef} />
                         </div>
 
                         {/* Input Area */}
-                        <div className="p-6 bg-gradient-to-t from-[#000000] to-transparent">
-                            <div className="relative max-w-4xl mx-auto">
-                                <input
-                                    type="text"
-                                    value={inputValue}
-                                    onChange={(e) => setInputValue(e.target.value)}
-                                    onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
-                                    placeholder="Execute the Agent-to-IDE protocol. Send a command..."
-                                    className="w-full bg-[#2c2c2e] border border-[#3c3c3e] rounded-2xl px-6 py-4 text-sm text-[#f5f5f7] focus:outline-none focus:border-[#0a84ff] transition-all pr-14 shadow-2xl"
-                                    disabled={sending}
-                                />
-                                <button
-                                    onClick={handleSendMessage}
-                                    disabled={sending || !inputValue.trim()}
-                                    className="absolute right-4 top-1/2 -translate-y-1/2 p-2 bg-[#0a84ff] text-white rounded-xl shadow-lg hover:bg-[#0071e3] transition-colors disabled:opacity-50 disabled:grayscale"
-                                >
-                                    <Send size={18} />
-                                </button>
+                        <div className="p-6 bg-gradient-to-t from-[#000000] via-[#000000] to-transparent shrink-0">
+                            <div className="relative max-w-4xl mx-auto group">
+                                <div className={`absolute -inset-0.5 rounded-2xl bg-gradient-to-r from-[#0a84ff]/0 via-[#0a84ff]/30 to-[#0a84ff]/0 opacity-0 blur-sm transition-opacity duration-500 ${sending ? 'opacity-100 animate-pulse' : 'group-hover:opacity-40'}`}></div>
+                                <div className="relative flex items-center">
+                                    <input
+                                        type="text"
+                                        value={inputValue}
+                                        onChange={(e) => setInputValue(e.target.value)}
+                                        onKeyDown={(e) => e.key === 'Enter' && handleSendMessage()}
+                                        placeholder={sending ? "Analizando intención..." : "Describe el plan a ejecutar..."}
+                                        className={`w-full bg-[#1c1c1e] border border-[#3c3c3e] rounded-2xl pl-6 pr-14 py-4 text-sm text-[#f5f5f7] focus:outline-none focus:border-[#0a84ff] focus:bg-[#2c2c2e] transition-all duration-300 shadow-2xl ${sending ? 'opacity-60 cursor-not-allowed' : ''}`}
+                                        disabled={sending}
+                                    />
+                                    <button
+                                        onClick={handleSendMessage}
+                                        disabled={sending || !inputValue.trim()}
+                                        className={`absolute right-3 p-2.5 rounded-xl transition-all duration-300 ${sending || !inputValue.trim()
+                                            ? 'bg-[#2c2c2e] text-[#86868b]'
+                                            : 'bg-[#0a84ff] text-white hover:bg-[#0071e3] hover:scale-105 active:scale-95 shadow-lg shadow-[#0a84ff]/20'
+                                            }`}
+                                    >
+                                        <Send size={16} className={sending ? 'animate-pulse' : ''} />
+                                    </button>
+                                </div>
                             </div>
                             <p className="text-center mt-3 text-[10px] text-[#86868b] uppercase tracking-widest font-bold">
                                 GIMO Protocol v1.0 • SSE Real-time Active
