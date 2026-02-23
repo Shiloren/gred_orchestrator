@@ -1,5 +1,4 @@
 export const API_BASE = import.meta.env.VITE_API_URL || `http://${globalThis.location?.hostname ?? 'localhost'}:9325`;
-export const ORCH_TOKEN = import.meta.env.VITE_ORCH_TOKEN || 'demo-token';
 
 export type TrustLevel = 'autonomous' | 'supervised' | 'restricted';
 

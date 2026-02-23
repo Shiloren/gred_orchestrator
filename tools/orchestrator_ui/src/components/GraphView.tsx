@@ -11,6 +11,7 @@ import 'reactflow/dist/style.css';
 import { BridgeNode } from './BridgeNode';
 import { OrchestratorNode } from './OrchestratorNode';
 import { RepoNode } from './RepoNode';
+import { API_BASE } from '../types';
 
 const nodeTypes = {
     bridge: BridgeNode,
@@ -24,7 +25,7 @@ export const GraphView = () => {
 
     const fetchGraphData = useCallback(async () => {
         try {
-            const response = await fetch('/ui/graph', {
+            const response = await fetch(`${API_BASE}/ui/graph`, {
                 credentials: 'include',
             });
             const data = await response.json();

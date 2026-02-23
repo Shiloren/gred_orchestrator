@@ -1,16 +1,14 @@
 import React, { useState } from 'react';
-import { Save, RefreshCcw, Info, Terminal } from 'lucide-react';
+import { Save, Info, Terminal } from 'lucide-react';
 
 interface SystemPromptEditorProps {
     initialPrompt: string;
     onSave: (newPrompt: string) => void;
-    onReset: () => void;
 }
 
 export const SystemPromptEditor: React.FC<SystemPromptEditorProps> = ({
     initialPrompt,
-    onSave,
-    onReset
+    onSave
 }) => {
     const [prompt, setPrompt] = useState(initialPrompt);
     const [isDirty, setIsDirty] = useState(false);
@@ -28,13 +26,7 @@ export const SystemPromptEditor: React.FC<SystemPromptEditorProps> = ({
                     <span className="text-[10px] font-bold uppercase tracking-widest text-[#0a84ff]">System Brain</span>
                 </div>
                 <div className="flex gap-2">
-                    <button
-                        onClick={onReset}
-                        className="p-1.5 hover:bg-white/5 rounded-lg text-white/40 hover:text-white/80 transition-colors"
-                        title="Reset to default"
-                    >
-                        <RefreshCcw size={14} />
-                    </button>
+
                     <button
                         onClick={() => {
                             onSave(prompt);

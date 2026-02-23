@@ -1,5 +1,7 @@
 # PROVIDER UX REWORK — Contrato final (Fase 4)
 
+> **DEPRECATED 2026-02-23** — Secciones UX superseded by `docs/UI_IMPROVEMENT_PLAN_2026-02-23.md`
+
 ## Objetivo
 
 Consolidar **Providers** como dominio explícito y dejar una sola verdad operativa en OPS para:

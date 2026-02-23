@@ -174,8 +174,8 @@ export default function App() {
                 setIsCommandPaletteOpen(true);
             }
         };
-        window.addEventListener('keydown', onKeyDown);
-        return () => window.removeEventListener('keydown', onKeyDown);
+        globalThis.addEventListener('keydown', onKeyDown);
+        return () => globalThis.removeEventListener('keydown', onKeyDown);
     }, []);
 
     useEffect(() => {
@@ -183,7 +183,7 @@ export default function App() {
 
         const refreshGraphCount = async () => {
             try {
-                const response = await fetch('/ui/graph', { credentials: 'include' });
+                const response = await fetch(`${API_BASE}/ui/graph`, { credentials: 'include' });
                 if (!response.ok) return;
                 const payload = await response.json();
                 const count = Array.isArray(payload?.nodes) ? payload.nodes.length : 0;
@@ -193,8 +193,8 @@ export default function App() {
             }
         };
 
-        const interval = window.setInterval(refreshGraphCount, 5000);
-        return () => window.clearInterval(interval);
+        const interval = globalThis.setInterval(refreshGraphCount, 5000);
+        return () => globalThis.clearInterval(interval);
     }, [authenticated, activeTab, graphNodeCount]);
 
     const handleCommandAction = (actionId: string) => {
@@ -329,15 +329,6 @@ export default function App() {
                     </div>
                 );
 
-            case 'logs':
-                return (
-                    <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a] space-y-4">
-                        <div className="max-w-6xl mx-auto rounded-xl border border-[#2c2c2e] bg-[#141414] p-3 text-xs text-[#86868b]">
-                            Audit Logs ahora usan la vista completa de Maintenance (filtros + búsqueda + export).
-                        </div>
-                        <MaintenanceIsland />
-                    </div>
-                );
 
             case 'settings':
                 return (
@@ -395,6 +386,7 @@ export default function App() {
     return (
         <div className="min-h-screen bg-[#000000] text-[#f5f5f7] font-sans selection:bg-[#0a84ff] selection:text-white flex flex-col">
             <MenuBar
+                status={status}
                 onNewPlan={openGlobalPlanBuilder}
                 onSelectView={handleSelectView}
                 onSelectSettingsView={handleSelectView}

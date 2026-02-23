@@ -1,6 +1,6 @@
-import { Network, Wrench, ScrollText, Settings, ClipboardList, BarChart2, Activity, ShieldAlert, Wallet, Zap, Layout, MessageSquare } from 'lucide-react';
+import { Network, Wrench, Settings, ClipboardList, BarChart2, Activity, ShieldAlert, Wallet, Zap, Layout, MessageSquare } from 'lucide-react';
 
-export type SidebarTab = 'graph' | 'plans' | 'composer' | 'threads' | 'skills' | 'evals' | 'metrics' | 'security' | 'maintenance' | 'logs' | 'settings' | 'mastery';
+export type SidebarTab = 'graph' | 'plans' | 'composer' | 'threads' | 'skills' | 'evals' | 'metrics' | 'security' | 'maintenance' | 'settings' | 'mastery';
 
 interface SidebarProps {
     activeTab: SidebarTab;
@@ -9,20 +9,19 @@ interface SidebarProps {
 
 const primaryTabs: { id: SidebarTab; icon: typeof Network; label: string }[] = [
     { id: 'graph', icon: Network, label: 'Graph' },
-    { id: 'plans', icon: ClipboardList, label: 'Plans' },
+    { id: 'plans', icon: ClipboardList, label: 'Planes' },
     { id: 'composer', icon: Layout, label: 'Composer' },
     { id: 'threads', icon: MessageSquare, label: 'Threads' },
     { id: 'skills', icon: Zap, label: 'Skills' },
     { id: 'evals', icon: BarChart2, label: 'Evals' },
-    { id: 'metrics', icon: Activity, label: 'Metrics' },
-    { id: 'mastery', icon: Wallet, label: 'Mastery' },
+    { id: 'metrics', icon: Activity, label: 'Métricas' },
+    { id: 'mastery', icon: Wallet, label: 'Economía' },
 ];
 
 const systemTabs: { id: SidebarTab; icon: typeof Network; label: string }[] = [
-    { id: 'security', icon: ShieldAlert, label: 'Security' },
-    { id: 'maintenance', icon: Wrench, label: 'Maint' },
-    { id: 'logs', icon: ScrollText, label: 'Logs' },
-    { id: 'settings', icon: Settings, label: 'Settings' },
+    { id: 'security', icon: ShieldAlert, label: 'Seguridad' },
+    { id: 'maintenance', icon: Wrench, label: 'Mantenimiento' },
+    { id: 'settings', icon: Settings, label: 'Ajustes' },
 ];
 
 export const Sidebar: React.FC<SidebarProps> = ({ activeTab, onTabChange }) => {

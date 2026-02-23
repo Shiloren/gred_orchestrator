@@ -1,7 +1,11 @@
 # GIMO UI Overhaul -- Implementation Plan
 
+> **DEPRECATED 2026-02-23** — Superseded by `docs/UI_IMPROVEMENT_PLAN_2026-02-23.md`
+> This document reflects the original UI overhaul from Phase 1. Most items here were implemented.
+> For current UI improvements, refer to the new plan.
+
 > **GIMO** = Gred In Multi-Agent Orchestrator
-> **Status:** PENDING
+> **Status:** DEPRECATED
 > **Target:** `tools/orchestrator_ui/src/`
 > **Prerequisite:** None (this is Phase 1 of GIMO_ROADMAP.md)
 

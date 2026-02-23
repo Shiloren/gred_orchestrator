@@ -2,12 +2,11 @@ import React, { useMemo, useState } from 'react';
 import { X, Activity, Terminal, Settings, ListChecks } from 'lucide-react';
 import { AgentPlanPanel } from './AgentPlanPanel';
 import { TrustBadge } from './TrustBadge';
-import { AgentQuestionCard } from './AgentQuestionCard';
 import { QualityAlertPanel } from './QualityAlertPanel';
 import AgentChat from './AgentChat';
 import { SubAgentCluster } from './SubAgentCluster';
 import { useNodes } from 'reactflow';
-import { GraphNode, TrustLevel, API_BASE, ORCH_TOKEN } from '../types';
+import { GraphNode, API_BASE } from '../types';
 import { SystemPromptEditor } from './SystemPromptEditor';
 
 interface InspectPanelProps {
@@ -36,7 +35,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
         try {
             // 1. Fetch current draft to get full plan content
             const resp = await fetch(`${API_BASE}/ops/drafts/${draftId}`, {
-                headers: { 'Authorization': `Bearer ${ORCH_TOKEN}` }
+                credentials: 'include'
             });
             if (!resp.ok) throw new Error('Failed to fetch draft');
             const draft = await resp.json();
@@ -51,8 +50,8 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
             // 3. Save back to server
             const saveResp = await fetch(`${API_BASE}/ops/drafts/${draftId}`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
-                    'Authorization': `Bearer ${ORCH_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -74,7 +73,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
 
         try {
             const resp = await fetch(`${API_BASE}/ops/drafts/${draftId}`, {
-                headers: { 'Authorization': `Bearer ${ORCH_TOKEN}` }
+                credentials: 'include'
             });
             const draft = await resp.json();
             const plan = JSON.parse(draft.content);
@@ -85,8 +84,8 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
 
             await fetch(`${API_BASE}/ops/drafts/${draftId}`, {
                 method: 'PUT',
+                credentials: 'include',
                 headers: {
-                    'Authorization': `Bearer ${ORCH_TOKEN}`,
                     'Content-Type': 'application/json'
                 },
                 body: JSON.stringify({
@@ -155,25 +154,24 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
             <div className="flex-1 overflow-y-auto custom-scrollbar p-5 space-y-6">
                 {selectedNodeId ? (
                     <>
-                        {selectedNode?.data?.pendingQuestions && selectedNode.data.pendingQuestions.length > 0 && (
+                        {/* selectedNode?.data?.pendingQuestions && selectedNode.data.pendingQuestions.length > 0 && (
                             <div className="space-y-3 mb-6">
                                 {selectedNode.data.pendingQuestions.map(q => (
                                     <AgentQuestionCard
                                         key={q.id}
                                         question={q}
-                                        onAnswer={(id: string, ans: string) => console.log('Answered', id, ans)}
-                                        onDismiss={(id: string) => console.log('Dismissed', id)}
+                                        onAnswer={(id: string, ans: string) => console.log('TODO: Implement Answered', id, ans)}
+                                        onDismiss={(id: string) => console.log('TODO: Implement Dismissed', id)}
                                     />
                                 ))}
                             </div>
-                        )}
+                        ) */}
 
                         {view === 'plan' && <AgentPlanPanel plan={planData} />}
                         {view === 'prompt' && (
                             <SystemPromptEditor
                                 initialPrompt={selectedNode?.data?.system_prompt || ''}
                                 onSave={handleSavePrompt}
-                                onReset={() => console.log('Reset prompt')}
                             />
                         )}
                         {view === 'config' && (
@@ -239,11 +237,11 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                                         />
                                     </div>
 
-                                    <div className="pt-2">
+                                    {/* <div className="pt-2">
                                         <button className="w-full py-2 bg-blue-600/10 border border-blue-500/20 rounded-xl text-[10px] font-bold text-blue-400 hover:bg-blue-600/20 transition-all">
                                             SWAP AGENT INHERITANCE
                                         </button>
-                                    </div>
+                                    </div> */}
                                 </div>
                             </div>
                         )}
@@ -272,28 +270,7 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                                     </div>
                                 </div>
 
-                                {(selectedNode?.type === 'orchestrator' || selectedNode?.type === 'bridge') && (
-                                    <div className="p-4 rounded-xl bg-white/5 border border-white/10 space-y-3">
-                                        <div className="text-[10px] text-white/30 font-bold uppercase tracking-widest">Delegation Trust</div>
-                                        <div className="grid grid-cols-3 gap-2">
-                                            {(['autonomous', 'supervised', 'restricted'] as TrustLevel[]).map(level => (
-                                                <button
-                                                    key={level}
-                                                    onClick={() => console.log('Update trust', level)}
-                                                    className={`
-                                                        flex flex-col items-center gap-1.5 p-2 rounded-lg border transition-all
-                                                        ${selectedNode.data.trustLevel === level
-                                                            ? 'bg-blue-500/10 border-blue-500/30 text-blue-400'
-                                                            : 'bg-black/20 border-transparent text-white/20 hover:text-white/40'}
-                                                    `}
-                                                >
-                                                    <TrustBadge level={level} size={10} />
-                                                    <span className="text-[8px] font-bold truncate capitalize">{level}</span>
-                                                </button>
-                                            ))}
-                                        </div>
-                                    </div>
-                                )}
+                                {/* Delegation Trust UI hidden for Phase 1 as backend lacks support */}
                             </div>
                         )}
                     </>

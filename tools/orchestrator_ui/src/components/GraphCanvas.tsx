@@ -15,6 +15,7 @@ import { OrchestratorNode } from './OrchestratorNode';
 import { RepoNode } from './RepoNode';
 import { ClusterNode } from './ClusterNode';
 import { PlanOverlayCard } from './PlanOverlayCard';
+import { API_BASE } from '../types';
 
 const nodeTypes = {
     bridge: BridgeNode,
@@ -75,7 +76,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 
     const fetchGraphData = useCallback(async () => {
         try {
-            const response = await fetch('/ui/graph', {
+            const response = await fetch(`${API_BASE}/ui/graph`, {
                 credentials: 'include'
             });
 
