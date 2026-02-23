@@ -45,7 +45,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     const menus = useMemo<Record<MenuId, MenuAction[]>>(() => ({
         file: [
             { label: 'Nuevo Plan', onClick: onNewPlan },
-            { label: 'Abrir Repo', onClick: () => onSelectView('maintenance') },
+            { label: 'Abrir Repo', onClick: () => onSelectView('operations') },
             { label: 'Revalidar sesión', onClick: onRefreshSession },
         ],
         edit: [
@@ -59,7 +59,7 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             { label: 'Evaluaciones', onClick: () => onSelectView('evals') },
             { label: 'Métricas', onClick: () => onSelectView('metrics') },
             { label: 'Seguridad', onClick: () => onSelectView('security') },
-            { label: 'Mantenimiento', onClick: () => onSelectView('maintenance') },
+            { label: 'Mantenimiento', onClick: () => onSelectView('operations') },
         ],
         tools: [
             { label: 'Command Palette (Ctrl+K)', onClick: onOpenCommandPalette },

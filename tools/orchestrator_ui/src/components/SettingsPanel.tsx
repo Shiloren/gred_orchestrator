@@ -91,14 +91,15 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                 <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
                     <div className="flex items-center gap-2 mb-4">
                         <Coins size={16} className="text-[#af52de]" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Economy</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Economía</h2>
                     </div>
                     {economyConfig ? (
                         <div className="space-y-3">
                             <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
                                 <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
-                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Autonomy</label>
+                                    <label htmlFor="settings-autonomy" className="text-[10px] uppercase tracking-widest text-[#86868b]">Autonomía</label>
                                     <select
+                                        id="settings-autonomy"
                                         value={economyConfig.autonomy_level}
                                         onChange={(e) => setEconomyConfig({ ...economyConfig, autonomy_level: e.target.value as UserEconomyConfig['autonomy_level'] })}
                                         className="mt-1 w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded px-2 py-1 text-xs text-[#f5f5f7]"
@@ -111,8 +112,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                                 </div>
 
                                 <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
-                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Global Budget (USD)</label>
+                                    <label htmlFor="settings-budget" className="text-[10px] uppercase tracking-widest text-[#86868b]">Presupuesto Global (USD)</label>
                                     <input
+                                        id="settings-budget"
                                         type="number"
                                         value={economyConfig.global_budget_usd ?? ''}
                                         onChange={(e) => setEconomyConfig({ ...economyConfig, global_budget_usd: e.target.value ? Number(e.target.value) : null })}
@@ -121,8 +123,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                                 </div>
 
                                 <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
-                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Cache TTL (h)</label>
+                                    <label htmlFor="settings-cache-ttl" className="text-[10px] uppercase tracking-widest text-[#86868b]">TTL Caché (h)</label>
                                     <input
+                                        id="settings-cache-ttl"
                                         type="number"
                                         value={economyConfig.cache_ttl_hours}
                                         onChange={(e) => setEconomyConfig({ ...economyConfig, cache_ttl_hours: Number(e.target.value) || 0 })}
@@ -131,21 +134,21 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                                 </div>
 
                                 <div className="rounded-xl border border-[#2c2c2e] bg-[#101011] p-3">
-                                    <label className="text-[10px] uppercase tracking-widest text-[#86868b]">Flags</label>
+                                    <div className="text-[10px] uppercase tracking-widest text-[#86868b]">Flags</div>
                                     <div className="mt-1 space-y-1 text-xs text-[#f5f5f7]">
                                         <label className="flex items-center gap-2">
                                             <input
                                                 type="checkbox"
                                                 checked={economyConfig.cache_enabled}
                                                 onChange={(e) => setEconomyConfig({ ...economyConfig, cache_enabled: e.target.checked })}
-                                            /> cache
+                                            /> caché
                                         </label>
                                         <label className="flex items-center gap-2">
                                             <input
                                                 type="checkbox"
                                                 checked={economyConfig.show_cost_predictions}
                                                 onChange={(e) => setEconomyConfig({ ...economyConfig, show_cost_predictions: e.target.checked })}
-                                            /> predictions
+                                            /> predicciones
                                         </label>
                                     </div>
                                 </div>
@@ -157,7 +160,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                                     disabled={economySaving}
                                     className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#af52de]/15 text-[#d4a5f2] border border-[#af52de]/30 hover:bg-[#af52de]/25 disabled:opacity-50"
                                 >
-                                    Guardar Economy
+                                    Guardar Economía
                                 </button>
                                 {economyMessage && <span className="text-xs text-[#86868b]">{economyMessage}</span>}
                                 <button
@@ -170,14 +173,14 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                             </div>
                         </div>
                     ) : (
-                        <p className="text-xs text-[#86868b]">Economy config no disponible.</p>
+                        <p className="text-xs text-[#86868b]">Configuración de Economía no disponible.</p>
                     )}
                 </section>
 
                 <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
                     <div className="flex items-center gap-2 mb-4">
                         <Shield size={16} className="text-[#ff9f0a]" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Security</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Seguridad</h2>
                     </div>
                     <p className="text-xs text-[#86868b]">
                         Las políticas, circuit breakers y trust dimensions se gestionan desde la vista Security.
@@ -187,7 +190,7 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
                 <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-5">
                     <div className="flex items-center gap-2 mb-4">
                         <Info size={16} className="text-[#32d74b]" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">About</h2>
+                        <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Acerca de</h2>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
                         <SettingCell label="Versión" value={statusInfo?.version ?? '—'} />

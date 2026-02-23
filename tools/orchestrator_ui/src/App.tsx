@@ -9,8 +9,6 @@ import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { UiStatusResponse, PlanCreateRequest, API_BASE } from './types';
 import { usePlanEngine } from './hooks/usePlanEngine';
 import { PlansPanel } from './components/PlansPanel';
-import { SkillsPanel } from './components/SkillsPanel';
-import { PlanComposer } from './components/PlanComposer';
 import { ReactFlowProvider } from 'reactflow';
 import { EvalDashboard } from './components/evals/EvalDashboard';
 import { ObservabilityPanel } from './components/observability/ObservabilityPanel';
@@ -21,7 +19,6 @@ import { OrchestratorChat } from './components/OrchestratorChat';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { CommandPalette } from './components/Shell/CommandPalette';
 import { useToast } from './components/Toast';
-import { ThreadView } from './components/ThreadView';
 
 export default function App() {
     const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -32,6 +29,7 @@ export default function App() {
     const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
     const [graphNodeCount, setGraphNodeCount] = useState(-1);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+    const [isChatCollapsed, setIsChatCollapsed] = useState(false);
     const { currentPlan, loading, createPlan, approvePlan } = usePlanEngine();
     const { addToast } = useToast();
 
@@ -60,7 +58,7 @@ export default function App() {
                 `MCP Sync OK (${payload.server || candidate.name}): ${payload.tools_discovered ?? 0} tools`,
                 'success'
             );
-            setActiveTab('maintenance');
+            setActiveTab('operations');
         } catch (error) {
             console.error('MCP sync failed', error);
             addToast('Falló MCP Sync. Revisa configuración de server en Settings.', 'error');
@@ -220,8 +218,8 @@ export default function App() {
             case 'goto_security':
                 setActiveTab('security');
                 break;
-            case 'goto_maintenance':
-                setActiveTab('maintenance');
+            case 'goto_operations':
+                setActiveTab('operations');
                 break;
             case 'goto_settings':
                 setActiveTab('settings');
@@ -230,19 +228,16 @@ export default function App() {
                 setActiveTab('mastery');
                 break;
             case 'search_repo':
-                setActiveTab('maintenance');
+                setActiveTab('operations');
                 break;
             case 'mcp_sync':
                 void handleMcpSync();
                 break;
             case 'view_runs':
-                setActiveTab('maintenance');
+                setActiveTab('operations');
                 break;
             case 'view_plan':
                 setActiveTab('plans');
-                break;
-            case 'goto_threads':
-                setActiveTab('threads');
                 break;
             default:
                 break;
@@ -258,12 +253,12 @@ export default function App() {
                             <WelcomeScreen
                                 onNewPlan={openGlobalPlanBuilder}
                                 onConnectProvider={() => setActiveTab('settings')}
-                                onOpenRepo={() => setActiveTab('maintenance')}
+                                onOpenRepo={() => setActiveTab('operations')}
                                 onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
                             />
                         ) : (
                             <div className="h-full flex flex-col min-h-0 relative">
-                                <div className="h-3/5 min-h-0 overflow-hidden border-b border-[#2c2c2e]">
+                                <div className={`min-h-0 overflow-hidden border-b border-[#2c2c2e] transition-all duration-300 ${isChatCollapsed ? 'h-[calc(100%-56px)]' : 'h-3/5'}`}>
                                     <GraphCanvas
                                         onNodeSelect={handleNodeSelect}
                                         selectedNodeId={selectedNodeId}
@@ -274,8 +269,15 @@ export default function App() {
                                         planLoading={loading}
                                     />
                                 </div>
-                                <div className="h-2/5 min-h-[260px] overflow-hidden">
-                                    <OrchestratorChat />
+                                <div className={`relative overflow-hidden transition-all duration-300 bg-[#0a0a0a] ${isChatCollapsed ? 'h-14 min-h-[56px] border-t border-[#2c2c2e]' : 'h-2/5 min-h-[260px] border-t-0'}`}>
+                                    <div
+                                        className="absolute top-0 right-8 w-12 h-4 bg-[#141414] border border-[#2c2c2e] border-t-0 rounded-b-md flex items-center justify-center cursor-pointer hover:bg-[#1c1c1e] z-50 group transition-colors"
+                                        onClick={() => setIsChatCollapsed(!isChatCollapsed)}
+                                        title={isChatCollapsed ? "Expandir chat" : "Colapsar chat"}
+                                    >
+                                        <div className={`w-0 h-0 border-l-[4px] border-l-transparent border-r-[4px] border-r-transparent border-t-[4px] border-t-[#86868b] transition-transform ${isChatCollapsed ? 'rotate-180' : ''}`} />
+                                    </div>
+                                    <OrchestratorChat isCollapsed={isChatCollapsed} />
                                 </div>
                                 <div className={`absolute right-0 top-0 bottom-0 z-40 transition-transform duration-300 ease-in-out ${selectedNodeId ? 'translate-x-0' : 'translate-x-full pointer-events-none'}`}>
                                     <InspectPanel
@@ -298,15 +300,6 @@ export default function App() {
                     />
                 );
 
-            case 'skills':
-                return <SkillsPanel />;
-
-            case 'composer':
-                return <PlanComposer />;
-
-            case 'threads':
-                return <ThreadView />;
-
             case 'evals':
                 return <EvalDashboard />;
 
@@ -322,7 +315,7 @@ export default function App() {
                     </div>
                 );
 
-            case 'maintenance':
+            case 'operations':
                 return (
                     <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
                         <MaintenanceIsland />

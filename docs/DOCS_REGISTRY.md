@@ -23,6 +23,7 @@
 | `docs/RELEASE.md` | NEEDS_REVIEW | 2026-02-06 04:56 CET | d670a320 | N/A | Release workflow (to be verified) |
 | `docs/TROUBLESHOOTING.md` | NEEDS_REVIEW | 2026-02-06 04:56 CET | d670a320 | N/A | Troubleshooting (to be filled) |
 | `docs/UI_IMPROVEMENT_PLAN_2026-02-23.md` | VALIDATED | 2026-02-23 | N/A | E2E audit | **AUTHORITATIVE** UI improvement plan (3 phases) |
+| `docs/REPO_MASTERPLAN_2026-02-23.md` | VALIDATED | 2026-02-23 | N/A | Full audit | **AUTHORITATIVE** Repo refactor master plan (7 phases) |
 | `docs/GIMO_UI_OVERHAUL_PLAN.md` | INVALID (LEGACY) | 2026-02-23 | N/A | N/A | Superseded by UI_IMPROVEMENT_PLAN_2026-02-23 |
 | `docs/PROVIDER_UX_REWORK.md` | INVALID (LEGACY) | 2026-02-23 | N/A | N/A | UX sections superseded by UI_IMPROVEMENT_PLAN_2026-02-23 |
 

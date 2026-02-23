@@ -99,6 +99,28 @@ async def get_provider_models_catalog(
     audit_log("OPS", f"/ops/connectors/{provider_type}/models", provider_type, operation="READ", actor=_actor_label(auth))
     return data
 
+@router.get("/provider/models", response_model=ProviderModelsCatalogResponse)
+async def get_active_provider_models(
+    request: Request,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+):
+    _require_role(auth, "operator")
+    cfg = ProviderService.get_public_config()
+    if not cfg or not cfg.provider_type:
+        return ProviderModelsCatalogResponse(
+            provider_type="unknown",
+            installed_models=[],
+            available_models=[],
+            recommended_models=[],
+            can_install=False,
+            install_method="manual",
+            auth_modes_supported=[],
+            warnings=["No provider active"]
+        )
+    data = await ProviderCatalogService.get_catalog(cfg.provider_type)
+    audit_log("OPS", "/ops/provider/models", cfg.provider_type, operation="READ", actor=_actor_label(auth))
+    return data
 
 @router.post("/connectors/{provider_type}/models/install", response_model=ProviderModelInstallResponse)
 async def install_provider_model(

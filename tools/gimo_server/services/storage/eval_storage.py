@@ -51,6 +51,7 @@ class EvalStorage:
         version = version_tag or "latest"
         dataset_id = int(time.time() * 1000)
         data["dataset_id"] = dataset_id
+        data["version_tag"] = version
         
         try:
             self.gics.put(f"ed:{workflow_id}:{version}", data)

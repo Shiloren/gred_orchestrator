@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -8,6 +8,9 @@ import ReactFlow, {
     useEdgesState,
     MarkerType,
     NodeMouseHandler,
+    useReactFlow,
+    Connection,
+    addEdge
 } from 'reactflow';
 import 'reactflow/dist/style.css';
 import { BridgeNode } from './BridgeNode';
@@ -16,6 +19,7 @@ import { RepoNode } from './RepoNode';
 import { ClusterNode } from './ClusterNode';
 import { PlanOverlayCard } from './PlanOverlayCard';
 import { API_BASE } from '../types';
+import { Edit2, Save, X } from 'lucide-react';
 
 const nodeTypes = {
     bridge: BridgeNode,
@@ -45,9 +49,11 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
 }) => {
     const [nodes, setNodes, onNodesChange] = useNodesState([]);
     const [edges, setEdges, onEdgesChange] = useEdgesState([]);
+    const [isEditMode, setIsEditMode] = useState(false);
     const hasFitView = useRef(false);
     const userPositions = useRef<Record<string, { x: number; y: number }>>({});
     const prevNodeIds = useRef<string>('');
+    const { project } = useReactFlow();
 
     // Track user-moved node positions
     const handleNodesChange = useCallback((changes: any[]) => {
@@ -143,19 +149,77 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         }
     }, [setNodes, setEdges, onNodeCountChange]);
 
+    const hasRunningNodes = useMemo(() => nodes.some(n => n.data?.status === 'running'), [nodes]);
+
     useEffect(() => {
+        if (isEditMode) return;
         fetchGraphData();
-        const interval = setInterval(fetchGraphData, 5000);
+        const intervalTime = hasRunningNodes ? 2000 : 5000;
+        const interval = setInterval(fetchGraphData, intervalTime);
         return () => clearInterval(interval);
-    }, [fetchGraphData]);
+    }, [fetchGraphData, hasRunningNodes, isEditMode]);
+
+    const progressStats = useMemo(() => {
+        const actionableNodes = nodes.filter(n => n.data?.status && n.type === 'orchestrator');
+        if (actionableNodes.length === 0) return null;
+
+        const doneCount = actionableNodes.filter(n => ['done', 'failed', 'doubt'].includes(n.data.status)).length;
+        const total = actionableNodes.length;
+
+        if (!hasRunningNodes && doneCount !== total) return null;
+        if (doneCount === total && !hasRunningNodes) return null;
+
+        return { done: doneCount, total, percent: Math.round((doneCount / total) * 100) };
+    }, [nodes, hasRunningNodes]);
 
     const onNodeClick: NodeMouseHandler = useCallback((_event, node) => {
         onNodeSelect(node.id);
     }, [onNodeSelect]);
 
-    const onPaneClick = useCallback(() => {
-        onNodeSelect(null);
-    }, [onNodeSelect]);
+    const onPaneClick = useCallback((event: React.MouseEvent) => {
+        if (isEditMode) {
+            const target = event.target as HTMLElement;
+            const reactFlowBounds = target.closest('.react-flow')?.getBoundingClientRect();
+            if (reactFlowBounds) {
+                const position = project({
+                    x: event.clientX - reactFlowBounds.left,
+                    y: event.clientY - reactFlowBounds.top,
+                });
+                const newNode = {
+                    id: `manual_${Date.now()}`,
+                    type: 'orchestrator',
+                    position,
+                    data: { label: 'Manual Node', status: 'pending' },
+                };
+                setNodes((nds) => nds.concat(newNode));
+            }
+        } else {
+            onNodeSelect(null);
+        }
+    }, [isEditMode, project, setNodes, onNodeSelect]);
+
+    const onConnect = useCallback((params: Connection) => {
+        if (isEditMode) {
+            setEdges((eds) => addEdge({ ...params, animated: true, style: { stroke: '#86868b', strokeWidth: 2 } }, eds));
+        }
+    }, [isEditMode, setEdges]);
+
+    const handleSaveDraft = async () => {
+        try {
+            await fetch(`${API_BASE}/ops/drafts`, {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                    nodes: nodes.map(n => ({ id: n.id, data: n.data })),
+                    edges: edges.map(e => ({ source: e.source, target: e.target }))
+                }),
+                credentials: 'include'
+            });
+            setIsEditMode(false);
+        } catch (error) {
+            console.error('Failed to save manual draft:', error);
+        }
+    };
 
     return (
         <div className="w-full h-full bg-[#0a0a0a]">
@@ -167,6 +231,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                 nodeTypes={nodeTypes}
                 onNodeClick={onNodeClick}
                 onPaneClick={onPaneClick}
+                onConnect={onConnect}
                 fitView={!hasFitView.current}
                 onInit={() => { hasFitView.current = true; }}
                 proOptions={{ hideAttribution: true }}
@@ -204,6 +269,60 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         Live Orchestration Graph
                     </Panel>
                 )}
+
+                {progressStats && (
+                    <Panel position="top-center" className="bg-[#141414]/90 backdrop-blur-xl px-4 py-2 rounded-xl border border-[#2c2c2e] min-w-[200px] shadow-lg">
+                        <div className="flex justify-between items-center mb-1.5">
+                            <span className="text-[10px] text-[#f5f5f7] font-semibold uppercase tracking-wider flex items-center gap-1.5">
+                                <div className="w-1.5 h-1.5 rounded-full bg-[#0a84ff] animate-pulse" />
+                                Ejecución en progreso
+                            </span>
+                            <span className="text-[10px] text-[#86868b] font-mono">
+                                {progressStats.done} / {progressStats.total}
+                            </span>
+                        </div>
+                        <div className="h-1 w-full bg-[#1c1c1e] rounded-full overflow-hidden">
+                            <div
+                                className="h-full bg-[#0a84ff] transition-all duration-500 ease-out"
+                                style={{ width: `${progressStats.percent}%` }}
+                            />
+                        </div>
+                    </Panel>
+                )}
+
+                {/* Edit Mode Toolbar */}
+                <Panel position="bottom-center" className="mb-4">
+                    <div className="flex bg-[#141414]/90 backdrop-blur-xl rounded-full border border-[#2c2c2e] p-1.5 shadow-xl">
+                        {!isEditMode ? (
+                            <button
+                                onClick={() => setIsEditMode(true)}
+                                className="flex items-center gap-2 px-4 py-2 hover:bg-[#1c1c1e] text-[#86868b] hover:text-[#f5f5f7] rounded-full transition-colors text-[11px] font-medium"
+                            >
+                                <Edit2 size={14} />
+                                Start Edit Mode
+                            </button>
+                        ) : (
+                            <>
+                                <button
+                                    onClick={handleSaveDraft}
+                                    className="flex items-center gap-2 px-4 py-2 bg-[#32d74b]/10 text-[#32d74b] hover:bg-[#32d74b]/20 rounded-full transition-colors text-[11px] font-bold tracking-wide mr-1"
+                                >
+                                    <Save size={14} />
+                                    Save Draft
+                                </button>
+                                <button
+                                    onClick={() => {
+                                        setIsEditMode(false);
+                                        fetchGraphData(); // reload normal graph
+                                    }}
+                                    className="flex items-center justify-center w-8 h-8 hover:bg-[#ff453a]/10 text-[#86868b] hover:text-[#ff453a] rounded-full transition-colors"
+                                >
+                                    <X size={14} />
+                                </button>
+                            </>
+                        )}
+                    </div>
+                </Panel>
             </ReactFlow>
         </div>
     );

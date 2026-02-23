@@ -28,7 +28,7 @@ class CostStorage:
         if not self.gics:
             return
         try:
-            key = f"ce:{event.workflow_id}:{event.node_id}:{int(event.timestamp.timestamp())}"
+            key = f"ce:{event.workflow_id}:{event.node_id}:{int(event.timestamp.timestamp())}:{event.id}"
             self.gics.put(key, event.model_dump())
         except Exception as e:
             logger.error(f"Failed to save cost event {event.id}: {e}")
@@ -51,10 +51,14 @@ class CostStorage:
                 fields = item.get("fields", {})
                 if "timestamp" in fields:
                     try:
-                        ts_str = fields["timestamp"]
-                        if ts_str.endswith('Z'):
-                            ts_str = ts_str[:-1] + '+00:00'
-                        ts = datetime.fromisoformat(ts_str)
+                        ts_val = fields["timestamp"]
+                        if isinstance(ts_val, datetime):
+                            ts = ts_val
+                        else:
+                            ts_str = str(ts_val)
+                            if ts_str.endswith('Z'):
+                                ts_str = ts_str[:-1] + '+00:00'
+                            ts = datetime.fromisoformat(ts_str)
                         if ts.tzinfo is None:
                             ts = ts.replace(tzinfo=timezone.utc)
                         if ts >= cutoff:
@@ -90,7 +94,11 @@ class CostStorage:
         agg = defaultdict(lambda: {"cost": 0.0, "tokens": 0})
         for e in events:
             if "timestamp" in e:
-                date = e["timestamp"][:10] # YYYY-MM-DD
+                ts_val = e["timestamp"]
+                if isinstance(ts_val, datetime):
+                    date = ts_val.strftime("%Y-%m-%d")
+                else:
+                    date = str(ts_val)[:10] # YYYY-MM-DD
                 agg[date]["cost"] += e.get("cost_usd", 0.0)
                 agg[date]["tokens"] += e.get("total_tokens", 0)
                 

@@ -62,7 +62,7 @@ const buildDraftSteps = (
     ];
 };
 
-export const OrchestratorChat: React.FC = () => {
+export const OrchestratorChat: React.FC<{ isCollapsed?: boolean }> = ({ isCollapsed = false }) => {
     const [messages, setMessages] = useState<ChatMessage[]>([
         {
             id: 'm-welcome',
@@ -286,101 +286,105 @@ export const OrchestratorChat: React.FC = () => {
 
     return (
         <section className="h-full bg-[#0a0a0a] flex min-h-0">
-            <div className="w-2/3 border-r border-[#2c2c2e] flex flex-col min-h-0">
-                <div className="h-11 px-4 border-b border-[#2c2c2e] flex items-center justify-between shrink-0">
-                    <div className="text-xs uppercase tracking-wider font-semibold text-[#f5f5f7]">Orchestrator Chat</div>
-                    <div className="flex items-center gap-1 rounded-lg border border-[#2c2c2e] bg-[#141414] p-1">
-                        <button
-                            onClick={() => setMode('generate')}
-                            className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider ${mode === 'generate' ? 'bg-[#0a84ff]/20 text-[#0a84ff]' : 'text-[#86868b]'}`}
-                        >
-                            <Sparkles size={12} className="inline mr-1" />IA
-                        </button>
-                        <button
-                            onClick={() => setMode('draft')}
-                            className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider ${mode === 'draft' ? 'bg-[#0a84ff]/20 text-[#0a84ff]' : 'text-[#86868b]'}`}
-                        >
-                            Draft
-                        </button>
-                    </div>
-                </div>
-
-                <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar">
-                    {messages.map(message => (
-                        <div key={message.id} className={`rounded-xl px-3 py-2 border ${message.role === 'user'
-                            ? 'bg-[#0a84ff]/10 border-[#0a84ff]/20 ml-14'
-                            : message.role === 'assistant'
-                                ? 'bg-[#141414] border-[#2c2c2e] mr-14'
-                                : 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ffb340]'
-                            }`}>
-                            <p className="text-xs text-[#f5f5f7] whitespace-pre-wrap">{message.text}</p>
-                            {(message.detectedIntent || message.decisionPath) && (
-                                <div className="mt-2 flex flex-wrap gap-1.5">
-                                    {message.detectedIntent && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#0a84ff]/40 bg-[#0a84ff]/10 text-[#7fc1ff]">
-                                            Intent: {message.detectedIntent}
-                                        </span>
-                                    )}
-                                    {message.decisionPath && (
-                                        <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2c2c2e] bg-[#1a1a1c] text-[#d0d0d4]">
-                                            Ruta: {message.decisionPath}
-                                        </span>
-                                    )}
-                                </div>
-                            )}
-                            {message.executionSteps && message.executionSteps.length > 0 && (
-                                <div className="mt-2 space-y-1">
-                                    {message.executionSteps.map(step => (
-                                        <div
-                                            key={`${message.id}-${step.key}`}
-                                            className={`text-[10px] rounded-md px-2 py-1 border ${step.status === 'done'
-                                                ? 'border-[#32d74b]/30 bg-[#32d74b]/10 text-[#8ae89a]'
-                                                : step.status === 'error'
-                                                    ? 'border-[#ff453a]/30 bg-[#ff453a]/10 text-[#ff8f88]'
-                                                    : 'border-[#2c2c2e] bg-[#171718] text-[#b5b5bb]'
-                                                }`}
-                                        >
-                                            {step.label}: {step.detail || (step.status === 'pending' ? 'pendiente' : step.status)}
-                                        </div>
-                                    ))}
-                                </div>
-                            )}
-                            {message.errorActionable && (
-                                <div className="mt-2 text-[10px] rounded-md border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffbe69] px-2 py-1">
-                                    Acción sugerida: {message.errorActionable}
-                                </div>
-                            )}
-                            {message.draftId && pendingDrafts.some(d => d.id === message.draftId) && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <button
-                                        onClick={() => approveDraft(message.draftId!)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#32d74b]/15 text-[#32d74b] border border-[#32d74b]/30"
-                                    >
-                                        <Check size={11} /> Aprobar
-                                    </button>
-                                    <button
-                                        onClick={() => rejectDraft(message.draftId!)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30"
-                                    >
-                                        <X size={11} /> Rechazar
-                                    </button>
-                                </div>
-                            )}
-                            {message.approvedId && !message.runId && (
-                                <div className="mt-2 flex items-center gap-2">
-                                    <button
-                                        onClick={() => void createRunFromApproved(message.approvedId!, message.draftId)}
-                                        className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30"
-                                    >
-                                        <Sparkles size={11} /> Ejecutar run
-                                    </button>
-                                </div>
-                            )}
+            <div className={`border-r border-[#2c2c2e] flex flex-col min-h-0 ${isCollapsed ? 'w-full border-r-0' : 'w-2/3'}`}>
+                {!isCollapsed && (
+                    <div className="h-11 px-4 border-b border-[#2c2c2e] flex items-center justify-between shrink-0">
+                        <div className="text-xs uppercase tracking-wider font-semibold text-[#f5f5f7]">Orchestrator Chat</div>
+                        <div className="flex items-center gap-1 rounded-lg border border-[#2c2c2e] bg-[#141414] p-1">
+                            <button
+                                onClick={() => setMode('generate')}
+                                className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider ${mode === 'generate' ? 'bg-[#0a84ff]/20 text-[#0a84ff]' : 'text-[#86868b]'}`}
+                            >
+                                <Sparkles size={12} className="inline mr-1" />IA
+                            </button>
+                            <button
+                                onClick={() => setMode('draft')}
+                                className={`px-2.5 py-1 rounded-md text-[10px] uppercase tracking-wider ${mode === 'draft' ? 'bg-[#0a84ff]/20 text-[#0a84ff]' : 'text-[#86868b]'}`}
+                            >
+                                Draft
+                            </button>
                         </div>
-                    ))}
-                </div>
+                    </div>
+                )}
 
-                <div className="border-t border-[#2c2c2e] p-3 flex items-center gap-2 shrink-0">
+                {!isCollapsed && (
+                    <div className="flex-1 min-h-0 overflow-y-auto p-4 space-y-3 custom-scrollbar">
+                        {messages.map(message => (
+                            <div key={message.id} className={`rounded-xl px-3 py-2 border ${message.role === 'user'
+                                ? 'bg-[#0a84ff]/10 border-[#0a84ff]/20 ml-14'
+                                : message.role === 'assistant'
+                                    ? 'bg-[#141414] border-[#2c2c2e] mr-14'
+                                    : 'bg-[#ff9f0a]/10 border-[#ff9f0a]/20 text-[#ffb340]'
+                                }`}>
+                                <p className="text-xs text-[#f5f5f7] whitespace-pre-wrap">{message.text}</p>
+                                {(message.detectedIntent || message.decisionPath) && (
+                                    <div className="mt-2 flex flex-wrap gap-1.5">
+                                        {message.detectedIntent && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#0a84ff]/40 bg-[#0a84ff]/10 text-[#7fc1ff]">
+                                                Intent: {message.detectedIntent}
+                                            </span>
+                                        )}
+                                        {message.decisionPath && (
+                                            <span className="text-[10px] px-2 py-0.5 rounded-full border border-[#2c2c2e] bg-[#1a1a1c] text-[#d0d0d4]">
+                                                Ruta: {message.decisionPath}
+                                            </span>
+                                        )}
+                                    </div>
+                                )}
+                                {message.executionSteps && message.executionSteps.length > 0 && (
+                                    <div className="mt-2 space-y-1">
+                                        {message.executionSteps.map(step => (
+                                            <div
+                                                key={`${message.id}-${step.key}`}
+                                                className={`text-[10px] rounded-md px-2 py-1 border ${step.status === 'done'
+                                                    ? 'border-[#32d74b]/30 bg-[#32d74b]/10 text-[#8ae89a]'
+                                                    : step.status === 'error'
+                                                        ? 'border-[#ff453a]/30 bg-[#ff453a]/10 text-[#ff8f88]'
+                                                        : 'border-[#2c2c2e] bg-[#171718] text-[#b5b5bb]'
+                                                    }`}
+                                            >
+                                                {step.label}: {step.detail || (step.status === 'pending' ? 'pendiente' : step.status)}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                                {message.errorActionable && (
+                                    <div className="mt-2 text-[10px] rounded-md border border-[#ff9f0a]/30 bg-[#ff9f0a]/10 text-[#ffbe69] px-2 py-1">
+                                        Acción sugerida: {message.errorActionable}
+                                    </div>
+                                )}
+                                {message.draftId && pendingDrafts.some(d => d.id === message.draftId) && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <button
+                                            onClick={() => approveDraft(message.draftId!)}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#32d74b]/15 text-[#32d74b] border border-[#32d74b]/30"
+                                        >
+                                            <Check size={11} /> Aprobar
+                                        </button>
+                                        <button
+                                            onClick={() => rejectDraft(message.draftId!)}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30"
+                                        >
+                                            <X size={11} /> Rechazar
+                                        </button>
+                                    </div>
+                                )}
+                                {message.approvedId && !message.runId && (
+                                    <div className="mt-2 flex items-center gap-2">
+                                        <button
+                                            onClick={() => void createRunFromApproved(message.approvedId!, message.draftId)}
+                                            className="inline-flex items-center gap-1 px-2 py-1 rounded-md text-[10px] bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30"
+                                        >
+                                            <Sparkles size={11} /> Ejecutar run
+                                        </button>
+                                    </div>
+                                )}
+                            </div>
+                        ))}
+                    </div>
+                )}
+
+                <div className={`p-3 flex items-center gap-2 shrink-0 ${isCollapsed ? 'border-t-0 h-full items-center pl-16' : 'border-t border-[#2c2c2e]'}`}>
                     <input
                         value={input}
                         onChange={(e) => setInput(e.target.value)}
@@ -404,34 +408,36 @@ export const OrchestratorChat: React.FC = () => {
                 </div>
             </div>
 
-            <aside className="w-1/3 min-w-[280px] max-w-[420px] bg-[#0d0d0e] flex flex-col min-h-0">
-                <div className="h-11 px-4 border-b border-[#2c2c2e] flex items-center justify-between shrink-0">
-                    <span className="text-xs uppercase tracking-wider text-[#86868b]">Drafts pendientes</span>
-                    <button onClick={() => void fetchDrafts()} className="text-[10px] text-[#0a84ff] hover:underline">
-                        {isLoadingDrafts ? 'Actualizando…' : 'Actualizar'}
-                    </button>
-                </div>
-                <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 custom-scrollbar">
-                    {pendingDrafts.length === 0 ? (
-                        <p className="text-xs text-[#86868b]">No hay drafts en estado draft.</p>
-                    ) : pendingDrafts.map(draft => (
-                        <div key={draft.id} className="rounded-xl border border-[#2c2c2e] bg-[#141414] p-2.5 space-y-2">
-                            <div>
-                                <div className="text-[10px] text-[#86868b]">{new Date(draft.created_at).toLocaleString()}</div>
-                                <div className="text-xs text-[#f5f5f7] line-clamp-3">{draft.prompt}</div>
+            {!isCollapsed && (
+                <aside className="w-1/3 min-w-[280px] max-w-[420px] bg-[#0d0d0e] flex flex-col min-h-0">
+                    <div className="h-11 px-4 border-b border-[#2c2c2e] flex items-center justify-between shrink-0">
+                        <span className="text-xs uppercase tracking-wider text-[#86868b]">Drafts pendientes</span>
+                        <button onClick={() => void fetchDrafts()} className="text-[10px] text-[#0a84ff] hover:underline">
+                            {isLoadingDrafts ? 'Actualizando…' : 'Actualizar'}
+                        </button>
+                    </div>
+                    <div className="flex-1 min-h-0 overflow-y-auto p-3 space-y-2 custom-scrollbar">
+                        {pendingDrafts.length === 0 ? (
+                            <p className="text-xs text-[#86868b]">No hay drafts en estado draft.</p>
+                        ) : pendingDrafts.map(draft => (
+                            <div key={draft.id} className="rounded-xl border border-[#2c2c2e] bg-[#141414] p-2.5 space-y-2">
+                                <div>
+                                    <div className="text-[10px] text-[#86868b]">{new Date(draft.created_at).toLocaleString()}</div>
+                                    <div className="text-xs text-[#f5f5f7] line-clamp-3">{draft.prompt}</div>
+                                </div>
+                                <div className="flex gap-1.5">
+                                    <button onClick={() => void approveDraft(draft.id)} className="flex-1 h-7 rounded-md bg-[#32d74b]/15 border border-[#32d74b]/30 text-[#32d74b] text-[10px]">
+                                        Aprobar
+                                    </button>
+                                    <button onClick={() => void rejectDraft(draft.id)} className="flex-1 h-7 rounded-md bg-[#ff453a]/15 border border-[#ff453a]/30 text-[#ff453a] text-[10px]">
+                                        Rechazar
+                                    </button>
+                                </div>
                             </div>
-                            <div className="flex gap-1.5">
-                                <button onClick={() => void approveDraft(draft.id)} className="flex-1 h-7 rounded-md bg-[#32d74b]/15 border border-[#32d74b]/30 text-[#32d74b] text-[10px]">
-                                    Aprobar
-                                </button>
-                                <button onClick={() => void rejectDraft(draft.id)} className="flex-1 h-7 rounded-md bg-[#ff453a]/15 border border-[#ff453a]/30 text-[#ff453a] text-[10px]">
-                                    Rechazar
-                                </button>
-                            </div>
-                        </div>
-                    ))}
-                </div>
-            </aside>
+                        ))}
+                    </div>
+                </aside>
+            )}
         </section>
     );
 };

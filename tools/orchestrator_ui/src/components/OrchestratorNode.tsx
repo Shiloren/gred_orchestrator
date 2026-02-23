@@ -20,7 +20,9 @@ export const OrchestratorNode = memo(({ data, selected }: any) => {
     return (
         <div
             className={`group relative px-3 py-2.5 rounded-xl bg-[#141414]/90 backdrop-blur-md border-[1.5px] transition-all duration-300 max-w-[220px]
-                ${selected ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.02]' : 'border-white/10 hover:border-white/20'}`}
+                ${selected ? 'border-blue-500 shadow-[0_0_20px_rgba(59,130,246,0.3)] scale-[1.02]'
+                    : data.status === 'running' ? 'border-blue-500/80 shadow-[0_0_15px_rgba(59,130,246,0.4)] ring-1 ring-blue-500/50'
+                        : 'border-white/10 hover:border-white/20'}`}
             onMouseEnter={() => setIsHovered(true)}
             onMouseLeave={() => setIsHovered(false)}
         >
@@ -38,6 +40,15 @@ export const OrchestratorNode = memo(({ data, selected }: any) => {
                     </div>
                 </div>
             </div>
+
+            {/* Live Logs */}
+            {data.status === 'running' && data.latest_log && (
+                <div className="mt-2 pt-2 border-t border-blue-500/20">
+                    <div className="text-[9px] text-blue-300/80 font-mono leading-tight line-clamp-2">
+                        {data.latest_log}
+                    </div>
+                </div>
+            )}
 
             {/* Quality & Meta indicators */}
             {data.agent_config && (

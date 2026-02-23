@@ -48,7 +48,7 @@ class WorkflowStorage:
         
         try:
             timestamp = int(time.time() * 1000)
-            cp_key = f"wf:{workflow_id}:cp:{timestamp}"
+            cp_key = f"wf:{workflow_id}:cp:{timestamp}:{node_id}"
             self.gics.put(cp_key, {
                 "workflow_id": workflow_id,
                 "node_id": node_id,

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Panel } from 'reactflow';
 import { CheckCircle2, XCircle, Pencil, FileText, Cpu } from 'lucide-react';
+import { useAvailableModels } from '../hooks/useAvailableModels';
 
 interface PlanOverlayCardProps {
     prompt: string;
@@ -20,22 +21,10 @@ export const PlanOverlayCard: React.FC<PlanOverlayCardProps> = ({
     loading = false,
 }) => {
     const [orchestratorModel, setOrchestratorModel] = useState<string>('auto');
-    const MODEL_OPTIONS = [
-        { value: 'auto', label: '⚡ Auto (Orchestrator selects)' },
-        { value: 'qwen2.5-coder:32b', label: 'qwen:32b · smart · local' },
-        { value: 'qwen2.5-coder:3b', label: 'qwen:3b · fast · local' },
-        { value: 'gpt-4o', label: 'gpt-4o · OpenAI' },
-        { value: 'gpt-4o-mini', label: 'gpt-4o-mini · cheap' },
-        { value: 'claude-3-5-sonnet', label: 'claude-3.5-sonnet' },
-        { value: 'claude-3-haiku', label: 'claude-3-haiku · fast' },
-        { value: 'llama3.1:70b', label: 'llama3.1:70b · local' },
-        { value: 'mistral:7b', label: 'mistral:7b · local' },
-        { value: 'gemini-1.5-pro', label: 'gemini-1.5-pro' },
-        { value: 'codex-davinci', label: 'codex-davinci' },
-    ];
+    const { models, loading: modelsLoading } = useAvailableModels();
 
     return (
-        <Panel position="top-left" className="!m-4">
+        <Panel position="top-right" className="!m-4">
             <div className="w-[340px] bg-[#141414]/95 backdrop-blur-xl rounded-2xl border border-[#2c2c2e] shadow-2xl overflow-hidden animate-in fade-in slide-in-from-top-2 duration-300">
                 {/* Header */}
                 <div className="px-4 pt-3 pb-2 border-b border-[#1c1c1e] flex items-center gap-2">
@@ -56,18 +45,32 @@ export const PlanOverlayCard: React.FC<PlanOverlayCardProps> = ({
                 {/* Orchestrator Model Selector */}
                 <div className="px-4 pb-3 flex items-center gap-2">
                     <Cpu size={12} className="text-amber-400 shrink-0" />
-                    <label htmlFor="orch-model-select" className="text-[9px] text-white/30 uppercase tracking-wider shrink-0">Orch. Model</label>
-                    <select
-                        id="orch-model-select"
-                        value={orchestratorModel}
-                        onChange={(e) => setOrchestratorModel(e.target.value)}
-                        disabled={loading}
-                        className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-amber-300/80 focus:outline-none focus:border-amber-500/40 disabled:opacity-50"
-                    >
-                        {MODEL_OPTIONS.map(opt => (
-                            <option key={opt.value} value={opt.value}>{opt.label}</option>
-                        ))}
-                    </select>
+                    <label htmlFor="orch-model-select" className="text-[9px] text-white/30 uppercase tracking-wider shrink-0">Modelo Orch.</label>
+                    {(!modelsLoading && models.length === 0) ? (
+                        <input
+                            id="orch-model-select"
+                            type="text"
+                            value={orchestratorModel}
+                            onChange={(e) => setOrchestratorModel(e.target.value)}
+                            disabled={loading}
+                            placeholder="Modelo..."
+                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-amber-300/80 focus:outline-none focus:border-amber-500/40 disabled:opacity-50"
+                        />
+                    ) : (
+                        <select
+                            id="orch-model-select"
+                            value={orchestratorModel}
+                            onChange={(e) => setOrchestratorModel(e.target.value)}
+                            disabled={loading || modelsLoading}
+                            className="flex-1 bg-black/40 border border-white/10 rounded-lg px-2 py-1 text-[10px] text-amber-300/80 focus:outline-none focus:border-amber-500/40 disabled:opacity-50"
+                        >
+                            <option value="auto">⚡ Auto (Orquestador decide)</option>
+                            {modelsLoading && <option disabled>Cargando modelos...</option>}
+                            {models.map(m => (
+                                <option key={m.id} value={m.id}>{m.label || m.id} {m.installed ? ' (Local)' : ''}</option>
+                            ))}
+                        </select>
+                    )}
                 </div>
 
                 {/* Action buttons */}

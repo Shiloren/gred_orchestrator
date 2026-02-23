@@ -5,22 +5,22 @@ import { Sidebar } from '../Sidebar';
 describe('Sidebar', () => {
     it('renders all tab buttons', () => {
         render(<Sidebar activeTab="graph" onTabChange={vi.fn()} />);
-        expect(screen.getByTitle('Graph')).toBeInTheDocument();
-        expect(screen.getByTitle('Maint')).toBeInTheDocument();
-        expect(screen.getByTitle('Logs')).toBeInTheDocument();
-        expect(screen.getByTitle('Settings')).toBeInTheDocument();
+        expect(screen.getByTitle('Grafo')).toBeInTheDocument();
+        expect(screen.getByTitle('Planes')).toBeInTheDocument();
+        expect(screen.getByTitle('Ops')).toBeInTheDocument();
+        expect(screen.getByTitle('Ajustes')).toBeInTheDocument();
     });
 
     it('calls onTabChange when tab clicked', () => {
         const onTabChange = vi.fn();
         render(<Sidebar activeTab="graph" onTabChange={onTabChange} />);
-        fireEvent.click(screen.getByTitle('Maint'));
-        expect(onTabChange).toHaveBeenCalledWith('maintenance');
+        fireEvent.click(screen.getByTitle('Ops'));
+        expect(onTabChange).toHaveBeenCalledWith('operations');
     });
 
     it('highlights active tab', () => {
-        render(<Sidebar activeTab="logs" onTabChange={vi.fn()} />);
-        const logsButton = screen.getByTitle('Logs');
-        expect(logsButton.className).toContain('text-[#0a84ff]');
+        render(<Sidebar activeTab="operations" onTabChange={vi.fn()} />);
+        const opsButton = screen.getByTitle('Ops');
+        expect(opsButton.className).toContain('text-[#0a84ff]');
     });
 });

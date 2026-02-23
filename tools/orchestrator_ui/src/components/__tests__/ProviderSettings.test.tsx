@@ -1,5 +1,6 @@
 import { render, screen, fireEvent, waitFor } from '@testing-library/react';
 import { ProviderSettings } from '../ProviderSettings';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 const mocks = vi.hoisted(() => {
     const loadProvidersMock = vi.fn();

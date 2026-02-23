@@ -1,5 +1,6 @@
 import { fireEvent, render, screen, waitFor } from '@testing-library/react';
 import { OrchestratorChat } from '../OrchestratorChat';
+import { describe, beforeEach, it, expect, vi } from 'vitest';
 
 const addToastMock = vi.fn();
 

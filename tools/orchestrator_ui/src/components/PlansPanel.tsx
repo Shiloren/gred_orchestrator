@@ -54,10 +54,10 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
         };
 
         fetchHistory();
-        const interval = window.setInterval(fetchHistory, 5000);
+        const interval = globalThis.setInterval(fetchHistory, 5000);
         return () => {
             cancelled = true;
-            window.clearInterval(interval);
+            globalThis.clearInterval(interval);
         };
     }, [addToast]);
 
@@ -110,7 +110,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
 
                 <aside className="bg-[#101011] border border-[#2c2c2e] rounded-2xl p-5 flex flex-col min-h-[560px]">
                     <div className="mb-4">
-                        <h2 className="text-sm uppercase tracking-widest font-black text-[#f5f5f7]">Plan History</h2>
+                        <h2 className="text-sm uppercase tracking-widest font-black text-[#f5f5f7]">Historial de Planes</h2>
                         <p className="text-xs text-[#86868b] mt-1">Drafts, aprobaciones y ejecuciones en una sola timeline.</p>
                     </div>
 

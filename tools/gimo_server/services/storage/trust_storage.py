@@ -33,6 +33,7 @@ class TrustStorage:
             
         event_data = event.model_dump() if isinstance(event, TrustEvent) else dict(event)
         timestamp = _normalize_timestamp(event_data.get("timestamp"))
+        event_data["timestamp"] = timestamp
         
         try:
             event_key = f"te:{event_data.get('dimension_key')}:{timestamp}"
@@ -48,6 +49,7 @@ class TrustStorage:
             try:
                 event_data = event.model_dump() if isinstance(event, TrustEvent) else dict(event)
                 timestamp = _normalize_timestamp(event_data.get("timestamp"))
+                event_data["timestamp"] = timestamp
                 event_key = f"te:{event_data.get('dimension_key')}:{timestamp}"
                 self.gics.put(event_key, event_data)
             except Exception as e:
