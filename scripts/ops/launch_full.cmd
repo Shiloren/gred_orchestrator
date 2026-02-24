@@ -34,13 +34,9 @@ if errorlevel 1 (
     echo VITE_ORCH_TOKEN=!GENERATED_TOKEN!> "tools\orchestrator_ui\.env.local"
 )
 
-:: 3. Limpiar procesos previos
+:: 3. Limpiar procesos previos (robust kill via Python + PowerShell fallback)
 echo [2/5] Limpiando puertos 9325 (Backend) y 5173 (Frontend)...
-for %%p in (9325 5173) do (
-    for /f "tokens=5" %%a in ('netstat -ano ^| findstr :%%p ^| findstr LISTENING') do (
-        taskkill /F /PID %%a >nul 2>&1
-    )
-)
+%PYTHON_EXE% scripts\ops\kill_port.py --all-gimo
 
 :: 4. Lanzar Backend
 echo [3/5] Lanzando GIMO Backend (127.0.0.1:9325)...
