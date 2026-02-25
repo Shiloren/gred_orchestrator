@@ -33,11 +33,11 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
             {/* Trace List - Left Sidebar */}
             <div className="w-1/3 border-r border-[#2c2c2e] flex flex-col">
                 <div className="p-3 border-b border-[#2c2c2e] bg-[#141414]">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868b]">Recent Activity</h3>
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868b]">Actividad Reciente</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {loading && safeTraces.length === 0 ? (
-                        <div className="p-4 text-center text-[#86868b] text-xs">Loading traces...</div>
+                        <div className="p-4 text-center text-[#86868b] text-xs">Cargando trazas...</div>
                     ) : (
                         safeTraces.map((trace) => (
                             <div
@@ -50,7 +50,7 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
                             >
                                 <div className="flex justify-between items-start mb-1">
                                     <span className={`text-xs font-mono font-medium truncate ${trace.status === 'error' ? 'text-red-500' : 'text-[#f5f5f7]'}`}>
-                                        {trace.root_span?.name || 'Unknown Operation'}
+                                        {trace.root_span?.name || 'Operación desconocida'}
                                     </span>
                                     <span className="text-[10px] text-[#86868b] font-mono">
                                         {trace.duration_ms ? `${trace.duration_ms}ms` : 'running'}
@@ -73,7 +73,7 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
                         <div className="p-4 border-b border-[#2c2c2e] bg-[#141414] flex justify-between items-center">
                             <div>
                                 <h2 className="text-sm font-bold text-[#f5f5f7] mb-1">
-                                    {selectedTraceData.root_span?.name || 'Unknown trace'}
+                                    {selectedTraceData.root_span?.name || 'Traza desconocida'}
                                 </h2>
                                 <div className="flex items-center gap-3 text-xs text-[#86868b]">
                                     <span className="font-mono text-[10px] bg-[#1c1c1e] px-1.5 py-0.5 rounded">
@@ -96,7 +96,7 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
                 ) : (
                     <div className="flex-1 flex items-center justify-center text-[#86868b] flex-col gap-2">
                         <ActivityIcon />
-                        <span className="text-xs">Select a trace to view details</span>
+                        <span className="text-xs">Selecciona una traza para ver detalles</span>
                     </div>
                 )}
             </div>
@@ -131,7 +131,7 @@ const SpanTree: React.FC<{ spans: Span[]; rootSpanId: string }> = ({ spans, root
     // If the passed rootSpanId exists in map, start there.
     const root = spanMap.get(rootSpanId);
 
-    if (!root) return <div className="text-red-500">Root span not found</div>;
+    if (!root) return <div className="text-red-500">Span raíz no encontrado</div>;
 
     const renderNode = (span: Span, depth: number) => {
         const children = childrenMap.get(span.span_id) || [];

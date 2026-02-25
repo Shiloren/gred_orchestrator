@@ -146,13 +146,13 @@ export const EvalDashboard: React.FC = () => {
                                                 <span className="text-xs text-[#86868b] font-mono">{r.pass_rate.toFixed(0)}%</span>
                                             </div>
                                         </td>
-                                        <td className="py-4 text-xs text-[#86868b]">{new Fecha(r.created_at).toLocaleFechaString()}</td>
+                                        <td className="py-4 text-xs text-[#86868b]">{new Date(r.created_at).toLocaleDateString()}</td>
                                         <td className="py-4 pr-4 text-right">
                                             <button
                                                 onClick={() => handleViewRun(r.run_id)}
                                                 className="text-[#0a84ff] hover:text-[#0071e3] text-xs font-medium opacity-0 group-hover:opacity-100 transition-all flex items-center justify-end gap-1 ml-auto"
                                             >
-                                                Ver Reporte
+                                                Ver Informe
                                                 <ChevronRight size={12} />
                                             </button>
                                         </td>

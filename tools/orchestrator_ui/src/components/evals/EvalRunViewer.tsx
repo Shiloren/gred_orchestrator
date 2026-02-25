@@ -29,7 +29,7 @@ export const EvalRunViewer: React.FC<EvalRunViewerProps> = ({ runId, onBack }) =
         load();
     }, [runId]);
 
-    if (loading) return <div className="p-8 text-center text-[#86868b]">Loading run details...</div>;
+    if (loading) return <div className="p-8 text-center text-[#86868b]">Cargando detalles...</div>;
     if (error || !detail) return <div className="p-8 text-center text-red-500">{error || 'Run not found'}</div>;
 
     const { report } = detail;

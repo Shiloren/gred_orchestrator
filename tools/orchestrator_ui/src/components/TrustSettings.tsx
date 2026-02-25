@@ -1,6 +1,6 @@
 import React, { useState, useEffect, useCallback } from 'react';
 import { Settings, Shield, Activity, Lock } from 'lucide-react';
-import { TrustLevel, API_BASE } from '../types';
+import { TrustLevel } from '../types';
 import { TrustBadge } from './TrustBadge';
 import { useSecurityService } from '../hooks/useSecurityService';
 import { ThreatLevelIndicator } from './security/ThreatLevelIndicator';

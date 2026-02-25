@@ -198,7 +198,7 @@ export const SkillsPanel: React.FC = () => {
                 const data: SkillTriggerResponse = await res.json();
                 addToast(
                     <span className="flex flex-col gap-1">
-                        <span className="font-semibold text-xs">Draft created — go approve it in Plans</span>
+                        <span className="font-semibold text-xs">Borrador creado — apruébalo en Planes</span>
                         <DraftBadge draftId={data.draft_id} />
                     </span> as unknown as string,
                     'success'

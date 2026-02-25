@@ -353,7 +353,7 @@ export const PlanComposer: React.FC = () => {
                                     />
                                     <div className="flex items-start gap-2 text-[10px] text-[#86868b] bg-blue-500/5 p-2 rounded border border-blue-500/10">
                                         <Info size={12} className="shrink-0 mt-0.5" />
-                                        <span>Outputs from dependency nodes will be automatically injected into the context of this node.</span>
+                                        <span>Las salidas de nodos dependientes se inyectarán automáticamente en el contexto de este nodo.</span>
                                     </div>
                                 </div>
                             </div>
