@@ -75,6 +75,8 @@ class Settings:
     license_recheck_hours: int
     license_allow_debug_bypass: bool
     worktrees_dir: Path
+    gimo_web_url: str
+    gimo_internal_key: str
 
 
 def _load_or_create_token(token_file: Path | None = None, env_key: str = "ORCH_TOKEN") -> str:
@@ -223,6 +225,8 @@ def _build_settings() -> Settings:
             "ORCH_LICENSE_ALLOW_DEBUG_BYPASS", "false"
         ).lower() in ("true", "1", "yes"),
         worktrees_dir=worktrees_dir,
+        gimo_web_url=os.environ.get("GIMO_WEB_URL", "https://gimo-web.vercel.app"),
+        gimo_internal_key=os.environ.get("GIMO_INTERNAL_KEY", ""),
     )
 
 
@@ -270,3 +274,5 @@ DATA_DIR = _SETTINGS.data_dir
 WORKTREES_DIR = _SETTINGS.worktrees_dir
 DEBUG = _SETTINGS.debug
 LOG_LEVEL = _SETTINGS.log_level
+GIMO_WEB_URL = _SETTINGS.gimo_web_url
+GIMO_INTERNAL_KEY = _SETTINGS.gimo_internal_key

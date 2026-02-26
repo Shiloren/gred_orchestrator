@@ -4,7 +4,7 @@ import { assertSupportedNode } from './check-node-lts.mjs'
 assertSupportedNode()
 
 const passthroughArgs = process.argv.slice(2)
-const baseArgs = ['run', '--config', './vitest.config.ts', '--root', '.']
+const baseArgs = ['run', '--config', './vitest.config.ts', '--root', '.', '--passWithNoTests']
 const vitestArgs = [...baseArgs, ...passthroughArgs]
 
 const result = spawnSync('vitest', vitestArgs, {

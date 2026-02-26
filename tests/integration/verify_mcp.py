@@ -58,8 +58,8 @@ def test_mcp_flow():
     # 1. Configure MCP Server
 
     # 1. Configure MCP Server
-    # We point to our dummy server script
-    dummy_script = Path(__file__).parent / "dummy_mcp_server.py"
+    # We point to our dummy server script (lives in tests/fixtures)
+    dummy_script = Path(__file__).parents[1] / "fixtures" / "dummy_mcp_server.py"
     command = sys.executable
     args = [str(dummy_script)]
     

@@ -1,7 +1,10 @@
 # GIMO UI Improvement Plan — 2026-02-23
 
+> **DEPRECATED** — Supersedido por [`FIREBASE_SSO_PROFILE_PLAN_2026-02-25.md`](FIREBASE_SSO_PROFILE_PLAN_2026-02-25.md)
+> Fases 1-2 completadas (commits 9662a48 y anteriores). Fase 3 parcialmente integrada en el nuevo plan.
+>
 > **Supersedes:** `docs/GIMO_UI_OVERHAUL_PLAN.md`, `docs/PROVIDER_UX_REWORK.md`, secciones UI de `docs/GIMO_AUDIT_REPORT.md`
-> **Status:** ACTIVE — Este es el documento autoritativo para mejoras de frontend
+> **Status:** DEPRECATED
 > **Scope:** `tools/orchestrator_ui/src/`
 > **Validated by:** Auditoría E2E completa con backend+frontend corriendo (2026-02-23)
 

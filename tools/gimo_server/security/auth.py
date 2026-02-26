@@ -5,7 +5,7 @@ import secrets
 import time
 from dataclasses import dataclass, field
 from threading import Lock
-from typing import Dict, Optional
+from typing import Any, Dict, Optional
 
 from fastapi import HTTPException, Request, Security
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer
@@ -19,6 +19,7 @@ security = HTTPBearer(auto_error=False)
 INVALID_TOKEN_ERROR = "Invalid token"
 SESSION_COOKIE_NAME = "gimo_session"
 SESSION_TTL_SECONDS = 86400  # 24 hours
+FIREBASE_SESSION_TTL = 86400 * 30  # 30 days
 
 
 # ---------------------------------------------------------------------------
@@ -28,6 +29,12 @@ SESSION_TTL_SECONDS = 86400  # 24 hours
 class _Session:
     session_id: str
     role: str
+    uid: str = ""
+    email: str = ""
+    display_name: str = ""
+    plan: str = ""
+    firebase_user: bool = False
+    profile_cache: Dict[str, Any] = field(default_factory=dict)
     created_at: float = field(default_factory=time.time)
     last_seen: float = field(default_factory=time.time)
 
@@ -41,12 +48,21 @@ class SessionStore:
             "|".join(sorted(TOKENS)).encode()
         ).digest()
 
-    def create(self, role: str) -> str:
+    def create(self, role: str, **kwargs: Any) -> str:
         session_id = secrets.token_urlsafe(32)
         sig = hmac.new(self._signing_key, session_id.encode(), hashlib.sha256).hexdigest()[:16]
         cookie_value = f"{session_id}.{sig}"
         with self._lock:
-            self._sessions[session_id] = _Session(session_id=session_id, role=role)
+            self._sessions[session_id] = _Session(
+                session_id=session_id,
+                role=role,
+                uid=str(kwargs.get("uid", "")),
+                email=str(kwargs.get("email", "")),
+                display_name=str(kwargs.get("display_name", "")),
+                plan=str(kwargs.get("plan", "")),
+                firebase_user=bool(kwargs.get("firebase_user", False)),
+                profile_cache=dict(kwargs.get("profile_cache") or {}),
+            )
         return cookie_value
 
     def validate(self, cookie_value: str) -> Optional[_Session]:
@@ -61,11 +77,33 @@ class SessionStore:
             session = self._sessions.get(session_id)
             if not session:
                 return None
-            if time.time() - session.created_at > SESSION_TTL_SECONDS:
+            ttl = FIREBASE_SESSION_TTL if session.firebase_user else SESSION_TTL_SECONDS
+            if time.time() - session.created_at > ttl:
                 del self._sessions[session_id]
                 return None
             session.last_seen = time.time()
             return session
+
+    def get_session_info(self, cookie_value: str) -> Optional[Dict[str, Any]]:
+        session = self.validate(cookie_value)
+        if not session:
+            return None
+        ttl = FIREBASE_SESSION_TTL if session.firebase_user else SESSION_TTL_SECONDS
+        now = time.time()
+        expires_in_seconds = max(0, int((session.created_at + ttl) - now))
+        return {
+            "role": session.role,
+            "uid": session.uid,
+            "email": session.email,
+            "displayName": session.display_name,
+            "plan": session.plan,
+            "firebaseUser": session.firebase_user,
+            "createdAt": session.created_at,
+            "lastSeen": session.last_seen,
+            "ttlSeconds": ttl,
+            "expiresInSeconds": expires_in_seconds,
+            "profile": dict(session.profile_cache),
+        }
 
     def revoke(self, cookie_value: str) -> None:
         parts = cookie_value.split(".", 1)
@@ -76,7 +114,11 @@ class SessionStore:
     def cleanup_expired(self) -> int:
         now = time.time()
         with self._lock:
-            expired = [sid for sid, s in self._sessions.items() if now - s.created_at > SESSION_TTL_SECONDS]
+            expired = []
+            for sid, session in self._sessions.items():
+                ttl = FIREBASE_SESSION_TTL if session.firebase_user else SESSION_TTL_SECONDS
+                if now - session.created_at > ttl:
+                    expired.append(sid)
             for sid in expired:
                 del self._sessions[sid]
             return len(expired)

@@ -12,6 +12,10 @@ interface MenuBarProps {
     onRefreshSession: () => void;
     onOpenCommandPalette: () => void;
     onMcpSync: () => void;
+    userDisplayName?: string;
+    userEmail?: string;
+    userPhotoUrl?: string;
+    onOpenProfile?: () => void;
 }
 
 interface MenuAction {
@@ -27,6 +31,10 @@ export const MenuBar: React.FC<MenuBarProps> = ({
     onRefreshSession,
     onOpenCommandPalette,
     onMcpSync,
+    userDisplayName,
+    userEmail,
+    userPhotoUrl,
+    onOpenProfile,
 }) => {
     const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
     const [isAboutOpen, setIsAboutOpen] = useState(false);
@@ -80,6 +88,9 @@ export const MenuBar: React.FC<MenuBarProps> = ({
         help: 'Ayuda',
     };
 
+    const profileLabel = userDisplayName || userEmail || 'Mi Perfil';
+    const profileInitial = (profileLabel || 'U').trim().charAt(0).toUpperCase();
+
     return (
         <header className="h-10 border-b border-[#2c2c2e] bg-[#000000]/90 backdrop-blur-xl px-3 flex items-center justify-between shrink-0 z-50">
             <div ref={rootRef} className="flex items-center gap-1">
@@ -117,6 +128,26 @@ export const MenuBar: React.FC<MenuBarProps> = ({
             </div>
 
             <div className="text-[10px] text-[#86868b] font-mono uppercase tracking-wider">GIMO</div>
+
+            <div className="flex items-center gap-2 min-w-[140px] justify-end">
+                <button
+                    onClick={() => {
+                        setOpenMenu(null);
+                        onOpenProfile?.();
+                    }}
+                    className="inline-flex items-center gap-2 rounded-full pl-1 pr-2 py-1 border border-[#2c2c2e] bg-[#101011] hover:bg-[#1c1c1e] transition-colors"
+                    title="Abrir Mi Perfil"
+                >
+                    <span className="w-7 h-7 rounded-full overflow-hidden border border-[#2c2c2e] bg-[#1c1c1e] flex items-center justify-center text-[11px] font-bold text-[#f5f5f7]">
+                        {userPhotoUrl ? (
+                            <img src={userPhotoUrl} alt="Avatar" className="w-full h-full object-cover" />
+                        ) : (
+                            profileInitial
+                        )}
+                    </span>
+                    <span className="max-w-[120px] truncate text-xs text-[#f5f5f7]">{profileLabel}</span>
+                </button>
+            </div>
 
             {isAboutOpen && (
                 <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-sm">

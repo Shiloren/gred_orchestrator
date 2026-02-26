@@ -99,6 +99,49 @@ export interface UiStatusResponse {
     service_status: string;
 }
 
+export interface LicenseInfo {
+    plan: 'standard' | 'admin' | 'none' | string;
+    status: 'active' | 'expired' | 'suspended' | 'none' | string;
+    isLifetime: boolean;
+    keyPreview: string;
+    installationsUsed: number;
+    installationsMax: number;
+    expiresAt: string | null;
+}
+
+export interface SubscriptionInfo {
+    status: 'active' | 'canceled' | 'past_due' | 'none' | string;
+    currentPeriodEnd: string | null;
+    cancelAtPeriodEnd: boolean;
+}
+
+export interface SessionInfo {
+    role: string;
+    uid: string;
+    email: string;
+    displayName: string;
+    plan: string;
+    firebaseUser: boolean;
+    createdAt: number;
+    lastSeen: number;
+    ttlSeconds: number;
+    expiresInSeconds: number;
+}
+
+export interface UserProfile {
+    user: {
+        uid?: string;
+        role: string;
+        email: string;
+        displayName: string;
+        photoURL?: string;
+    };
+    license: LicenseInfo;
+    subscription: SubscriptionInfo;
+    session: SessionInfo;
+    profileSource?: 'upstream' | 'session_cache' | string;
+}
+
 export type PlanStatus = 'draft' | 'review' | 'approved' | 'executing' | 'completed' | 'failed';
 
 export interface PlanTask {

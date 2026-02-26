@@ -19,7 +19,16 @@ import { OrchestratorChat } from './components/OrchestratorChat';
 import { WelcomeScreen } from './components/WelcomeScreen';
 import { CommandPalette } from './components/Shell/CommandPalette';
 import { useToast } from './components/Toast';
+import { ProfilePanel } from './components/ProfilePanel';
+import { useProfile } from './hooks/useProfile';
 import { Panel as ResizePanel, Group as PanelGroup, Separator as PanelResizeHandle } from 'react-resizable-panels';
+
+interface SessionUser {
+    email?: string;
+    displayName?: string;
+    plan?: string;
+    firebaseUser?: boolean;
+}
 
 export default function App() {
     const [authenticated, setAuthenticated] = useState<boolean | null>(null);
@@ -31,8 +40,17 @@ export default function App() {
     const [graphNodeCount, setGraphNodeCount] = useState(-1);
     const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
     const [isChatCollapsed, setIsChatCollapsed] = useState(false);
+    const [isProfileOpen, setIsProfileOpen] = useState(false);
+    const [sessionUser, setSessionUser] = useState<SessionUser | null>(null);
     const { currentPlan, loading, createPlan, approvePlan, setCurrentPlan } = usePlanEngine();
     const { addToast } = useToast();
+    const {
+        profile,
+        loading: profileLoading,
+        error: profileError,
+        unauthorized: profileUnauthorized,
+        refetch: refetchProfile,
+    } = useProfile(Boolean(authenticated));
 
     const handleMcpSync = useCallback(async () => {
         try {
@@ -76,6 +94,16 @@ export default function App() {
             }
             const data = await response.json().catch(() => ({ authenticated: false }));
             setAuthenticated(data.authenticated === true);
+            setSessionUser(
+                data.authenticated
+                    ? {
+                        email: data.email,
+                        displayName: data.displayName,
+                        plan: data.plan,
+                        firebaseUser: data.firebaseUser,
+                    }
+                    : null,
+            );
             setBootState('ready');
         } catch {
             setBootError('No se pudo conectar con GIMO backend.');
@@ -195,6 +223,27 @@ export default function App() {
         const interval = globalThis.setInterval(refreshGraphCount, 5000);
         return () => globalThis.clearInterval(interval);
     }, [authenticated, activeTab, graphNodeCount]);
+
+    const handleLogout = useCallback(async () => {
+        try {
+            await fetch(`${API_BASE}/auth/logout`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+        } catch {
+            // Ignore network errors on logout; local session state still resets.
+        } finally {
+            setIsProfileOpen(false);
+            setSessionUser(null);
+            setAuthenticated(false);
+        }
+    }, []);
+
+    useEffect(() => {
+        if (!authenticated || !profileUnauthorized) return;
+        addToast('Sesión expirada. Vuelve a iniciar sesión.', 'info');
+        void handleLogout();
+    }, [authenticated, profileUnauthorized, addToast, handleLogout]);
 
     const handleCommandAction = (actionId: string) => {
         switch (actionId) {
@@ -407,8 +456,11 @@ export default function App() {
 
     // Not authenticated — show login
     if (!authenticated) {
-        return <LoginModal onAuthenticated={() => setAuthenticated(true)} />;
+        return <LoginModal onAuthenticated={() => void checkSession()} />;
     }
+
+    const displayName = profile?.user?.displayName || sessionUser?.displayName || sessionUser?.email || 'Mi Perfil';
+    const email = profile?.user?.email || sessionUser?.email;
 
     return (
         <div className="min-h-screen bg-[#000000] text-[#f5f5f7] font-sans selection:bg-[#0a84ff] selection:text-white flex flex-col">
@@ -420,6 +472,10 @@ export default function App() {
                 onRefreshSession={checkSession}
                 onOpenCommandPalette={() => setIsCommandPaletteOpen(true)}
                 onMcpSync={() => void handleMcpSync()}
+                userDisplayName={displayName}
+                userEmail={email}
+                userPhotoUrl={profile?.user?.photoURL}
+                onOpenProfile={() => setIsProfileOpen(true)}
             />
 
             <div className="flex flex-1 overflow-hidden">
@@ -445,6 +501,16 @@ export default function App() {
                 isOpen={isCommandPaletteOpen}
                 onClose={() => setIsCommandPaletteOpen(false)}
                 onAction={handleCommandAction}
+            />
+
+            <ProfilePanel
+                isOpen={isProfileOpen}
+                onClose={() => setIsProfileOpen(false)}
+                profile={profile}
+                loading={profileLoading}
+                error={profileError}
+                onRefresh={() => void refetchProfile()}
+                onLogout={() => void handleLogout()}
             />
         </div>
     );
