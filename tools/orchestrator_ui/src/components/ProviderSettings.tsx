@@ -204,7 +204,7 @@ export const ProviderSettings: React.FC = () => {
     };
 
     return (
-        <div className="space-y-6 text-[#f5f5f7] p-4">
+        <div className="space-y-6 text-text-primary p-4">
             <div className="flex items-center justify-between">
                 <h2 className="text-xl font-bold flex items-center gap-2">
                     <Server className="w-5 h-5 text-indigo-400" />
@@ -212,22 +212,22 @@ export const ProviderSettings: React.FC = () => {
                 </h2>
             </div>
 
-            <Card className="bg-[#1c1c1e] border-[#2c2c2e] p-4">
-                <h3 className="text-sm font-semibold mb-3 text-[#86868b] uppercase tracking-wider">Estado efectivo actual</h3>
+            <Card className="bg-surface-2 border-border-primary p-4">
+                <h3 className="text-sm font-semibold mb-3 text-text-secondary uppercase tracking-wider">Estado efectivo actual</h3>
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-sm">
-                    <div><span className="text-[#86868b]">Provider activo:</span> <span className="font-semibold">{effectiveState?.active || 'n/a'}</span></div>
-                    <div><span className="text-[#86868b]">Modelo efectivo:</span> <span className="font-semibold">{effectiveState?.model_id || 'n/a'}</span></div>
-                    <div><span className="text-[#86868b]">Role:</span> <span className="font-semibold">{roleLabel}</span></div>
-                    <div><span className="text-[#86868b]">Health:</span> <span className="font-semibold">{effectiveHealth}</span></div>
-                    <div className="md:col-span-2"><span className="text-[#86868b]">Error accionable:</span> <span className="font-semibold text-[#ff9f0a]">{effectiveActionableError}</span></div>
+                    <div><span className="text-text-secondary">Provider activo:</span> <span className="font-semibold">{effectiveState?.active || 'n/a'}</span></div>
+                    <div><span className="text-text-secondary">Modelo efectivo:</span> <span className="font-semibold">{effectiveState?.model_id || 'n/a'}</span></div>
+                    <div><span className="text-text-secondary">Role:</span> <span className="font-semibold">{roleLabel}</span></div>
+                    <div><span className="text-text-secondary">Health:</span> <span className="font-semibold">{effectiveHealth}</span></div>
+                    <div className="md:col-span-2"><span className="text-text-secondary">Error accionable:</span> <span className="font-semibold text-accent-warning">{effectiveActionableError}</span></div>
                 </div>
             </Card>
 
-            <Card className="bg-[#1c1c1e] border-[#2c2c2e] p-4">
-                <h3 className="text-sm font-semibold mb-3 text-[#86868b] uppercase tracking-wider">Configurar provider</h3>
+            <Card className="bg-surface-2 border-border-primary p-4">
+                <h3 className="text-sm font-semibold mb-3 text-text-secondary uppercase tracking-wider">Configurar provider</h3>
                 <div className="grid grid-cols-1 md:grid-cols-4 gap-4 items-end">
                     <div>
-                        <label className="block text-xs text-[#86868b] mb-1">Provider Type</label>
+                        <label className="block text-xs text-text-secondary mb-1">Provider Type</label>
                         <select
                             value={providerType}
                             onChange={(e) => {
@@ -236,7 +236,7 @@ export const ProviderSettings: React.FC = () => {
                                 setModelId('');
                                 setValidateResult(null);
                             }}
-                            className="w-full bg-[#0a0a0a] border border-[#2c2c2e] rounded p-2 text-sm text-[#f5f5f7]"
+                            className="w-full bg-surface-0 border border-border-primary rounded p-2 text-sm text-text-primary"
                         >
                             {(providerTypes.length > 0 ? providerTypes : ['openai', 'codex', 'ollama_local', 'groq', 'openrouter', 'custom_openai_compatible']).map((canonical) => (
                                 <option key={canonical} value={canonical}>{canonical}</option>
@@ -246,7 +246,7 @@ export const ProviderSettings: React.FC = () => {
                     {providerType === 'ollama_local' ? (
                         <div className="col-span-full mt-4 space-y-4">
                             {!catalog ? (
-                                <div className="p-8 text-center bg-[#0a0a0a] rounded border border-[#2c2c2e] text-[#86868b]">
+                                <div className="p-8 text-center bg-surface-0 rounded border border-border-primary text-text-secondary">
                                     {isLoadingCatalog ? 'Buscando servidor Ollama local...' : 'No se pudo conectar con Ollama.'}
                                 </div>
                             ) : (
@@ -254,20 +254,20 @@ export const ProviderSettings: React.FC = () => {
                                     <div className="flex items-center justify-between mb-2">
                                         <div>
                                             <h4 className="text-sm font-semibold text-white">Modelos Detectados (Zero-Config)</h4>
-                                            <p className="text-xs text-[#86868b]">No necesitas API Keys. Selecciona un modelo para asignar su rol en el enjambre.</p>
+                                            <p className="text-xs text-text-secondary">No necesitas API Keys. Selecciona un modelo para asignar su rol en el enjambre.</p>
                                         </div>
                                     </div>
                                     {modelGroups.installed.length === 0 ? (
-                                        <div className="p-8 text-center bg-[#0a0a0a] rounded border border-[#2c2c2e] text-[#86868b]">
+                                        <div className="p-8 text-center bg-surface-0 rounded border border-border-primary text-text-secondary">
                                             Ollama está instalado, pero no tienes modelos descargados.
                                         </div>
                                     ) : (
                                         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
                                             {modelGroups.installed.map(m => (
-                                                <div key={m.id} className="p-3 bg-[#0a0a0a] border border-[#2c2c2e] hover:border-[#3a3a3c] rounded-xl flex flex-col justify-between transition-colors">
+                                                <div key={m.id} className="p-3 bg-surface-0 border border-border-primary hover:border-surface-3 rounded-xl flex flex-col justify-between transition-colors">
                                                     <div>
                                                         <div className="font-semibold text-sm text-white truncate" title={m.label}>{m.label}</div>
-                                                        <div className="text-[10px] text-[#86868b] uppercase tracking-wider">{m.size || 'Desconocido'}</div>
+                                                        <div className="text-[10px] text-text-secondary uppercase tracking-wider">{m.size || 'Desconocido'}</div>
                                                     </div>
                                                     <div className="flex items-center gap-2 mt-4">
                                                         <Button
@@ -285,7 +285,7 @@ export const ProviderSettings: React.FC = () => {
                                                         </Button>
                                                         <Button
                                                             size="sm"
-                                                            className="flex-1 bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white text-[11px] h-7 px-2"
+                                                            className="flex-1 bg-surface-3 hover:bg-surface-3 text-white text-[11px] h-7 px-2"
                                                             onClick={async () => {
                                                                 try {
                                                                     await saveActiveProvider({
@@ -308,20 +308,20 @@ export const ProviderSettings: React.FC = () => {
                                         </div>
                                     )}
 
-                                    <div className="mt-6 border-t border-[#2c2c2e] pt-4">
+                                    <div className="mt-6 border-t border-border-primary pt-4">
                                         <h4 className="text-sm font-semibold text-white mb-2">Descargar Modelos (Pull)</h4>
-                                        <p className="text-xs text-[#86868b] mb-4">Descarga nuevos modelos directamente desde el registro de Ollama.</p>
+                                        <p className="text-xs text-text-secondary mb-4">Descarga nuevos modelos directamente desde el registro de Ollama.</p>
 
                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                                             {modelGroups.recommended.filter((m: any) => !m.installed).map((m: any) => (
-                                                <div key={m.id} className="p-3 bg-[#1c1c1e] border border-[#2c2c2e] hover:border-[#3a3a3c] transition-colors rounded-xl flex items-center justify-between">
+                                                <div key={m.id} className="p-3 bg-surface-2 border border-border-primary hover:border-surface-3 transition-colors rounded-xl flex items-center justify-between">
                                                     <div>
                                                         <div className="text-sm text-white font-medium">{m.label || m.id}</div>
-                                                        <div className="text-xs text-[#86868b]">{m.id}</div>
+                                                        <div className="text-xs text-text-secondary">{m.id}</div>
                                                     </div>
                                                     <Button
                                                         size="sm"
-                                                        className="bg-[#2c2c2e] hover:bg-[#0a84ff] hover:text-white transition-colors text-xs"
+                                                        className="bg-surface-3 hover:bg-accent-primary hover:text-white transition-colors text-xs"
                                                         onClick={() => {
                                                             setModelId(m.id);
                                                             // Esperar que React refresque el estado de modelId antes de saltar la instalación
@@ -337,12 +337,12 @@ export const ProviderSettings: React.FC = () => {
                                                 </div>
                                             ))}
 
-                                            <div className="p-3 bg-[#1c1c1e] border border-[#2c2c2e] rounded-xl flex flex-col justify-between">
+                                            <div className="p-3 bg-surface-2 border border-border-primary rounded-xl flex flex-col justify-between">
                                                 <div className="text-sm text-white font-medium mb-2">Otro Modelo...</div>
                                                 <div className="flex items-center gap-2">
                                                     <Input
                                                         placeholder="ej: mistral:instruct"
-                                                        className="h-8 text-xs bg-[#0a0a0a] border-[#2c2c2e] text-white"
+                                                        className="h-8 text-xs bg-surface-0 border-border-primary text-white"
                                                         value={modelId}
                                                         onChange={(e) => setModelId(e.target.value)}
                                                     />
@@ -350,7 +350,7 @@ export const ProviderSettings: React.FC = () => {
                                                         id="hidden-install-btn"
                                                         size="sm"
                                                         title="Pull desde Ollama"
-                                                        className="bg-[#2c2c2e] hover:bg-[#0a84ff] hover:text-white transition-colors text-xs shrink-0 h-8 w-8 p-0 flex items-center justify-center hidden-button-visible"
+                                                        className="bg-surface-3 hover:bg-accent-primary hover:text-white transition-colors text-xs shrink-0 h-8 w-8 p-0 flex items-center justify-center hidden-button-visible"
                                                         onClick={() => {
                                                             if (modelId) handleInstallAndUse();
                                                             else addToast('Escribe el tag del modelo', 'info');
@@ -368,17 +368,17 @@ export const ProviderSettings: React.FC = () => {
                     ) : (
                         <>
                             <div>
-                                <label htmlFor="providerIdInput" className="block text-xs text-[#86868b] mb-1">ID (Name)</label>
-                                <Input id="providerIdInput" value={providerId} onChange={(e) => setProviderId(e.target.value)} className="bg-[#0a0a0a] border-[#2c2c2e] text-[#f5f5f7]" />
+                                <label htmlFor="providerIdInput" className="block text-xs text-text-secondary mb-1">ID (Name)</label>
+                                <Input id="providerIdInput" value={providerId} onChange={(e) => setProviderId(e.target.value)} className="bg-surface-0 border-border-primary text-text-primary" />
                             </div>
 
                             <div>
-                                <label htmlFor="modelIdSelect" className="block text-xs text-[#86868b] mb-1">ID/Name (modelo)</label>
+                                <label htmlFor="modelIdSelect" className="block text-xs text-text-secondary mb-1">ID/Name (modelo)</label>
                                 <select
                                     id="modelIdSelect"
                                     value={modelId}
                                     onChange={(e) => setModelId(e.target.value)}
-                                    className="w-full bg-[#0a0a0a] border border-[#2c2c2e] rounded p-2 text-sm text-[#f5f5f7]"
+                                    className="w-full bg-surface-0 border border-border-primary rounded p-2 text-sm text-text-primary"
                                 >
                                     <option value="">{isLoadingCatalog ? 'Cargando catálogo...' : 'Selecciona modelo'}</option>
                                     {modelGroups.installed.length > 0 && (
@@ -400,12 +400,12 @@ export const ProviderSettings: React.FC = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="authModeSelect" className="block text-xs text-[#86868b] mb-1">Modo auth</label>
+                                <label htmlFor="authModeSelect" className="block text-xs text-text-secondary mb-1">Modo auth</label>
                                 <select
                                     id="authModeSelect"
                                     value={authMode}
                                     onChange={(e) => setAuthMode(e.target.value)}
-                                    className="w-full bg-[#0a0a0a] border border-[#2c2c2e] rounded p-2 text-sm text-[#f5f5f7]"
+                                    className="w-full bg-surface-0 border border-border-primary rounded p-2 text-sm text-text-primary"
                                 >
                                     {authModes.map((mode) => <option key={mode} value={mode}>{mode}</option>)}
                                     {authModes.length === 0 && <option value="none">none</option>}
@@ -413,57 +413,57 @@ export const ProviderSettings: React.FC = () => {
                             </div>
 
                             <div>
-                                <label htmlFor="baseUrlInput" className="block text-xs text-[#86868b] mb-1">Base URL (opcional)</label>
-                                <Input id="baseUrlInput" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://.../v1" className="bg-[#0a0a0a] border-[#2c2c2e] text-[#f5f5f7]" />
+                                <label htmlFor="baseUrlInput" className="block text-xs text-text-secondary mb-1">Base URL (opcional)</label>
+                                <Input id="baseUrlInput" value={baseUrl} onChange={(e) => setBaseUrl(e.target.value)} placeholder="https://.../v1" className="bg-surface-0 border-border-primary text-text-primary" />
                             </div>
 
                             <div>
-                                <label htmlFor="orgInput" className="block text-xs text-[#86868b] mb-1">Organization (opcional)</label>
-                                <Input id="orgInput" value={org} onChange={(e) => setOrg(e.target.value)} className="bg-[#0a0a0a] border-[#2c2c2e] text-[#f5f5f7]" />
+                                <label htmlFor="orgInput" className="block text-xs text-text-secondary mb-1">Organization (opcional)</label>
+                                <Input id="orgInput" value={org} onChange={(e) => setOrg(e.target.value)} className="bg-surface-0 border-border-primary text-text-primary" />
                             </div>
 
                             {authMode === 'api_key' && (
                                 <div>
-                                    <label htmlFor="apiKeyInput" className="block text-xs text-[#86868b] mb-1">API Key</label>
-                                    <Input id="apiKeyInput" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="bg-[#0a0a0a] border-[#2c2c2e] text-[#f5f5f7]" />
+                                    <label htmlFor="apiKeyInput" className="block text-xs text-text-secondary mb-1">API Key</label>
+                                    <Input id="apiKeyInput" type="password" value={apiKey} onChange={(e) => setApiKey(e.target.value)} placeholder="sk-..." className="bg-surface-0 border-border-primary text-text-primary" />
                                 </div>
                             )}
                             {authMode === 'account' && providerType !== 'codex' && (
                                 <div>
-                                    <label htmlFor="accountInput" className="block text-xs text-[#86868b] mb-1">Account</label>
-                                    <Input id="accountInput" value={account} onChange={(e) => setAccount(e.target.value)} placeholder="account/session token" className="bg-[#0a0a0a] border-[#2c2c2e] text-[#f5f5f7]" />
+                                    <label htmlFor="accountInput" className="block text-xs text-text-secondary mb-1">Account</label>
+                                    <Input id="accountInput" value={account} onChange={(e) => setAccount(e.target.value)} placeholder="account/session token" className="bg-surface-0 border-border-primary text-text-primary" />
                                 </div>
                             )}
                             {authMode === 'account' && providerType === 'codex' && (
-                                <div className="col-span-full md:col-span-1 p-3 border border-[#2c2c2e] rounded bg-[#1c1c1e]">
+                                <div className="col-span-full md:col-span-1 p-3 border border-border-primary rounded bg-surface-2">
                                     <label className="block text-sm font-semibold mb-2">Conectar Cuenta (Device Auth)</label>
                                     {!deviceLoginState || deviceLoginState.status === 'error' ? (
                                         <div>
-                                            <p className="text-xs text-[#86868b] mb-3">
+                                            <p className="text-xs text-text-secondary mb-3">
                                                 Inicia sesión con tu cuenta de OpenAI (ChatGPT Plus/Pro) en lugar de usar una API Key.
                                             </p>
-                                            <Button onClick={handleStartDeviceLogin} className="w-full bg-[#0a84ff] hover:bg-[#409cff] text-white">
+                                            <Button onClick={handleStartDeviceLogin} className="w-full bg-accent-primary hover:bg-accent-primary/80 text-white">
                                                 Conectar Cuenta
                                             </Button>
                                             {deviceLoginState?.status === 'error' && (
-                                                <div className="mt-2 text-xs text-[#ff3b30]">{deviceLoginState.message}</div>
+                                                <div className="mt-2 text-xs text-accent-alert">{deviceLoginState.message}</div>
                                             )}
                                         </div>
                                     ) : (
                                         <div className="space-y-2">
-                                            <p className="text-xs text-[#86868b]">Estado: <span className="text-[#32d74b] uppercase">{deviceLoginState.status}</span></p>
+                                            <p className="text-xs text-text-secondary">Estado: <span className="text-accent-trust uppercase">{deviceLoginState.status}</span></p>
                                             {deviceLoginState.verification_url && (
                                                 <p className="text-xs">
-                                                    1. Abre <a href={deviceLoginState.verification_url} target="_blank" rel="noreferrer" className="text-[#0a84ff] hover:underline">{deviceLoginState.verification_url}</a>
+                                                    1. Abre <a href={deviceLoginState.verification_url} target="_blank" rel="noreferrer" className="text-accent-primary hover:underline">{deviceLoginState.verification_url}</a>
                                                 </p>
                                             )}
                                             {deviceLoginState.user_code && (
                                                 <p className="text-xs">
-                                                    2. Introduce el código: <span className="font-mono bg-[#0a0a0a] p-1 rounded font-bold">{deviceLoginState.user_code}</span>
+                                                    2. Introduce el código: <span className="font-mono bg-surface-0 p-1 rounded font-bold">{deviceLoginState.user_code}</span>
                                                 </p>
                                             )}
-                                            <p className="text-xs text-[#ff9f0a] italic">{deviceLoginState.message}</p>
-                                            <Button onClick={() => setDeviceLoginState(null)} size="sm" variant="outline" className="w-full mt-2 text-xs border-[#2c2c2e] text-[#f5f5f7] hover:bg-[#2c2c2e]">
+                                            <p className="text-xs text-accent-warning italic">{deviceLoginState.message}</p>
+                                            <Button onClick={() => setDeviceLoginState(null)} size="sm" variant="outline" className="w-full mt-2 text-xs border-border-primary text-text-primary hover:bg-surface-3">
                                                 Cancelar / Reintentar
                                             </Button>
                                         </div>
@@ -472,7 +472,7 @@ export const ProviderSettings: React.FC = () => {
                                 </div>
                             )}
 
-                            <Button onClick={handleTestConnection} className="bg-[#2c2c2e] hover:bg-[#3a3a3c] text-white">
+                            <Button onClick={handleTestConnection} className="bg-surface-3 hover:bg-surface-3 text-white">
                                 Probar conexión
                             </Button>
                             <Button onClick={handleSaveAsActive} className="bg-indigo-600 hover:bg-indigo-500 text-white">
@@ -483,19 +483,19 @@ export const ProviderSettings: React.FC = () => {
                 </div>
 
                 {catalog?.warnings?.length ? (
-                    <div className="mt-3 text-xs text-[#ff9f0a] space-y-1">
+                    <div className="mt-3 text-xs text-accent-warning space-y-1">
                         {catalog.warnings.map((w, idx) => <div key={`${w}-${idx}`}>⚠ {w}</div>)}
                     </div>
                 ) : null}
 
                 {accountModeAvailable || !accountModeRelevantProvider ? null : (
-                    <div className="mt-3 text-xs text-[#ff9f0a]">Modo cuenta no disponible en este entorno; usa API key.</div>
+                    <div className="mt-3 text-xs text-accent-warning">Modo cuenta no disponible en este entorno; usa API key.</div>
                 )}
 
                 {!selectedModelInstalados && supportsInstall && modelId ? (
-                    <div className="mt-4 p-3 rounded border border-[#2c2c2e] bg-[#0a0a0a] flex items-center justify-between gap-3">
-                        <div className="text-xs text-[#f5f5f7]">Modelo no instalado. ¿Quieres descargarlo ahora?</div>
-                        <Button onClick={handleInstallAndUse} className="bg-[#0a84ff] hover:bg-[#409cff] text-white text-xs px-3 py-2">
+                    <div className="mt-4 p-3 rounded border border-border-primary bg-surface-0 flex items-center justify-between gap-3">
+                        <div className="text-xs text-text-primary">Modelo no instalado. ¿Quieres descargarlo ahora?</div>
+                        <Button onClick={handleInstallAndUse} className="bg-accent-primary hover:bg-accent-primary/80 text-white text-xs px-3 py-2">
                             <Download className="w-3.5 h-3.5 mr-1" />
                             Descargar y usar
                         </Button>
@@ -503,21 +503,21 @@ export const ProviderSettings: React.FC = () => {
                 ) : null}
 
                 {installState ? (
-                    <div className="mt-3 p-3 rounded border border-[#2c2c2e] bg-[#0a0a0a]">
-                        <div className="text-xs text-[#f5f5f7]">Instalación: {installState.status}</div>
-                        <div className="text-xs text-[#86868b]">{installState.message}</div>
+                    <div className="mt-3 p-3 rounded border border-border-primary bg-surface-0">
+                        <div className="text-xs text-text-primary">Instalación: {installState.status}</div>
+                        <div className="text-xs text-text-secondary">{installState.message}</div>
                         {typeof installState.progress === 'number' ? (
-                            <div className="text-xs text-[#86868b]">Progreso: {Math.round(installState.progress * 100)}%</div>
+                            <div className="text-xs text-text-secondary">Progreso: {Math.round(installState.progress * 100)}%</div>
                         ) : null}
                     </div>
                 ) : null}
 
                 {validateResult ? (
-                    <div className={`mt-4 p-3 rounded border ${validateResult.valid ? 'border-[#32d74b]/40 bg-[#32d74b]/10' : 'border-[#ff3b30]/40 bg-[#ff3b30]/10'}`}>
+                    <div className={`mt-4 p-3 rounded border ${validateResult.valid ? 'border-accent-trust/40 bg-accent-trust/10' : 'border-accent-alert/40 bg-accent-alert/10'}`}>
                         <div className="flex items-center gap-2 text-sm">
-                            {validateResult.valid ? <CheckCircle2 className="w-4 h-4 text-[#32d74b]" /> : <AlertTriangle className="w-4 h-4 text-[#ff3b30]" />}
+                            {validateResult.valid ? <CheckCircle2 className="w-4 h-4 text-accent-trust" /> : <AlertTriangle className="w-4 h-4 text-accent-alert" />}
                             <span>{validateResult.valid ? 'Conexión válida' : 'Conexión no válida'}</span>
-                            <span className="text-xs text-[#86868b]">health: {validateResult.health}</span>
+                            <span className="text-xs text-text-secondary">health: {validateResult.health}</span>
                         </div>
                         {validateResult.error_actionable ? <div className="mt-2 text-xs">Acción sugerida: {validateResult.error_actionable}</div> : null}
                     </div>
@@ -527,21 +527,21 @@ export const ProviderSettings: React.FC = () => {
             {/* Node Status */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 {Object.entries(nodes).map(([id, node]: [string, any]) => (
-                    <Card key={id} className="bg-[#1c1c1e]/70 border-[#2c2c2e] p-3">
+                    <Card key={id} className="bg-surface-2/70 border-border-primary p-3">
                         <div className="flex items-center justify-between mb-2">
                             <span className="font-semibold text-sm flex items-center gap-2">
                                 {id === 'ally_x' ? <Cpu className="w-4 h-4 text-emerald-400" /> : <Server className="w-4 h-4 text-blue-400" />}
                                 {node.name}
                             </span>
-                            <span className="text-xs text-[#86868b]">{node.type}</span>
+                            <span className="text-xs text-text-secondary">{node.type}</span>
                         </div>
-                        <div className="w-full bg-[#0a0a0a] h-2 rounded-full overflow-hidden">
+                        <div className="w-full bg-surface-0 h-2 rounded-full overflow-hidden">
                             <div
                                 className={`h-full transition-all duration-500 ${node.current_load >= node.max_concurrency ? 'bg-red-500' : 'bg-emerald-500'}`}
                                 style={{ width: `${(node.current_load / node.max_concurrency) * 100}%` }}
                             />
                         </div>
-                        <div className="flex justify-between mt-1 text-xs text-[#86868b]">
+                        <div className="flex justify-between mt-1 text-xs text-text-secondary">
                             <span>Load: {node.current_load} / {node.max_concurrency} agents</span>
                             <span>{node.current_load >= node.max_concurrency ? 'FULL' : 'AVAILABLE'}</span>
                         </div>
@@ -550,27 +550,27 @@ export const ProviderSettings: React.FC = () => {
             </div>
 
             <div className="space-y-3">
-                <h3 className="text-sm font-semibold text-[#86868b] uppercase tracking-wider">Providers Activos</h3>
+                <h3 className="text-sm font-semibold text-text-secondary uppercase tracking-wider">Providers Activos</h3>
                 {providers.length === 0 && (
-                    <div className="text-[#86868b] text-center py-6 bg-[#0a0a0a]/60 rounded border border-dashed border-[#2c2c2e]">
+                    <div className="text-text-secondary text-center py-6 bg-surface-0/60 rounded border border-dashed border-border-primary">
                         Sin providers configurados. Gred funcionará en modo local limitado.
                     </div>
                 )}
                 {providers.map((p) => (
-                    <Card key={p.id} className="bg-[#1c1c1e] border-[#2c2c2e] p-4 flex items-center justify-between group hover:border-[#3a3a3c] transition-colors">
+                    <Card key={p.id} className="bg-surface-2 border-border-primary p-4 flex items-center justify-between group hover:border-surface-3 transition-colors">
                         <div className="flex items-center gap-3">
                             <div className={`p-2 rounded-lg ${p.is_local ? 'bg-emerald-500/10 text-emerald-400' : 'bg-blue-500/10 text-blue-400'}`}>
                                 {p.is_local ? <Cpu className="w-5 h-5" /> : <Cloud className="w-5 h-5" />}
                             </div>
                             <div>
-                                <div className="font-medium text-[#f5f5f7]">{p.id}</div>
-                                <div className="text-xs text-[#86868b] uppercase">{p.type} • {p.is_local ? 'Local' : 'Cloud'}</div>
+                                <div className="font-medium text-text-primary">{p.id}</div>
+                                <div className="text-xs text-text-secondary uppercase">{p.type} • {p.is_local ? 'Local' : 'Cloud'}</div>
                                 {p.capabilities && (
-                                    <div className="text-[10px] text-[#6e6e73] mt-1">
+                                    <div className="text-[10px] text-text-secondary mt-1">
                                         auth: {(p.capabilities.auth_modes_supported || []).join(', ') || 'n/a'}
                                     </div>
                                 )}
-                                <div className="text-[10px] text-[#6e6e73]">model: {p.model || p.config?.model || 'n/a'}</div>
+                                <div className="text-[10px] text-text-secondary">model: {p.model || p.config?.model || 'n/a'}</div>
                             </div>
                         </div>
 
@@ -579,7 +579,7 @@ export const ProviderSettings: React.FC = () => {
                                 variant="ghost"
                                 size="sm"
                                 onClick={() => testProvider(p.id)}
-                                className="text-[#86868b] hover:text-[#f5f5f7]"
+                                className="text-text-secondary hover:text-text-primary"
                             >
                                 <Activity className="w-4 h-4 mr-1" />
                                 Test

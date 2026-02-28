@@ -33,10 +33,10 @@ export const GraphView = () => {
 
             const formattedEdges = data.edges.map((e: any) => ({
                 ...e,
-                style: { stroke: e.source === 'tunnel' ? '#0a84ff' : '#32d74b', strokeWidth: 2 },
+                style: { stroke: e.source === 'tunnel' ? 'var(--accent-primary)' : 'var(--accent-trust)', strokeWidth: 2 },
                 markerEnd: {
                     type: MarkerType.ArrowClosed,
-                    color: e.source === 'tunnel' ? '#0a84ff' : '#32d74b',
+                    color: e.source === 'tunnel' ? 'var(--accent-primary)' : 'var(--accent-trust)',
                 },
             }));
 
@@ -54,7 +54,7 @@ export const GraphView = () => {
     }, [fetchGraphData]);
 
     return (
-        <div className="w-full h-[600px] bg-[#1c1c1e] rounded-2xl overflow-hidden shadow-2xl border border-[#38383a]">
+        <div className="w-full h-[600px] bg-surface-2 rounded-2xl overflow-hidden shadow-2xl border border-surface-3">
             <ReactFlow
                 nodes={nodes}
                 edges={edges}
@@ -63,9 +63,9 @@ export const GraphView = () => {
                 nodeTypes={nodeTypes}
                 fitView
             >
-                <Background color="#38383a" gap={20} />
-                <Controls showInteractive={false} className="bg-[#2c2c2e] fill-white border-[#38383a]" />
-                <Panel position="top-left" className="bg-[#2c2c2e] p-2 rounded-md border border-[#38383a] text-xs text-[#86868b] backdrop-blur-md bg-opacity-80">
+                <Background color="var(--surface-3)" gap={20} />
+                <Controls showInteractive={false} className="bg-surface-3 fill-white border-surface-3" />
+                <Panel position="top-left" className="bg-surface-3 p-2 rounded-md border border-surface-3 text-xs text-text-secondary backdrop-blur-md bg-opacity-80">
                     Live Orchestration Graph
                 </Panel>
             </ReactFlow>

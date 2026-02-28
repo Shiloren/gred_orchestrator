@@ -29,15 +29,15 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
     const safeTraces = Array.isArray(traces) ? traces : [];
 
     return (
-        <div className="flex h-full bg-[#0a0a0a] text-[#f5f5f7] overflow-hidden rounded-xl border border-[#2c2c2e]">
+        <div className="flex h-full bg-surface-0 text-text-primary overflow-hidden rounded-xl border border-border-primary">
             {/* Trace List - Left Sidebar */}
-            <div className="w-1/3 border-r border-[#2c2c2e] flex flex-col">
-                <div className="p-3 border-b border-[#2c2c2e] bg-[#141414]">
-                    <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868b]">Actividad Reciente</h3>
+            <div className="w-1/3 border-r border-border-primary flex flex-col">
+                <div className="p-3 border-b border-border-primary bg-surface-1">
+                    <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary">Actividad Reciente</h3>
                 </div>
                 <div className="flex-1 overflow-y-auto custom-scrollbar">
                     {loading && safeTraces.length === 0 ? (
-                        <div className="p-4 text-center text-[#86868b] text-xs">Cargando trazas...</div>
+                        <div className="p-4 text-center text-text-secondary text-xs">Cargando trazas...</div>
                     ) : (
                         safeTraces.map((trace) => (
                             <div
@@ -46,17 +46,17 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
                                 onKeyDown={(e) => { if (e.key === 'Enter' || e.key === ' ') handleSelectTrace(trace.trace_id); }}
                                 role="button"
                                 tabIndex={0}
-                                className={`p-3 border-b border-[#1c1c1e] cursor-pointer hover:bg-[#1c1c1e] transition-colors ${selectedTraceData?.trace_id === trace.trace_id ? 'bg-[#1c1c1e] border-l-2 border-l-[#0a84ff]' : ''}`}
+                                className={`p-3 border-b border-surface-2 cursor-pointer hover:bg-surface-2 transition-colors ${selectedTraceData?.trace_id === trace.trace_id ? 'bg-surface-2 border-l-2 border-l-accent-primary' : ''}`}
                             >
                                 <div className="flex justify-between items-start mb-1">
-                                    <span className={`text-xs font-mono font-medium truncate ${trace.status === 'error' ? 'text-red-500' : 'text-[#f5f5f7]'}`}>
+                                    <span className={`text-xs font-mono font-medium truncate ${trace.status === 'error' ? 'text-red-500' : 'text-text-primary'}`}>
                                         {trace.root_span?.name || 'Operación desconocida'}
                                     </span>
-                                    <span className="text-[10px] text-[#86868b] font-mono">
+                                    <span className="text-[10px] text-text-secondary font-mono">
                                         {trace.duration_ms ? `${trace.duration_ms}ms` : 'running'}
                                     </span>
                                 </div>
-                                <div className="flex justify-between items-center text-[10px] text-[#86868b]">
+                                <div className="flex justify-between items-center text-[10px] text-text-secondary">
                                     <span className="truncate max-w-[120px]">{trace.trace_id.substring(0, 8)}...</span>
                                     <span>{new Date(trace.start_time).toLocaleTimeString()}</span>
                                 </div>
@@ -67,16 +67,16 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
             </div>
 
             {/* Trace Details - Main Area */}
-            <div className="flex-1 flex flex-col bg-[#0a0a0a]">
+            <div className="flex-1 flex flex-col bg-surface-0">
                 {selectedTraceData ? (
                     <>
-                        <div className="p-4 border-b border-[#2c2c2e] bg-[#141414] flex justify-between items-center">
+                        <div className="p-4 border-b border-border-primary bg-surface-1 flex justify-between items-center">
                             <div>
-                                <h2 className="text-sm font-bold text-[#f5f5f7] mb-1">
+                                <h2 className="text-sm font-bold text-text-primary mb-1">
                                     {selectedTraceData.root_span?.name || 'Traza desconocida'}
                                 </h2>
-                                <div className="flex items-center gap-3 text-xs text-[#86868b]">
-                                    <span className="font-mono text-[10px] bg-[#1c1c1e] px-1.5 py-0.5 rounded">
+                                <div className="flex items-center gap-3 text-xs text-text-secondary">
+                                    <span className="font-mono text-[10px] bg-surface-2 px-1.5 py-0.5 rounded">
                                         {selectedTraceData.trace_id}
                                     </span>
                                     <span className="flex items-center gap-1">
@@ -94,7 +94,7 @@ export const TraceViewer: React.FC<TraceViewerProps> = () => {
                         </div>
                     </>
                 ) : (
-                    <div className="flex-1 flex items-center justify-center text-[#86868b] flex-col gap-2">
+                    <div className="flex-1 flex items-center justify-center text-text-secondary flex-col gap-2">
                         <ActivityIcon />
                         <span className="text-xs">Selecciona una traza para ver detalles</span>
                     </div>
@@ -142,27 +142,27 @@ const SpanTree: React.FC<{ spans: Span[]; rootSpanId: string }> = ({ spans, root
         return (
             <div key={span.span_id} className="mb-1">
                 <div
-                    className="flex items-center gap-2 p-2 rounded hover:bg-[#1c1c1e] group"
+                    className="flex items-center gap-2 p-2 rounded hover:bg-surface-2 group"
                     style={{ marginLeft: `${depth * 16}px` }}
                 >
-                    <div className="flex-shrink-0 text-[#86868b]">
+                    <div className="flex-shrink-0 text-text-secondary">
                         {children.length > 0 ? <ChevronDown size={14} /> : <div className="w-[14px]" />}
                     </div>
                     <div className="flex-1 min-w-0">
                         <div className="flex items-center gap-2">
-                            <span className={`text-xs font-mono truncate ${span.status === 'error' ? 'text-red-400' : 'text-[#f5f5f7]'}`}>
+                            <span className={`text-xs font-mono truncate ${span.status === 'error' ? 'text-red-400' : 'text-text-primary'}`}>
                                 {span.name}
                             </span>
                             {span.status === 'error' && <AlertCircle size={12} className="text-red-500" />}
                         </div>
                         {Object.keys(span.attributes).length > 0 && (
-                            <div className="text-[10px] text-[#5c5c5e] truncate mt-0.5">
+                            <div className="text-[10px] text-text-tertiary truncate mt-0.5">
                                 {JSON.stringify(span.attributes)}
                             </div>
                         )}
                     </div>
                     {duration !== null && (
-                        <div className="text-[10px] text-[#86868b] font-mono tabular-nums">
+                        <div className="text-[10px] text-text-secondary font-mono tabular-nums">
                             {duration}ms
                         </div>
                     )}

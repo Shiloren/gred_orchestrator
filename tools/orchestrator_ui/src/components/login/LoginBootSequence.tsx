@@ -7,7 +7,7 @@ interface Props {
 export const LoginBootSequence: React.FC<Props> = ({ done }) => {
     return (
         <div className={`absolute inset-0 z-20 flex items-center justify-center transition-opacity duration-300 ${done ? 'opacity-0 pointer-events-none' : 'opacity-100'}`}>
-            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,rgba(59,130,246,0.12),transparent_45%),radial-gradient(circle_at_55%_62%,rgba(90,159,143,0.10),transparent_50%)]" />
+            <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_45%,var(--glow-primary),transparent_45%),radial-gradient(circle_at_55%_62%,var(--glow-trust),transparent_50%)]" />
 
             <div className={`relative w-[480px] max-w-[92vw] rounded-2xl border border-border-primary bg-surface-1/85 backdrop-blur-xl p-6 overflow-hidden ${done ? 'animate-zoom-fade-out' : 'animate-materialize'}`}>
                 <div className="absolute -inset-16 opacity-60 pointer-events-none">

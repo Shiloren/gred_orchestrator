@@ -40,6 +40,16 @@ interface WorkflowScene {
 type Scene = OrganicScene | WorkflowScene;
 type RGB = readonly [number, number, number];
 
+const PALETTE = {
+    surface0: [8, 12, 20] as RGB,
+    surface2: [20, 28, 46] as RGB,
+    surface3: [28, 38, 64] as RGB,
+    textSecondary: [125, 138, 153] as RGB,
+    accentPrimary: [59, 130, 246] as RGB,
+    accentTrust: [90, 159, 143] as RGB,
+    accentAlert: [200, 84, 80] as RGB,
+};
+
 interface AuthGraphBackgroundProps {
     loginState?: 'idle' | 'verifying' | 'success' | 'error';
 }
@@ -211,7 +221,7 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
             const width = canvas.clientWidth;
             const height = canvas.clientHeight;
             const gap = 24;
-            context.fillStyle = `rgba(120, 132, 156, ${alpha})`;
+            context.fillStyle = rgba(PALETTE.textSecondary, alpha);
             for (let x = 10; x < width; x += gap) {
                 for (let y = 10; y < height; y += gap) {
                     context.fillRect(x, y, 1.1, 1.1);
@@ -223,7 +233,7 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
             const width = canvas.clientWidth;
             const height = canvas.clientHeight;
             context.clearRect(0, 0, width, height);
-            context.fillStyle = '#080c14';
+            context.fillStyle = rgba(PALETTE.surface0, 1);
             context.fillRect(0, 0, width, height);
             drawDotGrid(0.16);
         };
@@ -341,10 +351,10 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
                 const radius = 7 * grow;
 
                 const statusPalette: Record<WorkflowNode['status'], { stroke: RGB; glow: RGB; dot: RGB }> = {
-                    pending: { stroke: [125, 138, 153], glow: [61, 74, 92], dot: [125, 138, 153] },
-                    running: { stroke: [59, 130, 246], glow: [59, 130, 246], dot: [147, 197, 253] },
-                    done: { stroke: [90, 159, 143], glow: [90, 159, 143], dot: [125, 211, 193] },
-                    error: { stroke: [200, 84, 80], glow: [200, 84, 80], dot: [248, 113, 113] },
+                    pending: { stroke: PALETTE.textSecondary, glow: [61, 74, 92], dot: PALETTE.textSecondary },
+                    running: { stroke: PALETTE.accentPrimary, glow: PALETTE.accentPrimary, dot: [147, 197, 253] },
+                    done: { stroke: PALETTE.accentTrust, glow: PALETTE.accentTrust, dot: [125, 211, 193] },
+                    error: { stroke: PALETTE.accentAlert, glow: PALETTE.accentAlert, dot: [248, 113, 113] },
                 };
                 const palette = statusPalette[node.status];
 
@@ -352,7 +362,7 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
                 context.shadowBlur = 16;
                 context.shadowColor = rgba(palette.glow, 0.32 * alpha * reveal);
                 roundedRect(context, x, y, cardWidth, cardHeight, radius);
-                context.fillStyle = `rgba(20, 28, 46, ${0.82 * alpha * reveal})`;
+                context.fillStyle = rgba(PALETTE.surface2, 0.82 * alpha * reveal);
                 context.fill();
                 context.restore();
 
@@ -361,14 +371,14 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
                 context.lineWidth = 1.2;
                 context.stroke();
 
-                context.fillStyle = `rgba(8,12,20,${0.62 * alpha * reveal})`;
+                context.fillStyle = rgba(PALETTE.surface0, 0.62 * alpha * reveal);
                 roundedRect(context, x + 1, y + 1, cardWidth - 2, cardHeight * 0.38, Math.max(3, radius - 2));
                 context.fill();
 
                 // Handles tipo pills
                 const handleH = cardHeight * 0.34;
                 const handleW = 4;
-                context.fillStyle = `rgba(125, 138, 153, ${0.66 * alpha * reveal})`;
+                context.fillStyle = rgba(PALETTE.textSecondary, 0.66 * alpha * reveal);
                 roundedRect(context, x - handleW + 1, node.y - handleH / 2, handleW, handleH, 2.2);
                 context.fill();
                 roundedRect(context, x + cardWidth - 1, node.y - handleH / 2, handleW, handleH, 2.2);
@@ -386,10 +396,10 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
                     const barH = 2;
                     const bx = x + cardWidth * 0.28;
                     const by = y + cardHeight - 5;
-                    context.fillStyle = `rgba(28,38,64,${0.7 * alpha * reveal})`;
+                    context.fillStyle = rgba(PALETTE.surface3, 0.7 * alpha * reveal);
                     context.fillRect(bx, by, barW, barH);
                     const pulse = ((now * 0.0012 + i * 0.33) % 1) * barW;
-                    context.fillStyle = `rgba(59, 130, 246, ${0.88 * alpha * reveal})`;
+                    context.fillStyle = rgba(PALETTE.accentPrimary, 0.88 * alpha * reveal);
                     context.fillRect(bx, by, pulse, barH);
                 }
             }
@@ -440,7 +450,7 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
         const onMotionPreference = () => {
             resize();
             scenes.length = 0;
-            context.fillStyle = '#080c14';
+            context.fillStyle = rgba(PALETTE.surface0, 1);
             context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
             if (mediaQuery.matches) {
                 window.cancelAnimationFrame(raf);
@@ -454,7 +464,7 @@ export function AuthGraphBackground({ loginState = 'idle' }: AuthGraphBackground
         };
 
         resize();
-        context.fillStyle = '#080c14';
+        context.fillStyle = rgba(PALETTE.surface0, 1);
         context.fillRect(0, 0, canvas.clientWidth, canvas.clientHeight);
         onMotionPreference();
 

@@ -37,28 +37,28 @@ export function ProfilePanel({
 
     const planClass =
         planLabel === 'Standard'
-            ? 'bg-[#0a84ff]/15 text-[#0a84ff] border-[#0a84ff]/30'
+            ? 'bg-accent-primary/15 text-accent-primary border-accent-primary/30'
             : planLabel === 'Admin'
-                ? 'bg-[#bf5af2]/15 text-[#bf5af2] border-[#bf5af2]/30'
+                ? 'bg-accent-purple/15 text-accent-purple border-accent-purple/30'
                 : planLabel === 'Lifetime'
-                    ? 'bg-[#ff9f0a]/15 text-[#ff9f0a] border-[#ff9f0a]/30'
-                    : 'bg-[#86868b]/15 text-[#86868b] border-[#86868b]/30';
+                    ? 'bg-accent-approval/15 text-accent-approval border-accent-approval/30'
+                    : 'bg-status-pending/15 text-status-pending border-status-pending/30';
 
     const subscriptionStatus = (profile?.subscription?.status || 'none').toLowerCase();
     const subscriptionClass =
         subscriptionStatus === 'active'
-            ? 'bg-[#32d74b]/15 text-[#32d74b] border-[#32d74b]/30'
+            ? 'bg-accent-trust/15 text-accent-trust border-accent-trust/30'
             : subscriptionStatus === 'expired' || subscriptionStatus === 'past_due'
-                ? 'bg-[#ff453a]/15 text-[#ff453a] border-[#ff453a]/30'
-                : 'bg-[#86868b]/15 text-[#86868b] border-[#86868b]/30';
+                ? 'bg-accent-alert/15 text-accent-alert border-accent-alert/30'
+                : 'bg-status-pending/15 text-status-pending border-status-pending/30';
 
     const licenseStatus = (profile?.license?.status || 'none').toLowerCase();
     const licenseClass =
         licenseStatus === 'active'
-            ? 'bg-[#32d74b]/15 text-[#32d74b] border-[#32d74b]/30'
+            ? 'bg-accent-trust/15 text-accent-trust border-accent-trust/30'
             : licenseStatus === 'expired' || licenseStatus === 'suspended'
-                ? 'bg-[#ff453a]/15 text-[#ff453a] border-[#ff453a]/30'
-                : 'bg-[#86868b]/15 text-[#86868b] border-[#86868b]/30';
+                ? 'bg-accent-alert/15 text-accent-alert border-accent-alert/30'
+                : 'bg-status-pending/15 text-status-pending border-status-pending/30';
 
     const copyToClipboard = async (value: string, label: string) => {
         try {
@@ -96,20 +96,20 @@ export function ProfilePanel({
         >
             <div className="absolute inset-0 bg-black/60 backdrop-blur-sm" onClick={onClose} />
 
-            <aside className={`absolute right-0 top-0 h-full w-full max-w-[460px] bg-[#101011] border-l border-[#2c2c2e] shadow-2xl transition-transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
-                <div className="h-14 border-b border-[#2c2c2e] px-4 flex items-center justify-between">
-                    <h2 className="text-sm font-black uppercase tracking-widest text-[#f5f5f7]">Mi Perfil</h2>
+            <aside className={`absolute right-0 top-0 h-full w-full max-w-[460px] bg-surface-1 border-l border-border-primary shadow-2xl transition-transform ${isOpen ? 'translate-x-0' : 'translate-x-full'}`}>
+                <div className="h-14 border-b border-border-primary px-4 flex items-center justify-between">
+                    <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Mi Perfil</h2>
                     <div className="flex items-center gap-2">
                         <button
                             onClick={onRefresh}
-                            className="w-8 h-8 rounded-lg border border-[#2c2c2e] text-[#86868b] hover:text-[#f5f5f7] hover:bg-[#1c1c1e] inline-flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg border border-border-primary text-text-secondary hover:text-text-primary hover:bg-surface-3 inline-flex items-center justify-center"
                             title="Actualizar"
                         >
                             <RefreshCw size={14} />
                         </button>
                         <button
                             onClick={onClose}
-                            className="w-8 h-8 rounded-lg border border-[#2c2c2e] text-[#86868b] hover:text-[#f5f5f7] hover:bg-[#1c1c1e] inline-flex items-center justify-center"
+                            className="w-8 h-8 rounded-lg border border-border-primary text-text-secondary hover:text-text-primary hover:bg-surface-3 inline-flex items-center justify-center"
                             title="Cerrar"
                         >
                             <X size={14} />
@@ -118,9 +118,9 @@ export function ProfilePanel({
                 </div>
 
                 <div className="h-[calc(100%-56px)] overflow-y-auto custom-scrollbar p-4 space-y-4">
-                    <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-4">
+                    <section className="rounded-2xl border border-border-primary bg-surface-2 p-4">
                         <div className="flex items-center gap-3">
-                            <div className="w-14 h-14 rounded-full overflow-hidden bg-[#1c1c1e] border border-[#2c2c2e] flex items-center justify-center">
+                            <div className="w-14 h-14 rounded-full overflow-hidden bg-surface-3 border border-border-primary flex items-center justify-center">
                                 {profile?.user?.photoURL ? (
                                     <img src={profile.user.photoURL} alt="Avatar" className="w-full h-full object-cover" />
                                 ) : (
@@ -128,8 +128,8 @@ export function ProfilePanel({
                                 )}
                             </div>
                             <div className="min-w-0">
-                                <p className="text-sm text-[#f5f5f7] font-semibold truncate">{profile?.user?.displayName || 'Usuario GIMO'}</p>
-                                <p className="text-xs text-[#86868b] truncate">{profile?.user?.email || '—'}</p>
+                                <p className="text-sm text-text-primary font-semibold truncate">{profile?.user?.displayName || 'Usuario GIMO'}</p>
+                                <p className="text-xs text-text-secondary truncate">{profile?.user?.email || '—'}</p>
                             </div>
                             <span className={`ml-auto px-2 py-1 text-[10px] font-bold uppercase rounded-full border ${planClass}`}>
                                 {planLabel}
@@ -137,59 +137,59 @@ export function ProfilePanel({
                         </div>
                     </section>
 
-                    <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-4 space-y-3">
+                    <section className="rounded-2xl border border-border-primary bg-surface-2 p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black uppercase tracking-wider text-[#f5f5f7]">Suscripción</h3>
+                            <h3 className="text-xs font-black uppercase tracking-wider text-text-primary">Suscripción</h3>
                             <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full border ${subscriptionClass}`}>
                                 {profile?.subscription?.status || 'none'}
                             </span>
                         </div>
-                        <div className="text-xs text-[#86868b] space-y-1">
-                            <p>Próximo cobro: <span className="text-[#f5f5f7]">{formatDate(profile?.subscription?.currentPeriodEnd)}</span></p>
-                            <p>Tarifa: <span className="text-[#f5f5f7]">$3/mes</span></p>
+                        <div className="text-xs text-text-secondary space-y-1">
+                            <p>Próximo cobro: <span className="text-text-primary">{formatDate(profile?.subscription?.currentPeriodEnd)}</span></p>
+                            <p>Tarifa: <span className="text-text-primary">$3/mes</span></p>
                             {profile?.subscription?.cancelAtPeriodEnd && (
-                                <p className="text-[#ff9f0a]">Se cancela el {formatDate(profile?.subscription?.currentPeriodEnd)}</p>
+                                <p className="text-accent-warning">Se cancela el {formatDate(profile?.subscription?.currentPeriodEnd)}</p>
                             )}
                         </div>
                         <button
                             onClick={() => window.open(GIMO_ACCOUNT_URL, '_blank')}
-                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 hover:bg-[#0a84ff]/25"
+                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-primary/15 text-accent-primary border border-accent-primary/30 hover:bg-accent-primary/25"
                         >
                             Gestionar suscripción
                             <ExternalLink size={12} />
                         </button>
                     </section>
 
-                    <section className="rounded-2xl border border-[#2c2c2e] bg-[#141414] p-4 space-y-3">
+                    <section className="rounded-2xl border border-border-primary bg-surface-2 p-4 space-y-3">
                         <div className="flex items-center justify-between">
-                            <h3 className="text-xs font-black uppercase tracking-wider text-[#f5f5f7]">Licencia</h3>
+                            <h3 className="text-xs font-black uppercase tracking-wider text-text-primary">Licencia</h3>
                             <span className={`px-2 py-1 text-[10px] font-bold uppercase rounded-full border ${licenseClass}`}>
                                 {profile?.license?.status || 'none'}
                             </span>
                         </div>
 
-                        <div className="flex items-center justify-between gap-2 rounded-lg border border-[#2c2c2e] bg-[#101011] px-3 py-2">
-                            <span className="text-xs text-[#f5f5f7] font-mono truncate">{maskedLicense}</span>
+                        <div className="flex items-center justify-between gap-2 rounded-lg border border-border-primary bg-surface-1 px-3 py-2">
+                            <span className="text-xs text-text-primary font-mono truncate">{maskedLicense}</span>
                             <button
                                 disabled
-                                className="text-[#86868b] opacity-40 cursor-not-allowed"
+                                className="text-text-secondary opacity-40 cursor-not-allowed"
                                 title="Solo preview (no copiable)"
                             >
                                 <Copy size={14} />
                             </button>
                         </div>
-                        <p className="text-[11px] text-[#86868b]">
+                        <p className="text-[11px] text-text-secondary">
                             Se muestra solo un preview parcial por seguridad.
                         </p>
 
                         <div>
-                            <div className="flex items-center justify-between text-[11px] text-[#86868b] mb-1">
+                            <div className="flex items-center justify-between text-[11px] text-text-secondary mb-1">
                                 <span>Instalaciones</span>
                                 <span>{profile?.license?.installationsUsed ?? 0} / {profile?.license?.installationsMax ?? 0}</span>
                             </div>
-                            <div className="h-2 rounded-full bg-[#1c1c1e] overflow-hidden">
+                            <div className="h-2 rounded-full bg-surface-3 overflow-hidden">
                                 <div
-                                    className="h-full bg-[#0a84ff]"
+                                    className="h-full bg-accent-primary"
                                     style={{
                                         width: `${Math.min(
                                             100,
@@ -202,7 +202,7 @@ export function ProfilePanel({
 
                         <button
                             onClick={() => window.open(GIMO_ACCOUNT_URL, '_blank')}
-                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#1c1c1e] text-[#f5f5f7] border border-[#2c2c2e] hover:bg-[#2c2c2e]"
+                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-surface-3 text-text-primary border border-border-primary hover:bg-surface-2"
                         >
                             Gestionar licencia
                             <ExternalLink size={12} />
@@ -210,16 +210,16 @@ export function ProfilePanel({
                     </section>
 
                     <Accordion title="Sesión local" defaultOpen={false}>
-                        <div className="space-y-2 text-xs text-[#86868b]">
-                            <p>Rol: <span className="text-[#f5f5f7]">{profile?.session?.role || '—'}</span></p>
-                            <div className="rounded-lg border border-[#2c2c2e] bg-[#101011] px-3 py-2 text-[11px]">
+                        <div className="space-y-2 text-xs text-text-secondary">
+                            <p>Rol: <span className="text-text-primary">{profile?.session?.role || '—'}</span></p>
+                            <div className="rounded-lg border border-border-primary bg-surface-1 px-3 py-2 text-[11px]">
                                 Token de sesión protegido en cookie httpOnly (no expuesto en UI).
                             </div>
-                            <p>Tiempo restante: <span className="text-[#f5f5f7]">{formatSeconds(profile?.session?.expiresInSeconds)}</span></p>
+                            <p>Tiempo restante: <span className="text-text-primary">{formatSeconds(profile?.session?.expiresInSeconds)}</span></p>
                         </div>
                         <button
                             onClick={onLogout}
-                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#ff453a]/15 text-[#ff453a] border border-[#ff453a]/30 hover:bg-[#ff453a]/25"
+                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-alert/15 text-accent-alert border border-accent-alert/30 hover:bg-accent-alert/25"
                         >
                             <LogOut size={12} />
                             Cerrar sesión
@@ -227,12 +227,12 @@ export function ProfilePanel({
                     </Accordion>
 
                     <Accordion title="Setup rápido" defaultOpen={false}>
-                        <div className="rounded-lg border border-[#2c2c2e] bg-[#101011] p-3 text-xs text-[#f5f5f7] font-mono break-all">
+                        <div className="rounded-lg border border-border-primary bg-surface-1 p-3 text-xs text-text-primary font-mono break-all">
                             gimo auth --key &lt;TU_LICENSE_KEY&gt;
                         </div>
                         <button
                             onClick={() => copyToClipboard('gimo auth --key <TU_LICENSE_KEY>', 'Comando CLI')}
-                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-[#0a84ff]/15 text-[#0a84ff] border border-[#0a84ff]/30 hover:bg-[#0a84ff]/25"
+                            className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-primary/15 text-accent-primary border border-accent-primary/30 hover:bg-accent-primary/25"
                         >
                             <Copy size={12} />
                             Copiar comando
@@ -240,9 +240,9 @@ export function ProfilePanel({
                     </Accordion>
 
                     {(loading || error) && (
-                        <section className="rounded-xl border border-[#2c2c2e] bg-[#141414] p-3 text-xs">
-                            {loading && <p className="text-[#86868b]">Cargando perfil…</p>}
-                            {error && <p className="text-[#ff453a]">{error}</p>}
+                        <section className="rounded-xl border border-border-primary bg-surface-2 p-3 text-xs">
+                            {loading && <p className="text-text-secondary">Cargando perfil…</p>}
+                            {error && <p className="text-accent-alert">{error}</p>}
                         </section>
                     )}
                 </div>

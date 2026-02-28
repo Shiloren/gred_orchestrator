@@ -22,9 +22,9 @@ const GetIcon = ({ score }: { readonly score: number }) => {
 };
 
 const RiskBadge = ({ risk }: { risk: string }) => {
-    let style = 'text-[#86868b] border-[#2c2c2e]';
-    if (risk === 'high') style = 'text-[#ff453a] border-[#ff453a]/30 bg-[#ff453a]/10';
-    if (risk === 'medium') style = 'text-[#ffd60a] border-[#ffd60a]/30 bg-[#ffd60a]/10';
+    let style = 'text-text-secondary border-border-primary';
+    if (risk === 'high') style = 'text-accent-alert border-accent-alert/30 bg-accent-alert/10';
+    if (risk === 'medium') style = 'text-accent-warning border-accent-warning/30 bg-accent-warning/10';
 
     return (
         <div className={`text-[9px] px-1.5 py-0.5 rounded border ${style}`}>
@@ -51,12 +51,12 @@ export function ConfidenceMeter({ data }: ConfidenceMeterProps) {
 
     const getColor = (lvl: string) => {
         switch (lvl) {
-            case 'High': return 'text-[#32d74b] bg-[#32d74b]/10 border-[#32d74b]/20';
-            case 'Strong': return 'text-[#0a84ff] bg-[#0a84ff]/10 border-[#0a84ff]/20';
-            case 'Moderate': return 'text-[#ffd60a] bg-[#ffd60a]/10 border-[#ffd60a]/20';
-            case 'Low': return 'text-[#ff9f0a] bg-[#ff9f0a]/10 border-[#ff9f0a]/20';
-            case 'Critical': return 'text-[#ff453a] bg-[#ff453a]/10 border-[#ff453a]/20';
-            default: return 'text-[#86868b] bg-[#1c1c1e] border-[#2c2c2e]';
+            case 'High': return 'text-accent-trust bg-accent-trust/10 border-accent-trust/20';
+            case 'Strong': return 'text-accent-primary bg-accent-primary/10 border-accent-primary/20';
+            case 'Moderate': return 'text-accent-warning bg-accent-warning/10 border-accent-warning/20';
+            case 'Low': return 'text-accent-warning bg-accent-warning/10 border-accent-warning/20';
+            case 'Critical': return 'text-accent-alert bg-accent-alert/10 border-accent-alert/20';
+            default: return 'text-text-secondary bg-surface-2 border-border-primary';
         }
     };
 
@@ -66,9 +66,9 @@ export function ConfidenceMeter({ data }: ConfidenceMeterProps) {
             <span>{percentage} {isProactive ? 'Proyectado' : 'Confianza'}</span>
 
             {/* Tooltip */}
-            <div className="absolute bottom-full left-0 mb-2 w-64 bg-[#1c1c1e]/95 backdrop-blur-xl border border-[#2c2c2e] p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[100] translate-y-1 group-hover:translate-y-0">
+            <div className="absolute bottom-full left-0 mb-2 w-64 bg-surface-2/95 backdrop-blur-xl border border-border-primary p-3 rounded-xl shadow-2xl opacity-0 group-hover:opacity-100 transition-all duration-200 pointer-events-none z-[100] translate-y-1 group-hover:translate-y-0">
                 <div className="flex items-center justify-between mb-2">
-                    <div className="text-[10px] text-[#86868b] uppercase tracking-wider font-semibold">
+                    <div className="text-[10px] text-text-secondary uppercase tracking-wider font-semibold">
                         {isProactive ? 'Autoevaluación Proactiva' : 'Análisis Histórico'}
                     </div>
                     {data.risk_level && (
@@ -76,13 +76,13 @@ export function ConfidenceMeter({ data }: ConfidenceMeterProps) {
                     )}
                 </div>
 
-                <div className="text-[11px] leading-relaxed text-[#f5f5f7] mb-2">{reason}</div>
+                <div className="text-[11px] leading-relaxed text-text-primary mb-2">{reason}</div>
 
                 {data.questions && data.questions.length > 0 && (
-                    <div className="mt-2 pt-2 border-t border-[#2c2c2e] space-y-1">
-                        <div className="text-[9px] text-[#86868b] uppercase font-bold">Dudas del Agente:</div>
+                    <div className="mt-2 pt-2 border-t border-border-primary space-y-1">
+                        <div className="text-[9px] text-text-secondary uppercase font-bold">Dudas del Agente:</div>
                         {data.questions.map((q) => (
-                            <div key={q} className="text-[10px] text-[#0a84ff] flex gap-1.5">
+                            <div key={q} className="text-[10px] text-accent-primary flex gap-1.5">
                                 <span className="opacity-50">•</span>
                                 <span>{q}</span>
                             </div>
@@ -90,8 +90,8 @@ export function ConfidenceMeter({ data }: ConfidenceMeterProps) {
                     </div>
                 )}
 
-                <div className="mt-2.5 pt-2 border-t border-[#2c2c2e] flex justify-between items-center">
-                    <span className="text-[9px] text-[#86868b] uppercase font-bold tracking-tight">Status</span>
+                <div className="mt-2.5 pt-2 border-t border-border-primary flex justify-between items-center">
+                    <span className="text-[9px] text-text-secondary uppercase font-bold tracking-tight">Status</span>
                     <span className="text-[10px] font-mono">{level} ({percentage})</span>
                 </div>
             </div>

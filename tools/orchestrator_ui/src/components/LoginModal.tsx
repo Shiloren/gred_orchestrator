@@ -30,7 +30,7 @@ export function LoginModal({ onAuthenticated }: Props) {
     const [error, setError] = useState<string | null>(null);
     const [googleLoading, setGoogleLoading] = useState(false);
     const [loading, setLoading] = useState(false);
-    const [verifyingContext, setVerifyingContext] = useState<'google' | 'token' | 'cold-activate' | 'cold-renew' | null>(null);
+    const [verifyingContext, setVerifyingContext] = useState<'google' | 'token' | 'cold-activate' | 'cold-renew' | 'cold-access' | null>(null);
     const [mouseX, setMouseX] = useState(0);
     const [mouseY, setMouseY] = useState(0);
     const [reducedMotion, setReducedMotion] = useState(false);
@@ -61,6 +61,9 @@ export function LoginModal({ onAuthenticated }: Props) {
         if (normalized.includes('machine_mismatch')) return 'Machine ID no coincide con esta instalación.';
         if (normalized.includes('expired')) return 'La licencia está expirada. Solicita un nuevo blob de renovación.';
         if (normalized.includes('unsupported_license_version')) return 'Versión de licencia no soportada. Solicita una licencia v2.';
+        if (normalized.includes('nonce_replay')) return 'Este blob ya fue utilizado. Solicita uno nuevo al portal de licencias.';
+        if (normalized.includes('cold_room_not_paired')) return 'Esta instalación no está emparejada en Cold Room. Activa una licencia primero.';
+        if (normalized.includes('cold_room_renewal_required')) return 'La licencia Cold Room requiere renovación para continuar.';
         return detail;
     };
 
@@ -69,6 +72,7 @@ export function LoginModal({ onAuthenticated }: Props) {
         if (verifyingContext === 'token') return 'Validando token local...';
         if (verifyingContext === 'cold-activate') return 'Validando firma y activando licencia Cold Room...';
         if (verifyingContext === 'cold-renew') return 'Validando blob de renovación Cold Room...';
+        if (verifyingContext === 'cold-access') return 'Validando acceso de licencia Cold Room activa...';
         return 'Verificando credenciales...';
     })();
 
@@ -113,7 +117,38 @@ export function LoginModal({ onAuthenticated }: Props) {
     const handleMethodSelect = async (method: AuthMethod) => {
         setError(null);
         setVerifyingContext(null);
+        if (method === 'cold-access') {
+            await handleColdAccess();
+            return;
+        }
         setLoginState(method);
+    };
+
+    const handleColdAccess = async () => {
+        setLoading(true);
+        setError(null);
+        setVerifyingContext('cold-access');
+        setLoginState('verifying');
+        try {
+            const response = await fetch(`${API_BASE}/auth/cold-room/access`, {
+                method: 'POST',
+                credentials: 'include',
+            });
+            if (!response.ok) {
+                setLoginState('select');
+                const detail = await readErrorDetail(response, 'No se pudo validar la licencia Cold Room activa.');
+                setError(toColdRoomErrorMessage(detail));
+                return;
+            }
+            addToast('Acceso Cold Room validado', 'success');
+            setLoginState('success');
+            window.setTimeout(() => onAuthenticated(), 450);
+        } catch {
+            setLoginState('select');
+            setError('No se pudo validar acceso Cold Room. Revisa estado de licencia e inténtalo de nuevo.');
+        } finally {
+            setLoading(false);
+        }
     };
 
     const handleGoogleLogin = async () => {
@@ -186,6 +221,14 @@ export function LoginModal({ onAuthenticated }: Props) {
         }
     };
 
+    const createColdRoomSession = async (): Promise<boolean> => {
+        const res = await fetch(`${API_BASE}/auth/cold-room/access`, {
+            method: 'POST',
+            credentials: 'include',
+        });
+        return res.ok;
+    };
+
     const handleColdActivate = async (licenseBlob: string) => {
         setLoading(true);
         setError(null);
@@ -205,6 +248,12 @@ export function LoginModal({ onAuthenticated }: Props) {
                 return;
             }
             await refreshColdStatus();
+            const sessionOk = await createColdRoomSession();
+            if (!sessionOk) {
+                setLoginState('cold-activate');
+                setError('Licencia activada pero no se pudo crear la sesión. Intenta de nuevo.');
+                return;
+            }
             addToast('Licencia Cold Room activada', 'success');
             setLoginState('success');
             window.setTimeout(() => onAuthenticated(), 450);
@@ -235,6 +284,12 @@ export function LoginModal({ onAuthenticated }: Props) {
                 return;
             }
             await refreshColdStatus();
+            const sessionOk = await createColdRoomSession();
+            if (!sessionOk) {
+                setLoginState('cold-renew');
+                setError('Licencia renovada pero no se pudo crear la sesión. Intenta de nuevo.');
+                return;
+            }
             addToast('Renovación Cold Room aplicada', 'success');
             setLoginState('success');
             window.setTimeout(() => onAuthenticated(), 450);
@@ -292,14 +347,14 @@ export function LoginModal({ onAuthenticated }: Props) {
             }}
         >
             <AuthGraphBackground loginState={visualState} />
-            <LoginParallaxLayer mouseX={mouseX} mouseY={mouseY} reducedMotion={reducedMotion} />
+            <LoginParallaxLayer mouseX={mouseX} mouseY={mouseY} reducedMotion={reducedMotion} visualState={visualState} />
 
             <LoginBootSequence done={loginState !== 'boot'} />
 
             <AuthLoadingOverlay visible={loginState === 'verifying'} label={verifyingLabel} />
             <AuthSuccessTransition visible={loginState === 'success'} />
 
-            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,rgba(59,130,246,0.16),transparent_42%),radial-gradient(circle_at_80%_80%,rgba(90,159,143,0.10),transparent_38%),linear-gradient(180deg,rgba(5,8,16,0.35),rgba(5,8,16,0.82))]" />
+            <div className="pointer-events-none absolute inset-0 bg-[radial-gradient(circle_at_top,var(--glow-primary),transparent_42%),radial-gradient(circle_at_80%_80%,var(--glow-trust),transparent_38%),linear-gradient(180deg,color-mix(in_srgb,var(--surface-0)_45%,transparent),color-mix(in_srgb,var(--surface-0)_85%,transparent))]" />
 
             <div className={`transition-all duration-500 ${cardReady ? 'opacity-100 translate-y-0 scale-100' : 'opacity-0 translate-y-4 scale-[0.985]'}`}>
                 <LoginGlassCard visualState={visualState} style={cardParallaxStyle}>

@@ -33,7 +33,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
         <section className="h-full w-full bg-surface-0 flex items-center justify-center p-6">
             <div className="w-full max-w-3xl rounded-3xl border border-border-primary bg-surface-1 p-10 md:p-12 shadow-2xl relative overflow-hidden">
                 {/* Decorative background element */}
-                <div className="absolute top-0 right-0 w-64 h-64 bg-blue-500/5 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
+                <div className="absolute top-0 right-0 w-64 h-64 bg-accent-primary/10 blur-[100px] rounded-full -translate-y-1/2 translate-x-1/2" />
 
                 <div className="relative">
                     <div className="inline-flex items-center gap-2 px-3 py-1 rounded-full border border-border-primary bg-surface-3 text-accent-primary text-[10px] uppercase font-black tracking-widest mb-6 animate-in fade-in slide-in-from-bottom-2 duration-1000">
@@ -51,7 +51,7 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
 
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                         <WelcomeButton
-                            icon={<Sparkles className="w-5 h-5 text-blue-400" />}
+                            icon={<Sparkles className="w-5 h-5 text-accent-primary" />}
                             title="Nuevo Plan"
                             description="Inicia un flujo de trabajo guiado para crear una secuencia de tareas."
                             onClick={onNewPlan}
@@ -63,13 +63,13 @@ export const WelcomeScreen: React.FC<WelcomeScreenProps> = ({
                             onClick={onConnectProvider}
                         />
                         <WelcomeButton
-                            icon={<FolderOpen className="w-5 h-5 text-emerald-400" />}
+                            icon={<FolderOpen className="w-5 h-5 text-accent-trust" />}
                             title="Repositorio"
                             description="Selecciona y audita el directorio de trabajo actual del sistema."
                             onClick={onOpenRepo}
                         />
                         <WelcomeButton
-                            icon={<Keyboard className="w-5 h-5 text-zinc-400" />}
+                            icon={<Keyboard className="w-5 h-5 text-text-secondary" />}
                             title="Comandos"
                             description="Abre la paleta de comandos para acceso rápido a utilidades."
                             onClick={onOpenCommandPalette}

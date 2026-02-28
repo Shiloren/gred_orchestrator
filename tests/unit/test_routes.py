@@ -1,6 +1,6 @@
 import time
 from pathlib import Path
-from unittest.mock import patch
+from unittest.mock import MagicMock, patch
 
 import pytest
 from fastapi.testclient import TestClient
@@ -29,6 +29,54 @@ def test_get_status(client):
     response = client.get("/status")
     assert response.status_code == 200
     assert "version" in response.json()
+
+
+def test_cold_room_access_success(client):
+    with patch("tools.gimo_server.routers.auth_router._cold_room_enabled", return_value=True):
+        manager = MagicMock()
+        manager.get_status.return_value = {
+            "paired": True,
+            "renewal_valid": True,
+            "plan": "enterprise_cold_room",
+        }
+        with patch("tools.gimo_server.routers.auth_router._get_cold_room_manager", return_value=manager):
+            response = client.post("/auth/cold-room/access")
+            assert response.status_code == 200
+            payload = response.json()
+            assert payload["role"] == "operator"
+            assert "Authenticated" in payload["message"]
+
+
+def test_cold_room_access_not_paired(client):
+    with patch("tools.gimo_server.routers.auth_router._cold_room_enabled", return_value=True):
+        manager = MagicMock()
+        manager.get_status.return_value = {
+            "paired": False,
+            "renewal_valid": False,
+        }
+        with patch("tools.gimo_server.routers.auth_router._get_cold_room_manager", return_value=manager):
+            response = client.post("/auth/cold-room/access")
+            assert response.status_code == 401
+            assert response.json()["detail"] == "cold_room_not_paired"
+
+
+def test_cold_room_access_renewal_required(client):
+    with patch("tools.gimo_server.routers.auth_router._cold_room_enabled", return_value=True):
+        manager = MagicMock()
+        manager.get_status.return_value = {
+            "paired": True,
+            "renewal_valid": False,
+        }
+        with patch("tools.gimo_server.routers.auth_router._get_cold_room_manager", return_value=manager):
+            response = client.post("/auth/cold-room/access")
+            assert response.status_code == 401
+            assert response.json()["detail"] == "cold_room_renewal_required"
+
+
+def test_cold_room_access_disabled(client):
+    with patch("tools.gimo_server.routers.auth_router._cold_room_enabled", return_value=False):
+        response = client.post("/auth/cold-room/access")
+        assert response.status_code == 404
 
 
 def test_get_ui_status(client):

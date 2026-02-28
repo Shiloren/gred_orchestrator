@@ -95,9 +95,9 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
     }, [approved, drafts, runs]);
 
     return (
-        <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-[#0a0a0a]">
+        <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-surface-0">
             <div className="max-w-7xl mx-auto grid grid-cols-1 xl:grid-cols-[1.2fr_0.8fr] gap-6">
-                <section className="min-h-[560px] bg-[#101011] border border-[#2c2c2e] rounded-2xl overflow-hidden">
+                <section className="min-h-[560px] bg-[#101011] border border-border-primary rounded-2xl overflow-hidden">
                     {currentPlan ? (
                         <PlanReview
                             plan={currentPlan}
@@ -110,15 +110,15 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                     )}
                 </section>
 
-                <aside className="bg-[#101011] border border-[#2c2c2e] rounded-2xl p-5 flex flex-col min-h-[560px]">
+                <aside className="bg-[#101011] border border-border-primary rounded-2xl p-5 flex flex-col min-h-[560px]">
                     <div className="mb-4">
-                        <h2 className="text-sm uppercase tracking-widest font-black text-[#f5f5f7]">Historial de Planes</h2>
-                        <p className="text-xs text-[#86868b] mt-1">Borradores, aprobaciones y ejecuciones en una sola línea de tiempo.</p>
+                        <h2 className="text-sm uppercase tracking-widest font-black text-text-primary">Historial de Planes</h2>
+                        <p className="text-xs text-text-secondary mt-1">Borradores, aprobaciones y ejecuciones en una sola línea de tiempo.</p>
                     </div>
 
                     <div className="space-y-3 overflow-y-auto custom-scrollbar pr-1">
                         {timeline.length === 0 && (
-                            <div className="h-40 flex items-center justify-center text-xs text-[#86868b] border border-dashed border-[#2c2c2e] rounded-xl">
+                            <div className="h-40 flex items-center justify-center text-xs text-text-secondary border border-dashed border-border-primary rounded-xl">
                                 Aún no hay historial.
                             </div>
                         )}
@@ -135,22 +135,22 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                             const displayStatus = statusMap[item.status.toLowerCase()] || item.status;
 
                             return (
-                                <div key={`${item.type}-${item.id}`} className="rounded-xl border border-[#2c2c2e] bg-[#141414] p-3">
+                                <div key={`${item.type}-${item.id}`} className="rounded-xl border border-border-primary bg-surface-1 p-3">
                                     <div className="flex items-start gap-2">
-                                        <div className="mt-0.5 text-[#86868b]">
+                                        <div className="mt-0.5 text-text-secondary">
                                             {item.type === 'draft' && <FileText size={14} />}
                                             {item.type === 'approved' && <CheckCircle2 size={14} />}
                                             {item.type === 'run' && <PlayCircle size={14} />}
                                         </div>
                                         <div className="flex-1 min-w-0">
                                             <div className="flex items-center justify-between gap-2">
-                                                <span className="text-xs text-[#f5f5f7] font-medium truncate">{item.title}</span>
-                                                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-[#1c1c1e] text-[#86868b] border border-[#2c2c2e]">
+                                                <span className="text-xs text-text-primary font-medium truncate">{item.title}</span>
+                                                <span className="text-[9px] uppercase px-1.5 py-0.5 rounded bg-surface-2 text-text-secondary border border-border-primary">
                                                     {displayStatus}
                                                 </span>
                                             </div>
                                             {item.subtitle && (
-                                                <p className="text-[10px] text-[#86868b] mt-0.5">
+                                                <p className="text-[10px] text-text-secondary mt-0.5">
                                                     <span className="opacity-50">
                                                         {item.type === 'approved' ? 'Borrador: ' : ''}
                                                         {item.type === 'run' ? 'Aprobado: ' : ''}
@@ -158,7 +158,7 @@ export const PlansPanel: React.FC<PlansPanelProps> = ({
                                                     {item.subtitle.replace('Draft: ', '').replace('Approved: ', '')}
                                                 </p>
                                             )}
-                                            <div className="mt-1.5 text-[10px] text-[#86868b] flex items-center gap-1">
+                                            <div className="mt-1.5 text-[10px] text-text-secondary flex items-center gap-1">
                                                 <Clock3 size={10} />
                                                 {new Date(item.createdAt).toLocaleString()}
                                             </div>

@@ -19,10 +19,10 @@ export const ObservabilityPanel: React.FC = () => {
     }, []);
 
     return (
-        <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f7] p-6 space-y-6">
+        <div className="flex flex-col h-full bg-surface-0 text-text-primary p-6 space-y-6">
             <div className="flex justify-between items-center">
                 <h1 className="text-xl font-bold tracking-tight">Metrics Dashboard</h1>
-                <div className="flex items-center gap-2 text-xs text-[#86868b]">
+                <div className="flex items-center gap-2 text-xs text-text-secondary">
                     <span className="w-2 h-2 rounded-full bg-green-500 animate-pulse" />
                     Live Monitoring
                 </div>
@@ -57,14 +57,14 @@ export const ObservabilityPanel: React.FC = () => {
                     label="Avg Latency"
                     value={`${Math.round(metrics?.avg_latency_ms ?? 0)} ms`}
                     icon={Activity}
-                    color="text-[#0a84ff]"
+                    color="text-accent-primary"
                 />
             </div>
 
             {/* Trace Viewer Section */}
             <div className="flex-1 min-h-0 flex flex-col pt-4">
                 <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-sm font-bold uppercase tracking-widest text-[#86868b]">Trace Explorer</h2>
+                    <h2 className="text-sm font-bold uppercase tracking-widest text-text-secondary">Trace Explorer</h2>
                 </div>
                 <div className="flex-1 min-h-0">
                     <TraceViewer />
@@ -80,11 +80,11 @@ const MetricCard: React.FC<{
     icon: React.ElementType;
     change?: string;
     color?: string
-}> = ({ label, value, icon: Icon, change, color = "text-[#f5f5f7]" }) => (
-    <div className="bg-[#141414] border border-[#2c2c2e] p-4 rounded-xl flex flex-col justify-between h-24">
+}> = ({ label, value, icon: Icon, change, color = "text-text-primary" }) => (
+    <div className="bg-surface-1 border border-border-primary p-4 rounded-xl flex flex-col justify-between h-24">
         <div className="flex justify-between items-start">
-            <span className="text-[10px] uppercase font-bold text-[#86868b] tracking-wider">{label}</span>
-            <Icon size={14} className="text-[#86868b]" />
+            <span className="text-[10px] uppercase font-bold text-text-secondary tracking-wider">{label}</span>
+            <Icon size={14} className="text-text-secondary" />
         </div>
         <div className="flex items-end justify-between">
             <span className={`text-2xl font-mono font-medium ${color}`}>{value}</span>

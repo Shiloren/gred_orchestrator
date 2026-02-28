@@ -89,8 +89,8 @@ export const PlanComposer: React.FC = () => {
         setEdges((eds) => addEdge({
             ...params,
             animated: true,
-            markerEnd: { type: MarkerType.ArrowClosed, color: '#0a84ff' },
-            style: { stroke: '#0a84ff', strokeWidth: 2 }
+            markerEnd: { type: MarkerType.ArrowClosed, color: 'var(--accent-primary)' },
+            style: { stroke: 'var(--accent-primary)', strokeWidth: 2 }
         }, eds));
     }, [setEdges]);
 
@@ -211,21 +211,21 @@ export const PlanComposer: React.FC = () => {
     };
 
     return (
-        <div className="flex flex-col h-full bg-[#0a0a0a] text-[#f5f5f7]">
+        <div className="flex flex-col h-full bg-surface-0 text-text-primary">
             {/* Toolbar */}
-            <div className="h-16 border-b border-[#2c2c2e] px-6 flex items-center justify-between bg-[#141414]/50 backdrop-blur-md">
+            <div className="h-16 border-b border-border-primary px-6 flex items-center justify-between bg-surface-1/50 backdrop-blur-md">
                 <div className="flex items-center gap-4">
                     <div className="flex flex-col">
                         <input
                             value={planName}
                             onChange={(e) => setPlanName(e.target.value)}
-                            className="bg-transparent text-sm font-bold border-none outline-none focus:ring-0 p-0 text-[#f5f5f7] placeholder:text-[#424245]"
+                            className="bg-transparent text-sm font-bold border-none outline-none focus:ring-0 p-0 text-text-primary placeholder:text-text-tertiary"
                             placeholder="Plan Name"
                         />
                         <input
                             value={description}
                             onChange={(e) => setDescription(e.target.value)}
-                            className="bg-transparent text-[10px] border-none outline-none focus:ring-0 p-0 text-[#86868b] placeholder:text-[#424245]"
+                            className="bg-transparent text-[10px] border-none outline-none focus:ring-0 p-0 text-text-secondary placeholder:text-text-tertiary"
                             placeholder="Description"
                         />
                     </div>
@@ -235,7 +235,7 @@ export const PlanComposer: React.FC = () => {
                     <button
                         onClick={handleSave}
                         disabled={isSaving}
-                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-[#1c1c1e] border border-[#2c2c2e] text-[10px] font-bold uppercase tracking-wider text-[#f5f5f7] hover:bg-[#2c2c2e] transition-all disabled:opacity-50"
+                        className="flex items-center gap-2 px-3 py-1.5 rounded-lg bg-surface-2 border border-border-primary text-[10px] font-bold uppercase tracking-wider text-text-primary hover:bg-surface-3 transition-all disabled:opacity-50"
                     >
                         {isSaving ? <div className="w-3 h-3 border-2 border-white/30 border-t-white rounded-full animate-spin" /> : <Save size={14} />}
                         Save
@@ -244,7 +244,7 @@ export const PlanComposer: React.FC = () => {
                         onClick={handleExecute}
                         disabled={isExecuting || !activePlanId}
                         className={`flex items-center gap-2 px-3 py-1.5 rounded-lg text-[10px] font-bold uppercase tracking-wider transition-all disabled:opacity-50
-                            ${activePlanId ? 'bg-green-500/10 text-green-400 border border-green-500/20 hover:bg-green-500/20' : 'bg-[#1c1c1e] text-[#424245] border border-[#2c2c2e]'}
+                            ${activePlanId ? 'bg-accent-trust/10 text-accent-trust border border-accent-trust/20 hover:bg-accent-trust/20' : 'bg-surface-2 text-text-tertiary border border-border-primary'}
                         `}
                     >
                         <Play size={14} />
@@ -268,12 +268,12 @@ export const PlanComposer: React.FC = () => {
                         fitView
                         proOptions={{ hideAttribution: true }}
                     >
-                        <Background color="#1c1c1e" gap={24} size={1} />
+                        <Background color="var(--surface-2)" gap={24} size={1} />
                         <Controls />
                         <Panel position="top-right">
                             <button
                                 onClick={addNode}
-                                className="w-10 h-10 rounded-full bg-[#0a84ff] text-white flex items-center justify-center shadow-lg shadow-[#0a84ff]/30 hover:scale-110 active:scale-95 transition-all"
+                                className="w-10 h-10 rounded-full bg-accent-primary text-white flex items-center justify-center shadow-lg shadow-accent-primary/30 hover:scale-110 active:scale-95 transition-all"
                             >
                                 <Plus size={20} />
                             </button>
@@ -282,39 +282,39 @@ export const PlanComposer: React.FC = () => {
                 </div>
 
                 {/* Properties Panel */}
-                <div className={`w-80 border-l border-[#2c2c2e] bg-[#141414]/80 backdrop-blur-xl flex flex-col transition-all
+                <div className={`w-80 border-l border-border-primary bg-surface-1/80 backdrop-blur-xl flex flex-col transition-all
                     ${selectedNode ? 'translate-x-0' : 'translate-x-full absolute right-0'}
                 `}>
                     {selectedNode && (
                         <div className="p-6 space-y-6 overflow-y-auto">
                             <div className="flex items-center justify-between">
-                                <h3 className="text-xs font-bold uppercase tracking-widest text-[#86868b] flex items-center gap-2">
+                                <h3 className="text-xs font-bold uppercase tracking-widest text-text-secondary flex items-center gap-2">
                                     <Settings2 size={14} />
                                     Node Configuration
                                 </h3>
-                                <button onClick={deleteNode} className="text-[#ff453a] hover:bg-[#ff453a]/10 p-1 rounded transition-all">
+                                <button onClick={deleteNode} className="text-accent-alert hover:bg-accent-alert/10 p-1 rounded transition-all">
                                     <Trash2 size={16} />
                                 </button>
                             </div>
 
                             <div className="space-y-4">
                                 <div className="space-y-1.5">
-                                    <label htmlFor="node-label" className="text-[10px] uppercase tracking-widest font-black text-[#424245]">Label</label>
+                                    <label htmlFor="node-label" className="text-[10px] uppercase tracking-widest font-black text-text-tertiary">Label</label>
                                     <input
                                         id="node-label"
                                         value={selectedNode.data.label}
                                         onChange={(e) => updateNodeData('label', e.target.value)}
-                                        className="w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded-lg px-3 py-2 text-xs text-[#f5f5f7] focus:outline-none focus:ring-1 focus:ring-[#0a84ff]"
+                                        className="w-full bg-surface-2 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
                                     />
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label htmlFor="node-role" className="text-[10px] uppercase tracking-widest font-black text-[#424245]">Role</label>
+                                    <label htmlFor="node-role" className="text-[10px] uppercase tracking-widest font-black text-text-tertiary">Role</label>
                                     <select
                                         id="node-role"
                                         value={selectedNode.data.role}
                                         onChange={(e) => updateNodeData('role', e.target.value)}
-                                        className="w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded-lg px-3 py-2 text-xs text-[#f5f5f7] focus:outline-none focus:ring-1 focus:ring-[#0a84ff]"
+                                        className="w-full bg-surface-2 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
                                     >
                                         <option value="worker">Worker</option>
                                         <option value="reviewer">Reviewer</option>
@@ -323,35 +323,35 @@ export const PlanComposer: React.FC = () => {
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label htmlFor="node-model" className="text-[10px] uppercase tracking-widest font-black text-[#424245]">Model / Provider</label>
+                                    <label htmlFor="node-model" className="text-[10px] uppercase tracking-widest font-black text-text-tertiary">Model / Provider</label>
                                     <div className="grid grid-cols-2 gap-2">
                                         <input
                                             id="node-model"
                                             value={selectedNode.data.model}
                                             onChange={(e) => updateNodeData('model', e.target.value)}
                                             placeholder="Model (auto)"
-                                            className="w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded-lg px-3 py-2 text-xs text-[#f5f5f7] focus:outline-none focus:ring-1 focus:ring-[#0a84ff]"
+                                            className="w-full bg-surface-2 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
                                         />
                                         <input
                                             value={selectedNode.data.provider}
                                             onChange={(e) => updateNodeData('provider', e.target.value)}
                                             placeholder="Provider (auto)"
-                                            className="w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded-lg px-3 py-2 text-xs text-[#f5f5f7] focus:outline-none focus:ring-1 focus:ring-[#0a84ff]"
+                                            className="w-full bg-surface-2 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary"
                                         />
                                     </div>
                                 </div>
 
                                 <div className="space-y-1.5">
-                                    <label htmlFor="node-prompt" className="text-[10px] uppercase tracking-widest font-black text-[#424245]">Prompt / Instructions</label>
+                                    <label htmlFor="node-prompt" className="text-[10px] uppercase tracking-widest font-black text-text-tertiary">Prompt / Instructions</label>
                                     <textarea
                                         id="node-prompt"
                                         value={selectedNode.data.prompt}
                                         onChange={(e) => updateNodeData('prompt', e.target.value)}
                                         rows={8}
-                                        className="w-full bg-[#1c1c1e] border border-[#2c2c2e] rounded-lg px-3 py-2 text-xs text-[#f5f5f7] focus:outline-none focus:ring-1 focus:ring-[#0a84ff] resize-none"
+                                        className="w-full bg-surface-2 border border-border-primary rounded-lg px-3 py-2 text-xs text-text-primary focus:outline-none focus:ring-1 focus:ring-accent-primary resize-none"
                                         placeholder="Enter agent instructions..."
                                     />
-                                    <div className="flex items-start gap-2 text-[10px] text-[#86868b] bg-blue-500/5 p-2 rounded border border-blue-500/10">
+                                    <div className="flex items-start gap-2 text-[10px] text-text-secondary bg-blue-500/5 p-2 rounded border border-blue-500/10">
                                         <Info size={12} className="shrink-0 mt-0.5" />
                                         <span>Las salidas de nodos dependientes se inyectarán automáticamente en el contexto de este nodo.</span>
                                     </div>

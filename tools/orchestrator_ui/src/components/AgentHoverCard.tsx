@@ -22,7 +22,7 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({ data, isVisible 
 
     return (
         <div className={`absolute -top-4 left-1/2 -translate-x-1/2 -translate-y-full mb-4 w-72 
-            bg-[#1c1c1e]/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50
+            bg-surface-2/90 backdrop-blur-xl border border-white/10 rounded-2xl p-4 shadow-2xl z-50
             transition-all duration-300 ease-out origin-bottom
             ${isVisible ? 'opacity-100 scale-100' : 'opacity-0 scale-95 pointer-events-none'}`}>
 
@@ -64,7 +64,7 @@ export const AgentHoverCard: React.FC<AgentHoverCardProps> = ({ data, isVisible 
             </div>
 
             {/* Pointer arrow */}
-            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-[#1c1c1e] border-r border-b border-white/10 rotate-45" />
+            <div className="absolute -bottom-1.5 left-1/2 -translate-x-1/2 w-3 h-3 bg-surface-2 border-r border-b border-white/10 rotate-45" />
         </div>
     );
 };

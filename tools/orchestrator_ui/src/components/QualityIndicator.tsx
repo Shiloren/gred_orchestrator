@@ -12,14 +12,14 @@ export const QualityIndicator: React.FC<QualityIndicatorProps> = ({ quality, siz
     const { score } = quality;
 
     // Determine color based on score
-    let colorClass = 'bg-[#32d74b]'; // Green
+    let colorClass = 'bg-accent-trust'; // Green
     let pulseClass = '';
 
     if (score < 50) {
-        colorClass = 'bg-[#ff453a]'; // Red
+        colorClass = 'bg-accent-alert'; // Red
         pulseClass = 'animate-ping opacity-75';
     } else if (score < 80) {
-        colorClass = 'bg-[#ffd60a]'; // Amber
+        colorClass = 'bg-accent-warning'; // Amber
         pulseClass = 'animate-pulse';
     }
 

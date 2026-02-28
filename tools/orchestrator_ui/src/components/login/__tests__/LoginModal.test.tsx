@@ -88,6 +88,37 @@ describe('LoginModal (Cold Room)', () => {
         });
     });
 
+    it('mapea machine_mismatch en activación cold-room', async () => {
+        vi.stubGlobal(
+            'fetch',
+            vi.fn().mockResolvedValue({
+                ok: false,
+                json: async () => ({ detail: 'machine_mismatch' }),
+            }),
+        );
+
+        render(<LoginModal onAuthenticated={vi.fn()} />);
+
+        fireEvent.click(await screen.findByText('Sala Limpia'));
+
+        fireEvent.change(screen.getByPlaceholderText(/license blob firmado/i), {
+            target: { value: 'blob-valid-en-longitud-abcdefghijklm' },
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: /activar licencia cold room/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText(/machine id no coincide/i)).toBeInTheDocument();
+        });
+    });
+
+    it('con reduced motion salta boot y muestra selector de métodos', async () => {
+        render(<LoginModal onAuthenticated={vi.fn()} />);
+
+        expect(await screen.findByText('Google SSO')).toBeInTheDocument();
+        expect(screen.getByText('Token local')).toBeInTheDocument();
+    });
+
     it('renueva cold-room y completa autenticación en éxito', async () => {
         const onAuthenticated = vi.fn();
 
@@ -124,6 +155,47 @@ describe('LoginModal (Cold Room)', () => {
 
         await waitFor(() => {
             expect(addToastMock).toHaveBeenCalledWith('Renovación Cold Room aplicada', 'success');
+        });
+
+        vi.advanceTimersByTime(500);
+        expect(onAuthenticated).toHaveBeenCalled();
+    });
+
+    it('accede con cold-room activa sin pedir blob', async () => {
+        const onAuthenticated = vi.fn();
+
+        mockedColdStatus = {
+            enabled: true,
+            paired: true,
+            renewal_needed: false,
+            renewal_valid: true,
+            vm_detected: false,
+            machine_id: 'GIMO-TEST-0001',
+            plan: 'enterprise_cold_room',
+        };
+
+        const fetchMock = vi.fn().mockResolvedValue({
+            ok: true,
+            json: async () => ({}),
+        });
+        vi.stubGlobal('fetch', fetchMock);
+
+        render(<LoginModal onAuthenticated={onAuthenticated} />);
+
+        fireEvent.click(await screen.findByText('Sala Limpia'));
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledWith(
+                expect.stringContaining('/auth/cold-room/access'),
+                expect.objectContaining({
+                    method: 'POST',
+                    credentials: 'include',
+                }),
+            );
+        });
+
+        await waitFor(() => {
+            expect(addToastMock).toHaveBeenCalledWith('Acceso Cold Room validado', 'success');
         });
 
         vi.advanceTimersByTime(500);

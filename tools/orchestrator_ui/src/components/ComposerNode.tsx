@@ -7,10 +7,10 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
 
     const getStatusIcon = () => {
         switch (status) {
-            case 'done': return <CheckCircle2 className="text-[#32d74b]" size={12} />;
-            case 'error': return <AlertCircle className="text-[#ff453a]" size={12} />;
-            case 'running': return <PlayCircle className="text-[#0a84ff] animate-pulse" size={12} />;
-            default: return <Clock className="text-[#86868b]" size={12} />;
+            case 'done': return <CheckCircle2 className="text-accent-trust" size={12} />;
+            case 'error': return <AlertCircle className="text-accent-alert" size={12} />;
+            case 'running': return <PlayCircle className="text-accent-primary animate-pulse" size={12} />;
+            default: return <Clock className="text-text-secondary" size={12} />;
         }
     };
 
@@ -24,10 +24,10 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
 
     return (
         <div className={`
-            min-w-[180px] bg-[#1c1c1e] border-2 rounded-xl p-3 shadow-2xl transition-all
-            ${selected ? 'border-[#0a84ff] shadow-[#0a84ff]/20' : 'border-[#2c2c2e]'}
+            min-w-[180px] bg-surface-2 border-2 rounded-xl p-3 shadow-2xl transition-all
+            ${selected ? 'border-accent-primary shadow-accent-primary/20' : 'border-border-primary'}
         `}>
-            <Handle type="target" position={Position.Top} className="!bg-[#0a84ff] !border-none !w-2 !h-2" />
+            <Handle type="target" position={Position.Top} className="!bg-accent-primary !border-none !w-2 !h-2" />
 
             <div className="flex items-center justify-between mb-2">
                 <div className={`flex items-center gap-1.5 px-1.5 py-0.5 rounded text-[8px] uppercase font-bold tracking-wider
@@ -42,13 +42,13 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
             </div>
 
             <div className="space-y-1">
-                <div className="text-xs font-semibold text-[#f5f5f7] truncate">{label}</div>
-                <div className="text-[10px] text-[#86868b] flex items-center gap-1">
-                    <span className="font-mono bg-[#2c2c2e] px-1 rounded truncate max-w-[120px]">{model || 'auto'}</span>
+                <div className="text-xs font-semibold text-text-primary truncate">{label}</div>
+                <div className="text-[10px] text-text-secondary flex items-center gap-1">
+                    <span className="font-mono bg-surface-3 px-1 rounded truncate max-w-[120px]">{model || 'auto'}</span>
                 </div>
             </div>
 
-            <Handle type="source" position={Position.Bottom} className="!bg-[#0a84ff] !border-none !w-2 !h-2" />
+            <Handle type="source" position={Position.Bottom} className="!bg-accent-primary !border-none !w-2 !h-2" />
         </div>
     );
 });

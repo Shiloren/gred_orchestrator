@@ -1,7 +1,7 @@
 import React from 'react';
 import { KeyRound, ShieldCheck, Sparkles } from 'lucide-react';
 
-export type AuthMethod = 'google' | 'token' | 'cold-activate' | 'cold-renew';
+export type AuthMethod = 'google' | 'token' | 'cold-activate' | 'cold-renew' | 'cold-access';
 
 interface Props {
     canUseColdRoom: boolean;
@@ -15,7 +15,7 @@ interface Props {
 const cardBase = 'rounded-2xl border bg-surface-2/60 backdrop-blur-lg p-4 text-left transition-all duration-200 hover:translate-y-[-1px] hover:scale-[1.02] active:scale-[0.99]';
 
 export const AuthMethodSelector: React.FC<Props> = ({ canUseColdRoom, paired = false, renewalNeeded, vmDetected = false, coldRoomLoading = false, onSelect }) => {
-    const coldMethod: AuthMethod = renewalNeeded ? 'cold-renew' : 'cold-activate';
+    const coldMethod: AuthMethod = renewalNeeded ? 'cold-renew' : paired ? 'cold-access' : 'cold-activate';
     const coldSubtitle = !paired
         ? 'Licencia offline firmada para entornos air-gapped'
         : renewalNeeded

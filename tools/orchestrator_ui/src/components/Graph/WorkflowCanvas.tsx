@@ -105,7 +105,7 @@ export const WorkflowCanvas = ({ data, onNodeClick }: WorkflowCanvasProps) => {
                 colorMode="dark"
                 defaultEdgeOptions={{
                     animated: true,
-                    style: { stroke: '#3b82f6', strokeWidth: 2 },
+                    style: { stroke: 'var(--accent-primary)', strokeWidth: 2 },
                     type: 'smoothstep'
                 }}
             >
@@ -113,7 +113,7 @@ export const WorkflowCanvas = ({ data, onNodeClick }: WorkflowCanvasProps) => {
                     variant={BackgroundVariant.Dots}
                     gap={20}
                     size={1}
-                    color="#27272a"
+                    color="var(--surface-2)"
                 />
                 <Controls className="!bg-zinc-900 !border-white/10 !fill-zinc-400" />
                 <LayoutHandler

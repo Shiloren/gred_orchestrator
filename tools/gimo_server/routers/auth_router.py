@@ -266,6 +266,36 @@ async def cold_room_renew(body: ColdRoomRenewRequest) -> dict[str, Any]:
     }
 
 
+@router.post("/cold-room/access", response_model=LoginResponse)
+async def cold_room_access(response: Response, request: Request) -> LoginResponse:
+    """Pre-auth endpoint: authenticate when Cold Room license is already valid."""
+    if not _cold_room_enabled():
+        raise HTTPException(status_code=404, detail="Cold Room disabled")
+
+    manager = _get_cold_room_manager()
+    status = manager.get_status()
+    if not status.get("paired"):
+        raise HTTPException(status_code=401, detail="cold_room_not_paired")
+    if not status.get("renewal_valid"):
+        raise HTTPException(status_code=401, detail="cold_room_renewal_required")
+
+    role = "operator"
+    cookie_value = session_store.create(
+        role=role,
+        plan=str(status.get("plan") or "cold_room"),
+    )
+    response.set_cookie(
+        key=SESSION_COOKIE_NAME,
+        value=cookie_value,
+        httponly=True,
+        samesite="lax",
+        secure=_is_secure_request(request),
+        max_age=86400,
+        path="/",
+    )
+    return LoginResponse(role=role, message="Authenticated via Cold Room")
+
+
 @router.get("/check")
 async def check_session(request: Request):
     """Check if the current session cookie is valid. No auth required."""

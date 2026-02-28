@@ -51,6 +51,6 @@ describe('AuthMethodSelector', () => {
         expect(screen.getByText('VM detectada')).toBeInTheDocument();
 
         fireEvent.click(screen.getByText('Sala Limpia'));
-        expect(onSelect).toHaveBeenCalledWith('cold-activate');
+        expect(onSelect).toHaveBeenCalledWith('cold-access');
     });
 });
