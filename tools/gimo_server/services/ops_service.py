@@ -80,8 +80,9 @@ class OpsService:
 
     @classmethod
     def _merge_lock_path(cls, repo_id: str) -> Path:
-        safe = str(repo_id or "default").replace("/", "_").replace("\\", "_")
-        return cls.LOCKS_DIR / f"merge_{safe}.json"
+        safe_repo_id = str(repo_id or "default")
+        digest = hashlib.sha256(safe_repo_id.encode("utf-8", errors="ignore")).hexdigest()[:24]
+        return cls.LOCKS_DIR / f"merge_{digest}.json"
 
     @classmethod
     def _deterministic_run_id(cls, draft_id: str, commit_base: str) -> str:
