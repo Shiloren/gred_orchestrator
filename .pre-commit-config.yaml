@@ -47,6 +47,13 @@ repos:
         additional_dependencies: ['bandit[toml]']
         exclude: ^tests/
 
+  # Secret scanning (prevent credential leaks before push)
+  - repo: https://github.com/Yelp/detect-secrets
+    rev: v1.5.0
+    hooks:
+      - id: detect-secrets
+        exclude: ^(tools/orchestrator_ui/package-lock\.json|tools/orchestrator_ui/coverage/|vendor/)
+
   # Local policy hooks
   - repo: local
     hooks:
