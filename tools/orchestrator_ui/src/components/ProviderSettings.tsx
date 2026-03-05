@@ -83,6 +83,7 @@ export const ProviderSettings: React.FC = () => {
         providers,
         providerCapabilities,
         effectiveState,
+        roles,
         catalogs,
         catalogLoading,
         nodes,
@@ -116,7 +117,7 @@ export const ProviderSettings: React.FC = () => {
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Codex device flow state
-    const [deviceLoginState, setDeviceLoginState] = useState<{ status: string; verification_url?: string; user_code?: string; message?: string } | null>(null);
+    const [deviceLoginState, setDeviceLoginState] = useState<{ status: string; verification_url?: string; user_code?: string; message?: string; action?: string } | null>(null);
 
     const [recommendation, setRecommendation] = useState<any>(null);
     const [loadingRecommendation, setLoadingRecommendation] = useState(true);
@@ -137,10 +138,13 @@ export const ProviderSettings: React.FC = () => {
     const effectiveHealth = validateResult?.health || effectiveState?.health || 'unknown';
     const effectiveActionableError = validateResult?.error_actionable || effectiveState?.last_error_actionable || 'sin errores recientes';
     const roleLabel = useMemo(() => {
+        if (roles?.orchestrator?.provider_id) {
+            return `orchestrator + ${roles.workers?.length || 0} workers`;
+        }
         const active = providers.find((p) => p.id === effectiveState?.active);
         if (!active) return 'unknown';
         return active.is_local ? 'local' : 'remote';
-    }, [providers, effectiveState]);
+    }, [providers, effectiveState, roles]);
 
     const modelGroups = useMemo(() => {
         const installed = catalog?.installed_models || [];
@@ -225,6 +229,23 @@ export const ProviderSettings: React.FC = () => {
     }, [catalog]);
 
     const selectedModelInstalados = modelGroups.installed.some((m) => m.id === modelId);
+
+    const healthBadgeClass = useMemo(() => {
+        const health = String(effectiveHealth || '').toLowerCase();
+        if (health === 'ok') return 'bg-emerald-500/15 text-emerald-300 border-emerald-500/30';
+        if (health === 'degraded') return 'bg-amber-500/15 text-amber-300 border-amber-500/30';
+        if (health === 'down') return 'bg-red-500/15 text-red-300 border-red-500/30';
+        return 'bg-surface-3 text-text-secondary border-border-primary';
+    }, [effectiveHealth]);
+
+    const renderModelMeta = useCallback((m: any) => {
+        const caps = Array.isArray(m?.capabilities) ? m.capabilities : [];
+        const capText = caps.length ? `Excelente en: ${caps.join(', ')}` : null;
+        const weakness = m?.weakness ? `Debilidad: ${m.weakness}` : null;
+        const context = typeof m?.context_window === 'number' ? `${m.context_window.toLocaleString()} ctx` : null;
+        const pieces = [capText, weakness, context].filter(Boolean);
+        return pieces.length ? pieces.join(' | ') : (m?.description || 'Sin metadata adicional');
+    }, []);
 
     const handleInstallAndUse = useCallback(async (explicitModelId?: string) => {
         const targetModel = explicitModelId || modelId;
@@ -319,7 +340,7 @@ export const ProviderSettings: React.FC = () => {
                 }
             }
         } catch (err: any) {
-            setDeviceLoginState({ status: 'error', message: err.message || 'Error al iniciar flujo' });
+            setDeviceLoginState({ status: 'error', message: err.message || 'Error al iniciar flujo', action: err?.action });
             addToast('Error al conectar cuenta OpenAI', 'error');
         }
     };
@@ -341,10 +362,11 @@ export const ProviderSettings: React.FC = () => {
         }
     };
 
-    const handleSaveAsActive = useCallback(async (overrides?: { providerId?: string; modelId?: string; authMode?: string }) => {
+    const handleSaveAsActive = useCallback(async (overrides?: { providerId?: string; modelId?: string; authMode?: string; roleTarget?: 'orchestrator' | 'worker' }) => {
         const effectiveProviderId = overrides?.providerId || providerId;
         const effectiveModelId = overrides?.modelId || modelId;
         const effectiveAuthMode = overrides?.authMode || authMode;
+        const roleTarget = overrides?.roleTarget || 'orchestrator';
         if (!effectiveProviderId.trim() || !effectiveModelId.trim()) {
             addToast('Provider ID y modelo son obligatorios', 'error');
             return;
@@ -355,6 +377,7 @@ export const ProviderSettings: React.FC = () => {
                 providerType: providerType,
                 modelId: effectiveModelId.trim(),
                 authMode: effectiveAuthMode,
+                roleTarget,
                 apiKey: effectiveAuthMode === 'api_key' ? apiKey : undefined,
                 account: effectiveAuthMode === 'account' ? account : undefined,
                 baseUrl: baseUrl || undefined,
@@ -373,10 +396,12 @@ export const ProviderSettings: React.FC = () => {
 
     const applyRecommendation = useCallback(() => {
         if (!recommendation) return;
-        setProviderType(recommendation.provider);
-        setModelId(recommendation.model);
+        const orchestratorReco = recommendation.orchestrator || { provider: recommendation.provider, model: recommendation.model };
+        setProviderType(orchestratorReco.provider);
+        setModelId(orchestratorReco.model);
+        setProviderId(`${orchestratorReco.provider}-main`);
         setAuthMode('none');
-        addToast(`Configuración sugerida aplicada: ${recommendation.provider} - ${recommendation.model}. Haz clic en Guardar Configuración.`, 'success');
+        addToast(`Configuración sugerida aplicada: ${orchestratorReco.provider} - ${orchestratorReco.model}. Haz clic en Guardar Configuración.`, 'success');
         window.scrollTo({ top: document.body.scrollHeight, behavior: 'smooth' });
     }, [recommendation, addToast]);
 
@@ -400,8 +425,11 @@ export const ProviderSettings: React.FC = () => {
                             <p className="text-xs text-text-secondary">
                                 Hardware detectado: {recommendation.hardware?.gpu_vendor && recommendation.hardware.gpu_vendor !== 'none' ? `${recommendation.hardware.gpu_vendor.toUpperCase()} GPU (${recommendation.hardware.gpu_vram_gb}GB)` : 'Sin GPU compatible detectada'}, RAM: {recommendation.hardware?.total_ram_gb}GB
                             </p>
-                            <p className="text-xs text-indigo-200 mt-2 font-medium">Recomendación: {recommendation.provider} ({recommendation.model}) con {recommendation.workers} workers.</p>
-                            <p className="text-[10px] text-text-secondary mt-0.5">Motivo: {recommendation.reason}</p>
+                            <p className="text-xs text-indigo-200 mt-2 font-medium">
+                                Recomendación: {recommendation.orchestrator?.provider || recommendation.provider} ({recommendation.orchestrator?.model || recommendation.model})
+                                {' '}con {recommendation.worker_pool?.[0]?.count_hint || recommendation.workers} workers.
+                            </p>
+                            <p className="text-[10px] text-text-secondary mt-0.5">Motivo: {recommendation.topology_reason || recommendation.reason}</p>
                         </div>
                         <Button onClick={applyRecommendation} className="bg-indigo-600 hover:bg-indigo-500 text-white shrink-0 text-xs">
                             Aplicar Configuración
@@ -416,7 +444,12 @@ export const ProviderSettings: React.FC = () => {
                     <div><span className="text-text-secondary">Provider activo:</span> <span className="font-semibold">{effectiveState?.active || 'n/a'}</span></div>
                     <div><span className="text-text-secondary">Modelo efectivo:</span> <span className="font-semibold">{effectiveState?.model_id || 'n/a'}</span></div>
                     <div><span className="text-text-secondary">Rol:</span> <span className="font-semibold">{roleLabel}</span></div>
-                    <div><span className="text-text-secondary">Salud:</span> <span className="font-semibold">{effectiveHealth}</span></div>
+                    <div>
+                        <span className="text-text-secondary mr-2">Salud:</span>
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs border ${healthBadgeClass}`}>
+                            {effectiveHealth}
+                        </span>
+                    </div>
                     <div className="md:col-span-2"><span className="text-text-secondary">Error accionable:</span> <span className="font-semibold text-accent-warning">{effectiveActionableError}</span></div>
                 </div>
             </Card>
@@ -508,7 +541,7 @@ export const ProviderSettings: React.FC = () => {
                                                                 setProviderId('ollama-main');
                                                                 setModelId(m.id);
                                                                 setAuthMode('none');
-                                                                void handleSaveAsActive({ providerId: 'ollama-main', modelId: m.id, authMode: 'none' });
+                                                                void handleSaveAsActive({ providerId: 'ollama-main', modelId: m.id, authMode: 'none', roleTarget: 'orchestrator' });
                                                             }}
                                                         >
                                                             Asignar Orchestrator
@@ -523,6 +556,7 @@ export const ProviderSettings: React.FC = () => {
                                                                         providerType: 'ollama_local',
                                                                         modelId: m.id,
                                                                         authMode: 'none',
+                                                                        roleTarget: 'worker',
                                                                     });
                                                                     addToast(`Worker ${m.label} enrolado`, 'success');
                                                                 } catch {
@@ -603,7 +637,23 @@ export const ProviderSettings: React.FC = () => {
                                                     <div className="text-sm font-medium">Cuenta de OpenAI (Suscripción Plus/Pro)</div>
                                                     <div className="text-xs text-text-secondary mt-1">Usa los modelos a los que ya tienes acceso sin pagar por token a través de API Keys.</div>
                                                     {deviceLoginState?.status === 'error' && (
-                                                        <div className="mt-2 text-xs text-accent-alert bg-accent-alert/10 p-2 rounded">{deviceLoginState.message}</div>
+                                                        <div className="mt-2 text-xs text-accent-alert bg-accent-alert/10 p-2 rounded space-y-2">
+                                                            <div>{deviceLoginState.message}</div>
+                                                            {deviceLoginState.action ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        if (navigator.clipboard) {
+                                                                            void navigator.clipboard.writeText(deviceLoginState.action || '');
+                                                                            addToast('Comando copiado', 'success');
+                                                                        }
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded border border-accent-alert/40 hover:bg-accent-alert/20 text-[11px]"
+                                                                >
+                                                                    Copiar comando de instalación
+                                                                </button>
+                                                            ) : null}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <Button onClick={handleOAuthLikeLogin} className="w-full bg-[#10a37f] hover:bg-[#0e906f] text-white flex items-center justify-center gap-2 shadow-md h-10 transition-colors">
@@ -750,7 +800,8 @@ export const ProviderSettings: React.FC = () => {
                                                                 }}
                                                                 className={`w-full text-left px-2 py-1.5 text-sm rounded ${modelId === m.id ? 'bg-indigo-500/20 text-indigo-200' : 'hover:bg-surface-2 text-text-primary'}`}
                                                             >
-                                                                {m.label}
+                                                                <div className="font-medium">{m.label}</div>
+                                                                <div className="text-[10px] text-text-secondary mt-0.5">{renderModelMeta(m)}</div>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -768,7 +819,8 @@ export const ProviderSettings: React.FC = () => {
                                                                 }}
                                                                 className={`w-full text-left px-2 py-1.5 text-sm rounded ${modelId === m.id ? 'bg-indigo-500/20 text-indigo-200' : 'hover:bg-surface-2 text-text-primary'}`}
                                                             >
-                                                                {m.label}
+                                                                <div className="font-medium">{m.label}</div>
+                                                                <div className="text-[10px] text-text-secondary mt-0.5">{renderModelMeta(m)}</div>
                                                             </button>
                                                         ))}
                                                     </div>
@@ -786,7 +838,8 @@ export const ProviderSettings: React.FC = () => {
                                                                 }}
                                                                 className={`w-full text-left px-2 py-1.5 text-sm rounded ${modelId === m.id ? 'bg-indigo-500/20 text-indigo-200' : 'hover:bg-surface-2 text-text-primary'}`}
                                                             >
-                                                                {m.label}
+                                                                <div className="font-medium">{m.label}</div>
+                                                                <div className="text-[10px] text-text-secondary mt-0.5">{renderModelMeta(m)}</div>
                                                             </button>
                                                         ))}
                                                     </div>

@@ -4,6 +4,7 @@ import {
     ProviderCatalogResponse,
     ProviderInfo,
     ProviderInstallResult,
+    ProviderRolesConfig,
     ProviderValidatePayload,
     ProviderValidateResult,
     SaveActiveProviderPayload,
@@ -14,6 +15,7 @@ export const useProviders = () => {
     const [nodes, setNodes] = useState<any>({});
     const [providerCapabilities, setProviderCapabilities] = useState<Record<string, any>>({});
     const [effectiveState, setEffectiveState] = useState<Record<string, any>>({});
+    const [roles, setRoles] = useState<ProviderRolesConfig | null>(null);
     const [catalogs, setCatalogs] = useState<Record<string, ProviderCatalogResponse>>({});
     const [catalogLoading, setCatalogLoading] = useState<Record<string, boolean>>({});
     const [loading, setLoading] = useState(false);
@@ -60,6 +62,18 @@ export const useProviders = () => {
                 const data = await res.json();
                 setProviders(mapOpsConfigToProviders(data));
                 setEffectiveState(data?.effective_state || {});
+                const fallbackRoles = data?.orchestrator_provider
+                    ? {
+                        orchestrator: {
+                            provider_id: data.orchestrator_provider,
+                            model: data.orchestrator_model || data.model_id || '',
+                        },
+                        workers: data?.worker_provider
+                            ? [{ provider_id: data.worker_provider, model: data.worker_model || '' }]
+                            : [],
+                    }
+                    : null;
+                setRoles(data?.roles || fallbackRoles);
                 const capsRes = await fetch(`${API_BASE}/ops/provider/capabilities`, getRequestInit());
                 if (capsRes.ok) {
                     const caps = await capsRes.json();
@@ -79,6 +93,7 @@ export const useProviders = () => {
                     setProviders(Array.isArray(legacyData) ? legacyData : (legacyData.providers ?? []));
                 }
                 setEffectiveState({});
+                setRoles(null);
             }
 
             const nodeRes = await fetch(`${API_BASE}/ui/nodes`, getRequestInit());
@@ -154,8 +169,19 @@ export const useProviders = () => {
             method: 'POST',
             ...getRequestInit(true),
         });
-        if (!res.ok) throw new Error('Failed to start Codex device login flow');
-        return await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (data?.status === 'error') {
+            const err: any = new Error(data?.message || 'Codex login error');
+            if (data?.action) err.action = data.action;
+            throw err;
+        }
+        if (!res.ok) {
+            const message = data?.message || data?.detail || 'Failed to start Codex device login flow';
+            const err: any = new Error(message);
+            if (data?.action) err.action = data.action;
+            throw err;
+        }
+        return data;
     }, []);
 
     const startClaudeLogin = useCallback(async () => {
@@ -174,15 +200,47 @@ export const useProviders = () => {
 
         const providerType = payload.providerType;
         const providerId = payload.providerId;
-        const isWorkerInfo = providerId.startsWith('ollama-worker-');
+        const targetRole = payload.roleTarget || (providerId.startsWith('ollama-worker-') ? 'worker' : 'orchestrator');
         const existing = current?.providers?.[providerId] || {};
         const capabilities = providerCapabilities[providerType] || existing.capabilities || {};
+
+        const currentRoles = current?.roles;
+        const fallbackOrchestratorProvider = currentRoles?.orchestrator?.provider_id || current?.orchestrator_provider || current?.active || providerId;
+        const fallbackOrchestratorModel = currentRoles?.orchestrator?.model || current?.orchestrator_model || current?.model_id || payload.modelId;
+        const fallbackWorkers = Array.isArray(currentRoles?.workers)
+            ? currentRoles.workers
+            : (current?.worker_provider
+                ? [{ provider_id: current.worker_provider, model: current?.worker_model || '' }]
+                : []);
+
+        const nextRoles = {
+            orchestrator: {
+                provider_id: fallbackOrchestratorProvider,
+                model: fallbackOrchestratorModel,
+            },
+            workers: [...fallbackWorkers],
+        };
+
+        if (targetRole === 'worker') {
+            const workerBinding = { provider_id: providerId, model: payload.modelId };
+            const workerIdx = nextRoles.workers.findIndex((w: any) => w.provider_id === providerId);
+            if (workerIdx >= 0) nextRoles.workers[workerIdx] = workerBinding;
+            else nextRoles.workers.push(workerBinding);
+        } else {
+            nextRoles.orchestrator = { provider_id: providerId, model: payload.modelId };
+        }
+
         const next = {
             ...current,
-            active: isWorkerInfo ? current.active : providerId,
-            provider_type: isWorkerInfo ? current.provider_type : providerType,
-            model_id: isWorkerInfo ? current.model_id : payload.modelId,
-            auth_mode: isWorkerInfo ? current.auth_mode : payload.authMode,
+            active: nextRoles.orchestrator.provider_id,
+            provider_type: providerType,
+            model_id: nextRoles.orchestrator.model,
+            auth_mode: payload.authMode,
+            roles: nextRoles,
+            orchestrator_provider: nextRoles.orchestrator.provider_id,
+            orchestrator_model: nextRoles.orchestrator.model,
+            worker_provider: nextRoles.workers[0]?.provider_id || null,
+            worker_model: nextRoles.workers[0]?.model || null,
             providers: {
                 ...(current.providers || {}),
                 [providerId]: {
@@ -308,6 +366,7 @@ export const useProviders = () => {
         providers,
         providerCapabilities,
         effectiveState,
+        roles,
         catalogs,
         catalogLoading,
         nodes,

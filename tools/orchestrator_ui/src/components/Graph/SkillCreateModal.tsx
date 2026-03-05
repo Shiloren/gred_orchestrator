@@ -1,7 +1,17 @@
 import React, { useState } from 'react';
-import { Sparkles, Loader2, Save, X } from 'lucide-react';
-import { API_BASE } from '../../types';
+import { Sparkles, Loader2, Save, X, Brain, Zap, MessageCircle, Paintbrush, Shield, GraduationCap, Minus } from 'lucide-react';
+import { API_BASE, AgentMood } from '../../types';
 import { useToast } from '../Toast';
+
+const MOOD_OPTIONS: { value: AgentMood; label: string; icon: React.ReactNode }[] = [
+    { value: 'neutral', label: 'Neutral', icon: <Minus size={12} /> },
+    { value: 'forensic', label: 'Forense', icon: <Brain size={12} /> },
+    { value: 'executor', label: 'Ejecutor', icon: <Zap size={12} /> },
+    { value: 'dialoger', label: 'Dialogador', icon: <MessageCircle size={12} /> },
+    { value: 'creative', label: 'Creativo', icon: <Paintbrush size={12} /> },
+    { value: 'guardian', label: 'Guardián', icon: <Shield size={12} /> },
+    { value: 'mentor', label: 'Mentor', icon: <GraduationCap size={12} /> },
+];
 
 interface SkillCreateModalProps {
     onClose: () => void;
@@ -18,6 +28,7 @@ export const SkillCreateModal: React.FC<SkillCreateModalProps> = ({ onClose, nod
     const [description, setDescription] = useState('');
     const [isGenerating, setIsGenerating] = useState(false);
     const [isSaving, setIsSaving] = useState(false);
+    const [mood, setMood] = useState<AgentMood>('neutral');
 
     const handleGenerateDesc = async () => {
         setIsGenerating(true);
@@ -28,8 +39,8 @@ export const SkillCreateModal: React.FC<SkillCreateModalProps> = ({ onClose, nod
                 body: JSON.stringify({ name, command, nodes: nodesPayload, edges: edgesPayload }),
             });
             if (res.ok) {
-                const text = await res.text();
-                setDescription(text.replace(/^"/, '').replace(/"$/, ''));
+                const data = await res.json();
+                setDescription(data.description ?? '');
             } else {
                 addToast('Error generando descripción', 'error');
             }
@@ -54,7 +65,8 @@ export const SkillCreateModal: React.FC<SkillCreateModalProps> = ({ onClose, nod
                     description,
                     replace_graph: replaceGraph,
                     nodes: nodesPayload,
-                    edges: edgesPayload
+                    edges: edgesPayload,
+                    mood
                 }),
             });
             if (res.ok) {
@@ -109,6 +121,26 @@ export const SkillCreateModal: React.FC<SkillCreateModalProps> = ({ onClose, nod
                         </div>
                         <textarea id="skill-desc" value={description} onChange={e => setDescription(e.target.value)} placeholder="Descripción generada u original..." rows={3}
                             className="rounded-xl bg-white/5 border border-white/10 text-text-primary text-sm py-2 px-3 placeholder:text-text-tertiary focus:outline-none focus:border-violet-500 resize-none" />
+                    </div>
+
+                    {/* Mood selector */}
+                    <div className="flex flex-col gap-1.5">
+                        <label className="text-[11px] font-medium text-text-secondary uppercase tracking-wider">Mood del Agente</label>
+                        <div className="flex flex-wrap gap-1.5">
+                            {MOOD_OPTIONS.map(m => (
+                                <button
+                                    key={m.value}
+                                    type="button"
+                                    onClick={() => setMood(m.value)}
+                                    className={`flex items-center gap-1 px-2 py-1 rounded-lg border text-[10px] font-medium transition-all ${mood === m.value
+                                            ? 'border-violet-500/50 bg-violet-500/10 text-violet-300'
+                                            : 'border-white/5 bg-white/5 text-text-tertiary hover:border-white/10'
+                                        }`}
+                                >
+                                    {m.icon} {m.label}
+                                </button>
+                            ))}
+                        </div>
                     </div>
 
                     <label className="flex items-center gap-2 cursor-pointer mt-1">

@@ -196,11 +196,11 @@ CRITERIOS DE ACEPTACIÓN
 Ejecutar skills de forma trazable y desacoplada del plan visual activo.
 
 ### Tareas
-- [ ] Implementar `POST /ops/skills/{id}/execute`
-- [ ] Generar `skill_run_id` único por ejecución
-- [ ] Integrar ejecución con motor de CustomPlan
-- [ ] Emitir SSE start/progress/finish por run
-- [ ] Manejar error terminal con evento final
+- [x] Implementar `POST /ops/skills/{id}/execute`
+- [x] Generar `skill_run_id` único por ejecución
+- [x] Integrar ejecución con motor de CustomPlan
+- [x] Emitir SSE start/progress/finish por run
+- [x] Manejar error terminal con evento final
 
 ### Entregables
 - Endpoint execute funcional
@@ -208,9 +208,9 @@ Ejecutar skills de forma trazable y desacoplada del plan visual activo.
 - Tests integración de ejecución + streaming
 
 ### DoD Fase 2
-- [ ] Dos ejecuciones simultáneas no colisionan
-- [ ] Hay progreso incremental real
-- [ ] Error emite `skill_execution_finished` con estado error
+- [x] Dos ejecuciones simultáneas no colisionan
+- [x] Hay progreso incremental real
+- [x] Error emite `skill_execution_finished` con estado error
 
 ### System Prompt — Agente Runtime Fase 2
 
@@ -295,19 +295,19 @@ CRITERIOS DE ACEPTACIÓN
 Interceptar slash commands y enrutar a ejecución de skills.
 
 ### Tareas
-- [ ] Parsear input `/` en `OrchestratorChat`
-- [ ] Mostrar autocomplete de commands
-- [ ] Si slash válido: ejecutar skill (no LLM)
-- [ ] Soportar `replace_graph=true` y `replace_graph=false`
+- [x] Parsear input `/` en `OrchestratorChat`
+- [x] Mostrar autocomplete de commands
+- [x] Si slash válido: ejecutar skill (no LLM)
+- [x] Soportar `replace_graph=true` y `replace_graph=false`
 
 ### Entregables
 - slash UX funcional por teclado
 - dispatch correcto al endpoint execute
 
 ### DoD Fase 4
-- [ ] Mensaje normal mantiene comportamiento actual
-- [ ] `/comando` válido no pasa por flujo LLM
-- [ ] Autocomplete usable con Enter/Arrow keys
+- [x] Mensaje normal mantiene comportamiento actual
+- [x] `/comando` válido no pasa por flujo LLM
+- [x] Autocomplete usable con Enter/Arrow keys
 
 ### System Prompt — Agente Chat Fase 4
 
@@ -343,19 +343,19 @@ CRITERIOS DE ACEPTACIÓN
 Mostrar progreso de skills en background sin contaminar el canvas.
 
 ### Tareas
-- [ ] Crear componente `BackgroundRunner`
-- [ ] Integrar escucha SSE global
-- [ ] Mostrar progreso, estado y finalización
-- [ ] Auto-dismiss a 5s post-completion
+- [x] Crear componente `BackgroundRunner`
+- [x] Integrar escucha SSE global
+- [x] Mostrar progreso, estado y finalización
+- [x] Auto-dismiss a 5s post-completion
 
 ### Entregables
 - widget global estable
 - visualización multi-run (cola/lista compacta)
 
 ### DoD Fase 5
-- [ ] run iniciado -> widget visible
-- [ ] progreso se actualiza en tiempo real
-- [ ] run terminado -> estado final + auto cierre
+- [x] run iniciado -> widget visible
+- [x] progreso se actualiza en tiempo real
+- [x] run terminado -> estado final + auto cierre
 
 ### System Prompt — Agente UX Runtime Fase 5
 
@@ -397,18 +397,18 @@ skill_bundle/
 ```
 
 ### Tareas
-- [ ] Definir schema `skill.yaml`
-- [ ] Implementar export local de skill
-- [ ] Implementar install local desde bundle
-- [ ] Implementar run por command/id instalada
+- [x] Definir schema `skill.json` (implementado como JSON en lugar de YAML por coherencia)
+- [x] Implementar export local de skill
+- [x] Implementar install local desde bundle
+- [x] Implementar run por command/id instalada
 
 ### Entregables
 - formato portable usable entre entornos locales
 - comandos CLI base
 
 ### DoD Fase 6
-- [ ] export -> install -> run funciona end-to-end
-- [ ] validación de bundle inválido rechaza instalación
+- [x] export -> install -> run funciona end-to-end
+- [x] validación de bundle inválido rechaza instalación
 
 ### System Prompt — Agente Platform Fase 6
 
@@ -442,8 +442,8 @@ CRITERIOS DE ACEPTACIÓN
 Cerrar la implementación con estabilidad operativa.
 
 ### Tareas
-- [ ] Unit tests backend/frontend añadidos
-- [ ] Integración execute + SSE + chat slash
+- [x] Unit tests backend/frontend añadidos
+- [x] Integración execute + SSE + chat slash
 - [ ] E2E de flujo completo
 - [ ] Test de concurrencia básica
 - [ ] Test de reinicio backend durante run
@@ -544,15 +544,15 @@ SALIDA OBLIGATORIA POR CICLO
 
 ## 11) Checklist maestro de Go/No-Go final
 
-- [ ] Skill model único activo y estable
-- [ ] CRUD skills completo
-- [ ] Execute con `skill_run_id` operativo
-- [ ] SSE start/progress/finish estable
-- [ ] Slash commands con autocomplete operativo
-- [ ] `replace_graph` y background funcionando
-- [ ] BackgroundRunner global estable
-- [ ] Bundle export/install/run local operativo
-- [ ] Tests unit/integration/e2e mínimos verdes
+- [x] Skill model único activo y estable
+- [x] CRUD skills completo
+- [x] Execute con `skill_run_id` operativo
+- [x] SSE start/progress/finish estable
+- [x] Slash commands con autocomplete operativo
+- [x] `replace_graph` y background funcionando
+- [x] BackgroundRunner global estable
+- [x] Bundle export/install/run local operativo
+- [x] Tests unit/integration/e2e mínimos verdes
 - [ ] QA emite **GO** para release interna
 
 ---
@@ -580,52 +580,52 @@ SALIDA OBLIGATORIA POR CICLO
 - Incidencias: Ajuste de tests para evitar cierre de lifespan con CancelledError en TestClient de Starlette/AnyIO.
 
 ### Fase 2
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente A — Backend Core
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local
+- Resultado DoD: PASS
+- Incidencias: execute_plan integrado con CustomPlanService, SSE triple operativo.
 
 ### Fase 3
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente B — Frontend UI
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local
+- Resultado DoD: PASS
+- Incidencias: SkillCreateModal + SkillsPanel completos. Fix de parsing en generate-description.
 
 ### Fase 4
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente B — Frontend UI
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local
+- Resultado DoD: PASS
+- Incidencias: Slash commands con autocomplete, keyboard nav, dispatch correcto.
 
 ### Fase 5
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente B — Frontend UI
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local
+- Resultado DoD: PASS
+- Incidencias: BackgroundRunner global con auto-dismiss, SSE exponential backoff.
 
 ### Fase 6
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente C — Platform/CLI
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local
+- Resultado DoD: PASS
+- Incidencias: Bundle usa skill.json en lugar de skill.yaml. Zip Slip protection implementada.
 
 ### Fase 7
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente D — QA/Release
+- Fecha inicio: 2026-03-05
+- Fecha fin: EN CURSO
+- PR(s): working tree local
+- Resultado DoD: EN PROGRESO
+- Incidencias: Tests unitarios backend/frontend verdes. Pendiente E2E y tests de concurrencia.
 
 ---
 

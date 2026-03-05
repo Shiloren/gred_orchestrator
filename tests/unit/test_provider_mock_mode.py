@@ -39,3 +39,32 @@ async def test_provider_catalog_list_available_models_mock_mode_synthetic(monkey
     assert len(models) == 1
     assert models[0].id == "custom_openai_compatible-mock-model"
     assert any("Mock mode enabled" in w for w in warnings)
+
+
+@pytest.mark.asyncio
+async def test_provider_catalog_openrouter_public_catalog_without_credentials(monkeypatch):
+    monkeypatch.delenv("ORCH_PROVIDER_MOCK_MODE", raising=False)
+
+    async def _fake_fetch_remote_models(provider_type, payload):
+        assert provider_type == "openrouter"
+        return [
+            ProviderCatalogService._normalize_model(
+                model_id="openrouter/mock-1",
+                label="OpenRouter Mock 1",
+                context_window=128000,
+                description="Great for coding and reasoning",
+                capabilities=["code", "reasoning"],
+                weakness="Coste alto",
+            )
+        ]
+
+    monkeypatch.setattr(ProviderCatalogService, "_fetch_remote_models", _fake_fetch_remote_models)
+
+    models, warnings = await ProviderCatalogService.list_available_models("openrouter", payload=ProviderValidateRequest())
+
+    assert len(models) == 1
+    assert models[0].id == "openrouter/mock-1"
+    assert models[0].context_window == 128000
+    assert "code" in models[0].capabilities
+    assert models[0].weakness == "Coste alto"
+    assert any("public catalog" in w.lower() for w in warnings)

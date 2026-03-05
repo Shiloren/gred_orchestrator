@@ -99,6 +99,8 @@ def test_phase1_skills_execute_returns_run_id(tmp_path, monkeypatch):
     monkeypatch.setattr(skills_service, "SKILLS_DIR", tmp_path / "skills")
 
     async def _fake_execute_skill(skill_id: str, req):
+        import asyncio
+        await asyncio.sleep(0)
         return skills_service.SkillExecuteResponse(
             skill_run_id="skill_run_test_1234",
             skill_id=skill_id,

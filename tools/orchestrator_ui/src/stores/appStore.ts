@@ -1,4 +1,5 @@
 import { create } from 'zustand';
+import { API_BASE, SkillRun } from '../types';
 
 /* ── Types ─────────────────────────────────────────────── */
 
@@ -46,10 +47,15 @@ interface AppState {
     isCommandPaletteOpen: boolean;
     isChatCollapsed: boolean;
     isProfileOpen: boolean;
+    isSkillsDropdownOpen: boolean;
+    skillsDockEdge: 'top' | 'left' | 'right' | 'bottom';
 
     /* Graph bridge */
     graphNodeCount: number;
     activePlanIdFromChat: string | null;
+
+    /* Background Skills */
+    skillRuns: Record<string, SkillRun>;
 }
 
 /* ── Actions ───────────────────────────────────────────── */
@@ -78,10 +84,16 @@ interface AppActions {
     toggleCommandPalette: (open?: boolean) => void;
     toggleChat: (collapsed?: boolean) => void;
     toggleProfile: (open?: boolean) => void;
+    toggleSkillsDropdown: (open?: boolean) => void;
+    setSkillsDockEdge: (edge: AppState['skillsDockEdge']) => void;
 
     /* Graph bridge */
     setGraphNodeCount: (n: number) => void;
     setActivePlanIdFromChat: (id: string | null) => void;
+
+    /* Background Skills */
+    updateSkillRun: (run: Partial<SkillRun> & { id: string }) => void;
+    removeSkillRun: (id: string) => void;
 }
 
 /* ── Helpers ───────────────────────────────────────────── */
@@ -105,9 +117,19 @@ export const useAppStore = create<AppState & AppActions>()((set) => ({
     isCommandPaletteOpen: false,
     isChatCollapsed: false,
     isProfileOpen: false,
+    isSkillsDropdownOpen: false,
+    skillsDockEdge: (function (): AppState['skillsDockEdge'] {
+        try {
+            const saved = localStorage.getItem('gimo_skills_dock_edge');
+            if (saved && ['top', 'left', 'right', 'bottom'].includes(saved)) return saved as AppState['skillsDockEdge'];
+        } catch { }
+        return 'top';
+    })(),
 
     graphNodeCount: -1,
     activePlanIdFromChat: null,
+
+    skillRuns: {},
 
     /* ---- auth actions ---- */
     setAuthenticated: (v) => set({ authenticated: v }),
@@ -126,16 +148,48 @@ export const useAppStore = create<AppState & AppActions>()((set) => ({
         set({
             authenticated: false,
             sessionUser: null,
+            bootState: 'offline',
+            bootError: null,
             isProfileOpen: false,
             selectedNodeId: null,
             activeOverlay: null,
         }),
 
+    checkSession: async () => {
+        const store = useAppStore.getState();
+        if (store.authenticated === false) return;
+        try {
+            const resp = await fetch(`${API_BASE}/me`, { credentials: 'include' });
+            if (resp.ok) {
+                const user = await resp.json();
+                store.login(user);
+            } else {
+                store.logout();
+            }
+        } catch {
+            store.logout();
+        }
+    },
+
+    revalidateSession: async () => {
+        const store = useAppStore.getState();
+        if (store.authenticated === false) return;
+        try {
+            const resp = await fetch(`${API_BASE}/me`, { credentials: 'include' });
+            if (resp.ok) {
+                const user = await resp.json();
+                store.login(user);
+            }
+        } catch {
+            // ignore
+        }
+    },
+
     /* ---- navigation ---- */
     setActiveTab: (tab) =>
         set((s) => ({
             activeTab: tab,
-            selectedNodeId: tab !== 'graph' ? null : s.selectedNodeId,
+            selectedNodeId: tab === 'graph' ? s.selectedNodeId : null,
             activeOverlay: null, // close overlay when switching tabs
         })),
 
@@ -154,7 +208,7 @@ export const useAppStore = create<AppState & AppActions>()((set) => ({
                 return {
                     activeTab: target as SidebarTab,
                     activeOverlay: null,
-                    selectedNodeId: target !== 'graph' ? null : s.selectedNodeId,
+                    selectedNodeId: target === 'graph' ? s.selectedNodeId : null,
                 };
             }
             if (OVERLAY_IDS.has(target)) {
@@ -174,7 +228,38 @@ export const useAppStore = create<AppState & AppActions>()((set) => ({
     toggleProfile: (open) =>
         set((s) => ({ isProfileOpen: open ?? !s.isProfileOpen })),
 
+    toggleSkillsDropdown: (open) =>
+        set((s) => ({ isSkillsDropdownOpen: open ?? !s.isSkillsDropdownOpen })),
+
+    setSkillsDockEdge: (edge) => {
+        localStorage.setItem('gimo_skills_dock_edge', edge);
+        set({ skillsDockEdge: edge });
+    },
+
     /* ---- graph bridge ---- */
     setGraphNodeCount: (n) => set({ graphNodeCount: n }),
     setActivePlanIdFromChat: (id) => set({ activePlanIdFromChat: id }),
+
+    /* ---- background skills ---- */
+    updateSkillRun: (run) =>
+        set((s) => ({
+            skillRuns: {
+                ...s.skillRuns,
+                [run.id]: {
+                    ...(s.skillRuns[run.id] || {
+                        status: 'queued',
+                        progress: 0,
+                        message: '',
+                        started_at: new Date().toISOString(),
+                    }),
+                    ...run,
+                },
+            },
+        })),
+
+    removeSkillRun: (id) =>
+        set((s) => {
+            const { [id]: _, ...rest } = s.skillRuns;
+            return { skillRuns: rest };
+        }),
 }));

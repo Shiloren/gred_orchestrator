@@ -85,10 +85,29 @@ class RecommendationService:
         else:
             workers = 4 # Cloud concurrency
             
+        orchestrator = {
+            "provider": provider,
+            "model": recommended_model,
+            "reason": reason,
+        }
+        workers_reco = [
+            {
+                "provider": provider,
+                "model": recommended_model,
+                "count_hint": workers,
+                "reason": "Throughput balance based on available compute",
+            }
+        ]
+
+        # Backward-compatible fields are kept (provider/model/workers/reason)
         return {
             "provider": provider,
             "model": recommended_model,
             "workers": workers,
             "reason": reason,
-            "hardware": snapshot
+            "hardware": snapshot,
+            "orchestrator": orchestrator,
+            "worker_pool": workers_reco,
+            "topology_reason": reason,
+            "hardware_snapshot": snapshot,
         }

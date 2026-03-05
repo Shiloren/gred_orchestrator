@@ -17,7 +17,7 @@ describe('MenuBar', () => {
             />
         );
 
-        fireEvent.click(screen.getByRole('button', { name: /tools/i }));
+        fireEvent.click(screen.getByRole('button', { name: /herramientas/i }));
         fireEvent.click(screen.getByRole('button', { name: 'MCP Sync' }));
 
         expect(onMcpSync).toHaveBeenCalledTimes(1);

@@ -40,9 +40,9 @@ vi.mock('../../hooks/useProviders', () => ({
         catalogs: {
             openai: {
                 provider_type: 'openai',
-                installed_models: [{ id: 'gpt-4o-mini', label: 'gpt-4o-mini', installed: true, downloadable: false }],
-                available_models: [{ id: 'gpt-4.1-mini', label: 'gpt-4.1-mini', installed: false, downloadable: false }],
-                recommended_models: [{ id: 'gpt-4o-mini', label: 'gpt-4o-mini', installed: true, downloadable: false }],
+                installed_models: [{ id: 'gpt-4o-mini', label: 'gpt-4o-mini', installed: true, downloadable: false, capabilities: ['code'], context_window: 128000, weakness: 'Coste alto' }],
+                available_models: [{ id: 'gpt-4.1-mini', label: 'gpt-4.1-mini', installed: false, downloadable: false, description: 'Fast and reliable' }],
+                recommended_models: [{ id: 'gpt-4o-mini', label: 'gpt-4o-mini', installed: true, downloadable: false, capabilities: ['reasoning'] }],
                 can_install: false,
                 install_method: 'manual',
                 auth_modes_supported: ['api_key'],
@@ -132,6 +132,11 @@ vi.mock('../Toast', () => ({
 describe('ProviderSettings', () => {
     beforeEach(() => {
         vi.clearAllMocks();
+        Object.assign(globalThis.navigator, {
+            clipboard: {
+                writeText: vi.fn().mockResolvedValue(undefined),
+            },
+        });
     });
 
     it('renderiza y carga providers al montar', () => {
@@ -178,5 +183,29 @@ describe('ProviderSettings', () => {
         });
 
         expect(screen.getByRole('button', { name: 'Autenticar en OpenAI' })).toBeTruthy();
+    });
+
+    it('muestra metadata del modelo y permite copiar comando de instalación cuando falla codex login', async () => {
+        mocks.startCodexDeviceLoginMock.mockRejectedValueOnce(Object.assign(new Error('Codex CLI no detectado'), { action: 'npm install -g @openai/codex' }));
+
+        render(<ProviderSettings />);
+
+        fireEvent.click(screen.getByRole('button', { name: /Selecciona modelo|gpt-4o-mini/i }));
+        await waitFor(() => {
+            expect(screen.getByText(/Excelente en:/i)).toBeTruthy();
+        });
+
+        fireEvent.click(screen.getByRole('button', { name: 'OpenAI' }));
+        fireEvent.click(screen.getByRole('button', { name: 'Codex CLI' }));
+
+        const loginBtn = await screen.findByRole('button', { name: 'Autenticar en OpenAI' });
+        fireEvent.click(loginBtn);
+
+        const copyInstall = await screen.findByRole('button', { name: 'Copiar comando de instalación' });
+        fireEvent.click(copyInstall);
+
+        await waitFor(() => {
+            expect(mocks.addToastMock).toHaveBeenCalledWith('Comando copiado', 'success');
+        });
     });
 });

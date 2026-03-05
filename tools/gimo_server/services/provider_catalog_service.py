@@ -290,6 +290,9 @@ class ProviderCatalogService:
         context_window: int | None = None,
         size: str | None = None,
         quality_tier: str | None = None,
+        description: str | None = None,
+        capabilities: List[str] | None = None,
+        weakness: str | None = None,
     ) -> NormalizedModelInfo:
         return NormalizedModelInfo(
             id=model_id,
@@ -299,7 +302,40 @@ class ProviderCatalogService:
             installed=installed,
             downloadable=downloadable,
             quality_tier=quality_tier,
+            description=description,
+            capabilities=list(capabilities or []),
+            weakness=weakness,
         )
+
+    @staticmethod
+    def _safe_int(value: Any) -> int | None:
+        try:
+            if value is None:
+                return None
+            return int(value)
+        except Exception:
+            return None
+
+    @classmethod
+    def _infer_capabilities(cls, model_id: str, description: str | None = None) -> List[str]:
+        bag = f"{model_id} {description or ''}".lower()
+        caps: List[str] = []
+        if any(k in bag for k in ["code", "coder", "codex", "program", "software"]):
+            caps.append("code")
+        if any(k in bag for k in ["reason", "thinking", "logic", "math"]):
+            caps.append("reasoning")
+        if any(k in bag for k in ["tool", "function", "agent"]):
+            caps.append("tools")
+        if any(k in bag for k in ["vision", "image", "multimodal"]):
+            caps.append("multimodal")
+        return caps
+
+    @classmethod
+    def _infer_weakness(cls, model_id: str) -> str | None:
+        raw = model_id.lower()
+        if any(k in raw for k in ["opus", "gpt-5", "o1", "r1", "70b"]):
+            return "Coste alto"
+        return None
 
     @classmethod
     def _get_ollama_manifest_dir(cls) -> Optional[Path]:
@@ -543,6 +579,14 @@ class ProviderCatalogService:
 
         if canonical in _OPENAI_COMPATIBLE_PROVIDERS:
             auth = payload or ProviderValidateRequest()
+            if canonical == "openrouter" and not (auth.api_key or auth.account):
+                remote = await cls._fetch_remote_models(canonical, auth)
+                if remote:
+                    warnings.append("Using OpenRouter public catalog without credentials.")
+                    return remote, warnings
+                warnings.append("OpenRouter public catalog unavailable. Showing curated defaults.")
+                return _fallback_models_for(canonical), warnings
+
             if not (auth.api_key or auth.account):
                 warnings.append("Authentication is required to fetch remote model catalog.")
                 defaults = _fallback_models_for(canonical)
@@ -587,7 +631,20 @@ class ProviderCatalogService:
                     model_id = str(item.get("id") or "").strip()
                     if not model_id:
                         continue
-                    out.append(cls._normalize_model(model_id=model_id, downloadable=False))
+                    description = str(item.get("description") or "").strip() or None
+                    context_window = cls._safe_int(item.get("context_length"))
+                    capabilities = cls._infer_capabilities(model_id=model_id, description=description)
+                    out.append(
+                        cls._normalize_model(
+                            model_id=model_id,
+                            label=str(item.get("name") or item.get("id") or model_id),
+                            downloadable=False,
+                            context_window=context_window,
+                            description=description,
+                            capabilities=capabilities,
+                            weakness=cls._infer_weakness(model_id),
+                        )
+                    )
                 return out
         except Exception:
             return []

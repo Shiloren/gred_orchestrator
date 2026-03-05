@@ -75,12 +75,25 @@ class ModelRouterService:
         effective_provider = None
         requested_model = None
         
+        roles = getattr(config, "roles", None)
+        providers = getattr(config, "providers", None) or {}
+
         if task_type in orchestrator_tasks:
-            if getattr(config, "orchestrator_provider", None) and getattr(config, "providers", None) and config.orchestrator_provider in config.providers:
+            if roles and getattr(roles, "orchestrator", None):
+                orch = roles.orchestrator
+                if orch.provider_id in providers:
+                    effective_provider = orch.provider_id
+                    requested_model = orch.model
+            elif getattr(config, "orchestrator_provider", None) and config.orchestrator_provider in providers:
                 effective_provider = config.orchestrator_provider
                 requested_model = getattr(config, "orchestrator_model", None)
         elif task_type in worker_tasks:
-            if getattr(config, "worker_provider", None) and getattr(config, "providers", None) and config.worker_provider in config.providers:
+            if roles and getattr(roles, "workers", None):
+                first_worker = next((w for w in roles.workers if w.provider_id in providers), None)
+                if first_worker:
+                    effective_provider = first_worker.provider_id
+                    requested_model = first_worker.model
+            elif getattr(config, "worker_provider", None) and config.worker_provider in providers:
                 effective_provider = config.worker_provider
                 requested_model = getattr(config, "worker_model", None)
                 

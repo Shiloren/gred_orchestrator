@@ -1,7 +1,9 @@
 import React, { useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ChevronDown } from 'lucide-react';
+import { ChevronDown, Server, X } from 'lucide-react';
 import { useAppStore } from '../stores/appStore';
+import { useProviders } from '../hooks/useProviders';
+import { ProviderSettings } from './ProviderSettings';
 
 type MenuId = 'file' | 'edit' | 'tools' | 'help';
 
@@ -40,8 +42,22 @@ export const MenuBar: React.FC<MenuBarProps> = ({
 }) => {
     const [openMenu, setOpenMenu] = useState<MenuId | null>(null);
     const [isAboutOpen, setIsAboutOpen] = useState(false);
+    const [isConnectionsOpen, setIsConnectionsOpen] = useState(false);
     const rootRef = useRef<HTMLDivElement | null>(null);
     const activeTab = useAppStore((s) => s.activeTab);
+    const { effectiveState, loadProviders } = useProviders();
+
+    useEffect(() => {
+        loadProviders();
+    }, [loadProviders]);
+
+    const healthBadgeClass = useMemo(() => {
+        const health = String(effectiveState?.health || '').toLowerCase();
+        if (health === 'ok') return 'bg-emerald-500 shadow-[0_0_8px_rgba(16,218,133,0.6)]';
+        if (health === 'degraded') return 'bg-amber-500 shadow-[0_0_8px_rgba(245,158,11,0.6)]';
+        if (health === 'down') return 'bg-red-500 shadow-[0_0_8px_rgba(239,68,68,0.6)]';
+        return 'bg-surface-3';
+    }, [effectiveState?.health]);
 
     useEffect(() => {
         const handleClickOutside = (event: MouseEvent) => {
@@ -104,12 +120,11 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 {(Object.keys(labels) as MenuId[]).map((id) => (
                     <div key={id} className="relative">
                         <button
-                            onClick={() => setOpenMenu((prev) => (prev === id ? null : id))}
-                            className={`h-7 px-2.5 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 transition-all duration-150 active:scale-[0.97] ${
-                                openMenu === id
-                                    ? 'bg-white/[0.08] text-text-primary'
-                                    : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.04]'
-                            }`}
+                            onClick={() => setOpenMenu((prev: MenuId | null) => (prev === id ? null : id))}
+                            className={`h-7 px-2.5 rounded-lg text-[11px] font-medium inline-flex items-center gap-1 transition-all duration-150 active:scale-[0.97] ${openMenu === id
+                                ? 'bg-white/[0.08] text-text-primary'
+                                : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.04]'
+                                }`}
                         >
                             {labels[id]}
                             <ChevronDown
@@ -156,8 +171,21 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                 <span className="text-text-secondary">{tabLabels[activeTab] || activeTab}</span>
             </div>
 
-            {/* Right: profile */}
-            <div className="flex items-center gap-2 min-w-[140px] justify-end">
+            <div className="flex items-center gap-2 min-w-[180px] justify-end">
+
+                <button
+                    onClick={() => {
+                        setOpenMenu(null);
+                        setIsConnectionsOpen(true);
+                    }}
+                    className="inline-flex items-center gap-1.5 rounded-full px-2.5 py-1 border border-white/[0.06] bg-surface-1/60 backdrop-blur-lg hover:bg-white/[0.06] transition-all duration-200"
+                    title="Conexiones y Modelos"
+                >
+                    <Server size={12} className="text-text-secondary" />
+                    <span className="text-[11px] text-text-secondary font-medium">Conexiones</span>
+                    <div className={`w-2 h-2 rounded-full ${healthBadgeClass}`} />
+                </button>
+
                 <button
                     onClick={() => {
                         setOpenMenu(null);
@@ -224,6 +252,44 @@ export const MenuBar: React.FC<MenuBarProps> = ({
                                 >
                                     Continuar
                                 </button>
+                            </div>
+                        </motion.div>
+                    </motion.div>
+                )}
+            </AnimatePresence>
+
+            {/* Connections modal */}
+            <AnimatePresence>
+                {isConnectionsOpen && (
+                    <motion.div
+                        initial={{ opacity: 0 }}
+                        animate={{ opacity: 1 }}
+                        exit={{ opacity: 0 }}
+                        className="fixed inset-0 z-[60] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
+                        onClick={() => setIsConnectionsOpen(false)}
+                    >
+                        <motion.div
+                            initial={{ scale: 0.98, opacity: 0, y: 10 }}
+                            animate={{ scale: 1, opacity: 1, y: 0 }}
+                            exit={{ scale: 0.98, opacity: 0, y: 10 }}
+                            transition={{ type: 'spring', stiffness: 400, damping: 30 }}
+                            className="bg-surface-1/95 backdrop-blur-2xl border border-white/[0.06] rounded-2xl w-full max-w-5xl h-[85vh] flex flex-col shadow-2xl overflow-hidden"
+                            onClick={(e) => e.stopPropagation()}
+                        >
+                            <div className="flex items-center justify-between px-6 py-4 border-b border-white/[0.06] shrink-0">
+                                <h2 className="text-lg font-bold text-text-primary flex items-center gap-2">
+                                    <Server className="w-5 h-5 text-indigo-400" />
+                                    Conexiones y Modelos
+                                </h2>
+                                <button
+                                    onClick={() => setIsConnectionsOpen(false)}
+                                    className="p-1.5 rounded-lg hover:bg-white/[0.08] text-text-secondary transition-colors"
+                                >
+                                    <X size={18} />
+                                </button>
+                            </div>
+                            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                                <ProviderSettings />
                             </div>
                         </motion.div>
                     </motion.div>

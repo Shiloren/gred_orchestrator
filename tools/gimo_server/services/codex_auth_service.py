@@ -1,6 +1,7 @@
 import asyncio
 import re
 import logging
+import shutil
 from typing import Optional, Dict, Any
 
 logger = logging.getLogger("orchestrator.services.codex_auth")
@@ -15,6 +16,13 @@ class CodexAuthService:
         URL and user code. Returns a token polling identifier (the process itself
         or a mock).
         """
+        if shutil.which("codex") is None:
+            return {
+                "status": "error",
+                "message": "Codex CLI no detectado",
+                "action": "npm install -g @openai/codex",
+            }
+
         try:
             # Note: The codex CLI writes instructions to stdout/stderr. We parse it:
             # e.g., "Please open https://openai.com/device and enter the code: XXXX-YYYY"
@@ -26,14 +34,10 @@ class CodexAuthService:
                 stderr=asyncio.subprocess.STDOUT,
             )
         except FileNotFoundError:
-            # Fallback for dev/test environments without codex CLI
-            logger.warning("Codex CLI not found. Simulating device flow for development.")
             return {
-                "status": "pending",
-                "verification_url": "https://openai.com/device",
-                "user_code": "MOCK-CODE",
-                "message": "Codex CLI not installed. This is a mocked response.",
-                "poll_id": "mock_poll_id"
+                "status": "error",
+                "message": "Codex CLI no detectado",
+                "action": "npm install -g @openai/codex",
             }
 
         verification_url = None
@@ -66,11 +70,19 @@ class CodexAuthService:
                         break
         except asyncio.TimeoutError:
             process.kill()
-            raise RuntimeError("Timeout waiting for device auth instructions from codex CLI.")
+            return {
+                "status": "error",
+                "message": "Timeout esperando instrucciones de login de Codex CLI",
+                "action": "Reintenta el login o reinstala Codex CLI: npm install -g @openai/codex",
+            }
 
         if not verification_url or not user_code:
             process.kill()
-            raise RuntimeError("Failed to parse verification URL and user code from codex output.")
+            return {
+                "status": "error",
+                "message": "No se pudo extraer verification_url/user_code de Codex CLI",
+                "action": "Actualiza o reinstala Codex CLI: npm install -g @openai/codex",
+            }
 
         # In a real implementation, we would register `process` in a background task dictionary
         # keyed by some unique ID, and poll it. 

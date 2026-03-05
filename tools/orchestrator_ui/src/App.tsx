@@ -13,7 +13,11 @@ import { Sidebar } from './components/Sidebar';
 import { StatusBar } from './components/StatusBar';
 import { OverlayDrawer } from './components/OverlayDrawer';
 import { CommandPalette } from './components/Shell/CommandPalette';
-import { ProfilePanel } from './components/ProfilePanel';/* ── Lazy-loaded views ─────────────────────────────────── */
+import { ProfilePanel } from './components/ProfilePanel';
+import { useSkillNotifications } from './hooks/useSkillNotifications';
+import { BackgroundRunner } from './components/BackgroundRunner';
+import { SkillsRail } from './components/SkillsRail';
+/* ── Lazy-loaded views ─────────────────────────────────── */
 const GraphView = lazy(() => import('./views/GraphView'));
 const PlansView = lazy(() => import('./views/PlansView'));
 
@@ -63,6 +67,9 @@ export default function App() {
     } = useProfile(Boolean(store.authenticated));
 
     const providerHealth = useProviderHealth(Boolean(store.authenticated));
+
+    /* ── Realtime Skill Notifications ── */
+    useSkillNotifications();
 
     /* ── Boot ── */
     useEffect(() => { checkSession(); }, []);
@@ -301,6 +308,9 @@ export default function App() {
                 onNavigateToSettings={() => store.openOverlay('settings')}
                 onNavigateToMastery={() => store.openOverlay('mastery')}
             />
+
+            <BackgroundRunner />
+            <SkillsRail />
 
             {/* ── Overlay drawers ── */}
             <OverlayDrawer

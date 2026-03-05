@@ -200,6 +200,16 @@ class ProviderEntry(BaseModel):
         return self
 
 
+class ProviderRoleBinding(BaseModel):
+    provider_id: str
+    model: str
+
+
+class ProviderRolesConfig(BaseModel):
+    orchestrator: ProviderRoleBinding
+    workers: List[ProviderRoleBinding] = Field(default_factory=list)
+
+
 class NormalizedModelInfo(BaseModel):
     id: str
     label: str
@@ -208,6 +218,9 @@ class NormalizedModelInfo(BaseModel):
     installed: bool = False
     downloadable: bool = False
     quality_tier: Optional[str] = None
+    description: Optional[str] = None
+    capabilities: List[str] = Field(default_factory=list)
+    weakness: Optional[str] = None
 
 
 class ProviderModelsCatalogResponse(BaseModel):
@@ -273,6 +286,9 @@ class ProviderConfig(BaseModel):
     last_validated_at: Optional[str] = None
     effective_state: Dict[str, Any] = Field(default_factory=dict)
     capabilities_snapshot: Dict[str, Any] = Field(default_factory=dict)
+
+    # Canonical multi-agent topology (Settings redesign phase 2)
+    roles: Optional[ProviderRolesConfig] = None
 
     # Phase C: Cloud + Local routing strategy
     orchestrator_provider: Optional[str] = None

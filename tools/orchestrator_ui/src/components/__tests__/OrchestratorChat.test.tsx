@@ -9,6 +9,8 @@ vi.mock('../Toast', () => ({
 }));
 
 describe('OrchestratorChat', () => {
+    const chatInputPlaceholder = 'Describe el workflow o usa /comando...';
+
     beforeEach(() => {
         vi.clearAllMocks();
     });
@@ -40,7 +42,7 @@ describe('OrchestratorChat', () => {
 
         render(<OrchestratorChat />);
 
-        fireEvent.change(screen.getByPlaceholderText('Describe el workflow para generar un draft...'), {
+        fireEvent.change(screen.getByPlaceholderText(chatInputPlaceholder), {
             target: { value: 'help' },
         });
         fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
@@ -105,7 +107,7 @@ describe('OrchestratorChat', () => {
 
         render(<OrchestratorChat />);
 
-        fireEvent.change(screen.getByPlaceholderText('Describe el workflow para generar un draft...'), {
+        fireEvent.change(screen.getByPlaceholderText(chatInputPlaceholder), {
             target: { value: 'crear plan de pruebas' },
         });
         fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
@@ -122,6 +124,92 @@ describe('OrchestratorChat', () => {
                 expect.stringContaining('/ops/runs'),
                 expect.objectContaining({ method: 'POST' })
             );
+        });
+    });
+
+    it('slash válido enruta a execute de skills sin pasar por generate', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => [] }) // /ops/drafts
+            .mockResolvedValueOnce({ // /ops/skills (mount)
+                ok: true,
+                json: async () => ([
+                    {
+                        id: 'skill-1',
+                        name: 'Explorar repo',
+                        description: 'Explora estructura',
+                        command: '/explorar',
+                        replace_graph: false,
+                        nodes: [],
+                        edges: [],
+                        created_at: '2026-03-05T00:00:00Z',
+                        updated_at: '2026-03-05T00:00:00Z',
+                    },
+                ]),
+            })
+            .mockResolvedValueOnce({ // /ops/skills/{id}/execute
+                ok: true,
+                json: async () => ({
+                    skill_run_id: 'skill_run_1',
+                    skill_id: 'skill-1',
+                    replace_graph: false,
+                    status: 'queued',
+                }),
+            });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        render(<OrchestratorChat providerConnected={false} />);
+
+        fireEvent.change(screen.getByPlaceholderText(chatInputPlaceholder), {
+            target: { value: '/explorar' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+        await waitFor(() => {
+            expect(fetchMock).toHaveBeenCalledWith(
+                expect.stringContaining('/ops/skills/skill-1/execute'),
+                expect.objectContaining({ method: 'POST' }),
+            );
+            expect(screen.getByText(/Skill \/explorar en cola/)).toBeTruthy();
+        });
+
+        expect(fetchMock).not.toHaveBeenCalledWith(
+            expect.stringContaining('/ops/generate'),
+            expect.anything(),
+        );
+    });
+
+    it('slash inválido muestra feedback con sugerencia', async () => {
+        const fetchMock = vi.fn()
+            .mockResolvedValueOnce({ ok: true, json: async () => [] }) // /ops/drafts
+            .mockResolvedValueOnce({ // /ops/skills
+                ok: true,
+                json: async () => ([
+                    {
+                        id: 'skill-1',
+                        name: 'Explorar repo',
+                        description: 'Explora estructura',
+                        command: '/explorar',
+                        replace_graph: false,
+                        nodes: [],
+                        edges: [],
+                        created_at: '2026-03-05T00:00:00Z',
+                        updated_at: '2026-03-05T00:00:00Z',
+                    },
+                ]),
+            });
+
+        vi.stubGlobal('fetch', fetchMock);
+
+        render(<OrchestratorChat />);
+
+        fireEvent.change(screen.getByPlaceholderText(chatInputPlaceholder), {
+            target: { value: '/desconocido' },
+        });
+        fireEvent.click(screen.getByRole('button', { name: /enviar/i }));
+
+        await waitFor(() => {
+            expect(screen.getByText(/Comando \/desconocido no encontrado/)).toBeTruthy();
         });
     });
 });

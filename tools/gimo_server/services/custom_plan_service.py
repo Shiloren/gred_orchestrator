@@ -17,7 +17,6 @@ logger = logging.getLogger("orchestrator.custom_plans")
 PLANS_DIR = OPS_DATA_DIR / "custom_plans"
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Models
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -85,7 +84,6 @@ class UpdatePlanRequest(BaseModel):
     edges: Optional[List[PlanEdge]] = None
 
 
-# ──────────────────────────────────────────────────────────────────────────────
 # Service
 # ──────────────────────────────────────────────────────────────────────────────
 
@@ -108,34 +106,7 @@ def llm_response_to_plan_nodes(
     edges: List[PlanEdge] = []
     task_ids = {t.get("id", f"t_{i}") for i, t in enumerate(tasks)}
 
-    # Simple layered auto-layout: group by dependency depth
-    depth_map: Dict[str, int] = {}
-
-    def _get_depth(tid: str, visited: set) -> int:
-        if tid in depth_map:
-            return depth_map[tid]
-        if tid in visited:
-            return 0
-        visited.add(tid)
-        task = next((t for t in tasks if t.get("id") == tid), None)
-        if not task:
-            return 0
-        deps = [d for d in (task.get("depends") or []) if d in task_ids]
-        d = 0 if not deps else max(_get_depth(dep, visited) for dep in deps) + 1
-        depth_map[tid] = d
-        return d
-
-    for t in tasks:
-        _get_depth(t.get("id", ""), set())
-
-    layers: Dict[int, List[str]] = {}
-    for tid, d in depth_map.items():
-        layers.setdefault(d, []).append(tid)
-
-    layer_index: Dict[str, int] = {}
-    for d, tids in layers.items():
-        for idx, tid in enumerate(tids):
-            layer_index[tid] = idx
+    depth_map, layer_index = _calculate_layout(tasks, task_ids)
 
     for i, task in enumerate(tasks):
         tid = task.get("id", f"t_{i}")
@@ -192,6 +163,38 @@ def llm_response_to_plan_nodes(
             ))
 
     return nodes, edges
+
+
+def _calculate_layout(tasks: List[Dict[str, Any]], task_ids: set) -> tuple[Dict[str, int], Dict[str, int]]:
+    depth_map: Dict[str, int] = {}
+
+    def _get_depth(tid: str, visited: set) -> int:
+        if tid in depth_map:
+            return depth_map[tid]
+        if tid in visited:
+            return 0
+        visited.add(tid)
+        task = next((t for t in tasks if t.get("id") == tid), None)
+        if not task:
+            return 0
+        deps = [d for d in (task.get("depends") or []) if d in task_ids]
+        d = 0 if not deps else max(_get_depth(dep, visited) for dep in deps) + 1
+        depth_map[tid] = d
+        return d
+
+    for t in tasks:
+        _get_depth(t.get("id", ""), set())
+
+    layers: Dict[int, List[str]] = {}
+    for tid, d in depth_map.items():
+        layers.setdefault(d, []).append(tid)
+
+    layer_index: Dict[str, int] = {}
+    for d, tids in layers.items():
+        for idx, tid in enumerate(tids):
+            layer_index[tid] = idx
+
+    return depth_map, layer_index
 
 
 class CustomPlanService:
@@ -293,29 +296,33 @@ class CustomPlanService:
         if len(orchestrators) != 1:
             raise ValueError("Plan must have exactly one orchestrator node")
 
-        graph: Dict[str, List[str]] = {n.id: [] for n in plan.nodes}
-        for node in plan.nodes:
+        cls._assert_no_cycles(plan.nodes)
+
+    @classmethod
+    def _assert_no_cycles(cls, nodes: List[PlanNode]) -> None:
+        graph: Dict[str, List[str]] = {n.id: [] for n in nodes}
+        for node in nodes:
             for dep in node.depends_on:
                 graph.setdefault(dep, []).append(node.id)
 
         visited: set[str] = set()
-        in_stack: set[str] = set()
-
-        def dfs(nid: str) -> bool:
-            visited.add(nid)
-            in_stack.add(nid)
-            for nxt in graph.get(nid, []):
-                if nxt not in visited:
-                    if dfs(nxt):
-                        return True
-                elif nxt in in_stack:
-                    return True
-            in_stack.remove(nid)
-            return False
-
         for nid in graph:
-            if nid not in visited and dfs(nid):
-                raise ValueError("Plan contains dependency cycles")
+            if nid not in visited:
+                if cls._has_cycle_dfs(nid, graph, visited, set()):
+                    raise ValueError("Plan contains dependency cycles")
+
+    @classmethod
+    def _has_cycle_dfs(cls, nid: str, graph: Dict[str, List[str]], visited: set[str], in_stack: set[str]) -> bool:
+        visited.add(nid)
+        in_stack.add(nid)
+        for nxt in graph.get(nid, []):
+            if nxt not in visited:
+                if cls._has_cycle_dfs(nxt, graph, visited, in_stack):
+                    return True
+            elif nxt in in_stack:
+                return True
+        in_stack.remove(nid)
+        return False
 
     @classmethod
     def validate_plan(cls, plan: CustomPlan) -> None:
@@ -357,7 +364,13 @@ class CustomPlanService:
         return layers
 
     @classmethod
-    async def execute_plan(cls, plan_id: str, skill_id: Optional[str] = None, skill_run_id: Optional[str] = None) -> Optional[CustomPlan]:
+    async def execute_plan(
+        cls,
+        plan_id: str,
+        skill_id: Optional[str] = None,
+        skill_run_id: Optional[str] = None,
+        skill_command: Optional[str] = None,
+    ) -> Optional[CustomPlan]:
         """Execute a plan layer by layer, respecting dependencies."""
         from ..services.provider_service import ProviderService
         from ..services.notification_service import NotificationService
@@ -383,8 +396,20 @@ class CustomPlanService:
                 "msg": f"Starting layer {layer_idx}: {layer}",
             })
 
-            for node_id in layer:
-                await cls._execute_node(plan, node_map, node_id, plan_id, skill_id, skill_run_id)
+            total_nodes = max(len(plan.nodes), 1)
+            for node_idx, node_id in enumerate(layer):
+                await cls._execute_node(
+                    plan,
+                    node_map,
+                    node_id,
+                    plan_id,
+                    skill_id,
+                    skill_run_id,
+                    skill_command,
+                    node_idx=node_idx,
+                    layer_size=len(layer),
+                    total_nodes=total_nodes,
+                )
 
             cls._save(plan)
 
@@ -410,81 +435,51 @@ class CustomPlanService:
         plan_id: str,
         skill_id: Optional[str] = None,
         skill_run_id: Optional[str] = None,
+        skill_command: Optional[str] = None,
+        node_idx: int = 0,
+        layer_size: int = 1,
+        total_nodes: int = 1,
     ) -> None:
-        from ..services.provider_service import ProviderService
         from ..services.notification_service import NotificationService
 
         node = node_map[node_id]
         if node.status in ("done", "skipped"):
             return
 
-        node.status = "running"
-        node.error = None
-        await NotificationService.publish("custom_node_status", {
-            "plan_id": plan_id,
-            "node_id": node.id,
-            "status": node.status,
-        })
-        
-        if skill_run_id and skill_id:
-            await NotificationService.publish("skill_execution_progress", {
-                "skill_run_id": skill_run_id,
-                "skill_id": skill_id,
-                "status": "running",
-                "progress": 0.0,
-                "message": f"Starting node {node.label}",
-            })
+        completed_before = sum(1 for n in plan.nodes if n.status in ("done", "error", "skipped"))
+        start_progress = min(max(completed_before / max(total_nodes, 1), 0.0), 1.0)
 
-        dep_outputs = []
-        for dep_id in node.depends_on:
-            dep = node_map.get(dep_id)
-            if dep and dep.output:
-                dep_outputs.append(f"[{dep.label}]\n{dep.output}")
+        await cls._update_node_status(
+            plan_id,
+            node,
+            "running",
+            skill_id,
+            skill_run_id,
+            skill_command,
+            progress=start_progress,
+        )
 
+        dep_outputs = [f"[{node_map[d].label}]\n{node_map[d].output}" for d in node.depends_on if node_map.get(d) and node_map[d].output]
+
+        # Short-circuit for orchestrator with no prompt
         if node.node_type == "orchestrator" and not node.prompt.strip():
-            node.output = "Orchestrator ready. Delegation graph validated."
-            node.status = "done"
-            await NotificationService.publish("custom_node_status", {
-                "plan_id": plan_id,
-                "node_id": node.id,
-                "status": node.status,
-                "output": node.output,
-            })
-            
-            if skill_run_id and skill_id:
-                await NotificationService.publish("skill_execution_progress", {
-                    "skill_run_id": skill_run_id,
-                    "skill_id": skill_id,
-                    "status": "running",
-                    "progress": 0.5,
-                    "message": f"Finished node {node.label}",
-                })
+            await cls._handle_empty_orchestrator(
+                plan,
+                plan_id,
+                node,
+                skill_id,
+                skill_run_id,
+                skill_command,
+                total_nodes=total_nodes,
+            )
             return
 
-        prompt_parts = []
-        if node.role_definition.strip():
-            prompt_parts.append(f"Role definition:\n{node.role_definition.strip()}")
-        if dep_outputs:
-            prompt_parts.append("Context from dependencies:\n" + "\n\n".join(dep_outputs))
-        prompt_parts.append(node.prompt or f"Execute task for node {node.label}")
-        final_prompt = "\n\n".join(prompt_parts)
+        final_prompt = cls._build_node_prompt(node, dep_outputs)
 
         try:
-            gen_context = {
-                **plan.context,
-                "mode": "custom_plan_node",
-                "model": node.model,
-                "provider": node.provider,
-                "role": node.role,
-                "node_type": node.node_type,
-            }
-            resp = await asyncio.wait_for(
-                ProviderService.static_generate(
-                    prompt=final_prompt,
-                    context=gen_context,
-                ),
-                timeout=300,
-            )
+            from ..services.provider_service import ProviderService
+            gen_context = {**plan.context, "mode": "custom_plan_node", "model": node.model, "provider": node.provider, "role": node.role, "node_type": node.node_type}
+            resp = await asyncio.wait_for(ProviderService.static_generate(prompt=final_prompt, context=gen_context), timeout=300)
             node.output = str(resp.get("content", "")).strip()
             node.status = "done"
             node.error = None
@@ -492,20 +487,108 @@ class CustomPlanService:
             node.status = "error"
             node.error = str(exc)[:500]
 
-        await NotificationService.publish("custom_node_status", {
-            "plan_id": plan_id,
-            "node_id": node.id,
-            "status": node.status,
-            "output": node.output,
-            "error": node.error,
-        })
+        completed_after = sum(1 for n in plan.nodes if n.status in ("done", "error", "skipped"))
+        finish_progress = min(max(completed_after / max(total_nodes, 1), 0.0), 1.0)
+        await cls._finalize_node_execution(
+            plan_id,
+            node,
+            skill_id,
+            skill_run_id,
+            skill_command,
+            progress=finish_progress,
+        )
+
+    @classmethod
+    async def _update_node_status(
+        cls,
+        plan_id: str,
+        node: PlanNode,
+        status: str,
+        skill_id: str = None,
+        skill_run_id: str = None,
+        skill_command: str = None,
+        progress: float = 0.0,
+    ) -> None:
+        from ..services.notification_service import NotificationService
+        node.status = status
+        if status == "running":
+            node.error = None
         
+        await NotificationService.publish("custom_node_status", {"plan_id": plan_id, "node_id": node.id, "status": node.status})
+        if skill_run_id and skill_id and status == "running":
+            await NotificationService.publish("skill_execution_progress", {
+                "skill_run_id": skill_run_id,
+                "skill_id": skill_id,
+                "command": skill_command,
+                "status": "running",
+                "progress": progress,
+                "message": f"Starting node {node.label}",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": None,
+            })
+
+    @classmethod
+    async def _handle_empty_orchestrator(
+        cls,
+        plan: CustomPlan,
+        plan_id: str,
+        node: PlanNode,
+        skill_id: str = None,
+        skill_run_id: str = None,
+        skill_command: str = None,
+        total_nodes: int = 1,
+    ) -> None:
+        from ..services.notification_service import NotificationService
+        node.output = "Orchestrator ready. Delegation graph validated."
+        node.status = "done"
+        await NotificationService.publish("custom_node_status", {"plan_id": plan_id, "node_id": node.id, "status": node.status, "output": node.output})
+        if skill_run_id and skill_id:
+            completed_after = sum(1 for n in plan.nodes if n.status in ("done", "error", "skipped"))
+            progress = min(max(completed_after / max(total_nodes, 1), 0.0), 1.0)
+            await NotificationService.publish("skill_execution_progress", {
+                "skill_run_id": skill_run_id,
+                "skill_id": skill_id,
+                "command": skill_command,
+                "status": "running",
+                "progress": progress,
+                "message": f"Finished node {node.label}",
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": None,
+            })
+
+    @classmethod
+    def _build_node_prompt(cls, node: PlanNode, dep_outputs: List[str]) -> str:
+        parts = []
+        if node.role_definition.strip():
+            parts.append(f"Role definition:\n{node.role_definition.strip()}")
+        if dep_outputs:
+            parts.append("Context from dependencies:\n" + "\n\n".join(dep_outputs))
+        parts.append(node.prompt or f"Execute task for node {node.label}")
+        return "\n\n".join(parts)
+
+    @classmethod
+    async def _finalize_node_execution(
+        cls,
+        plan_id: str,
+        node: PlanNode,
+        skill_id: str = None,
+        skill_run_id: str = None,
+        skill_command: str = None,
+        progress: float = 0.0,
+    ) -> None:
+        from ..services.notification_service import NotificationService
+        await NotificationService.publish("custom_node_status", {
+            "plan_id": plan_id, "node_id": node.id, "status": node.status, "output": node.output, "error": node.error
+        })
         if skill_run_id and skill_id:
             msg = f"Error in node {node.label}: {node.error}" if node.error else f"Finished node {node.label}"
             await NotificationService.publish("skill_execution_progress", {
                 "skill_run_id": skill_run_id,
                 "skill_id": skill_id,
+                "command": skill_command,
                 "status": "running",
-                "progress": 0.5,
+                "progress": progress,
                 "message": msg,
+                "started_at": datetime.now(timezone.utc).isoformat(),
+                "finished_at": None,
             })

@@ -2,10 +2,12 @@ import pytest
 import asyncio
 import math
 import os
+from types import SimpleNamespace
 from unittest.mock import MagicMock, AsyncMock, patch
 from tools.gimo_server.ops_models import WorkflowNode, TrustEvent, EvalDataset, EvalGateConfig, EvalGoldenCase, EvalJudgeConfig, WorkflowGraph
 from tools.gimo_server.services.model_router_service import ModelRouterService, RoutingDecision
 from tools.gimo_server.services.provider_service import ProviderService
+from tools.gimo_server.services.recommendation_service import RecommendationService
 from tools.gimo_server.services.quality_service import QualityService
 from tools.gimo_server.services.llm_cache import NormalizedLLMCache
 from tools.gimo_server.services.storage_service import StorageService
@@ -88,6 +90,54 @@ class TestModelRouter:
         b = ModelRouterService.resolve_phase6_strategy(**kwargs)
         assert a.strategy_decision_id == b.strategy_decision_id
         assert a.final_model_used == b.final_model_used
+
+
+def test_resolve_tier_routing_uses_roles_schema_first():
+    cfg = SimpleNamespace(
+        providers={
+            "orch-main": {"model": "gpt-4o"},
+            "wk-1": {"model": "qwen2.5-coder:7b"},
+        },
+        roles=SimpleNamespace(
+            orchestrator=SimpleNamespace(provider_id="orch-main", model="gpt-4o"),
+            workers=[SimpleNamespace(provider_id="wk-1", model="qwen2.5-coder:7b")],
+        ),
+        orchestrator_provider="legacy-orch",
+        orchestrator_model="legacy-model",
+        worker_provider="legacy-worker",
+        worker_model="legacy-worker-model",
+    )
+
+    orch_provider, orch_model = ModelRouterService.resolve_tier_routing("analysis", cfg)
+    worker_provider, worker_model = ModelRouterService.resolve_tier_routing("code_generation", cfg)
+
+    assert orch_provider == "orch-main"
+    assert orch_model == "gpt-4o"
+    assert worker_provider == "wk-1"
+    assert worker_model == "qwen2.5-coder:7b"
+
+
+@pytest.mark.asyncio
+async def test_recommendation_service_returns_structured_topology():
+    class _FakeMonitor:
+        @staticmethod
+        def get_current_state():
+            return {
+                "gpu_vendor": "none",
+                "gpu_vram_gb": 0.0,
+                "gpu_vram_free_gb": 0.0,
+                "total_ram_gb": 16.0,
+                "wsl2_available": False,
+            }
+
+    with patch("tools.gimo_server.services.recommendation_service.HardwareMonitorService.get_instance", return_value=_FakeMonitor()):
+        result = await RecommendationService.get_recommendation()
+
+    assert "orchestrator" in result
+    assert "worker_pool" in result
+    assert result["orchestrator"]["provider"] == result["provider"]
+    assert isinstance(result["worker_pool"], list)
+    assert result["worker_pool"][0]["count_hint"] == result["workers"]
 
 
 @pytest.mark.asyncio

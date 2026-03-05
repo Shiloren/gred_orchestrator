@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import os
 import re
@@ -7,8 +8,9 @@ import time
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Dict, List, Optional
+from typing import Any, Dict, List, Literal, Optional
 
+from filelock import FileLock
 from pydantic import BaseModel, Field, field_validator
 
 from ..config import OPS_DATA_DIR
@@ -16,8 +18,50 @@ from ..config import OPS_DATA_DIR
 logger = logging.getLogger("orchestrator.skills")
 
 SKILLS_DIR = OPS_DATA_DIR / "skills"
+SKILLS_LOCK = OPS_DATA_DIR / "skills.lock"
+ANALYTICS_DIR = OPS_DATA_DIR / "skill_analytics"
+MARKETPLACE_DIR = OPS_DATA_DIR / "skill_marketplace"
 COMMAND_RE = re.compile(r"^/[a-z0-9_-]{2,32}$")
 SAFE_ID_RE = re.compile(r"^[a-zA-Z0-9._-]{1,80}$")
+
+# ── Agent Moods ───────────────────────────────────────────────────────────────
+# 6 behavioural presets that shape agent personality via system prompt injection.
+
+MoodType = Literal["neutral", "forensic", "executor", "dialoger", "creative", "guardian", "mentor"]
+
+MOOD_PROMPTS: Dict[str, str] = {
+    "neutral": "",
+    "forensic": (
+        "[MOOD: FORENSIC] You are meticulous and analytical. "
+        "Investigate every detail, trace root causes, question assumptions, "
+        "and produce exhaustive evidence-backed findings. Never skip edge cases."
+    ),
+    "executor": (
+        "[MOOD: EXECUTOR] You are direct and results-oriented. "
+        "Cut through ambiguity, make decisions fast, ship working output. "
+        "Minimize discussion, maximize throughput."
+    ),
+    "dialoger": (
+        "[MOOD: DIALOGER] You are collaborative and consultative. "
+        "Before acting, ask clarifying questions. Propose options to the user. "
+        "Seek agreement before executing irreversible actions."
+    ),
+    "creative": (
+        "[MOOD: CREATIVE] You are imaginative and exploratory. "
+        "Suggest unconventional approaches, explore alternative solutions, "
+        "and think outside established patterns. Challenge the status quo."
+    ),
+    "guardian": (
+        "[MOOD: GUARDIAN] You are security-focused and cautious. "
+        "Prioritize safety, validate inputs, check for vulnerabilities, "
+        "and raise warnings about risky operations before proceeding."
+    ),
+    "mentor": (
+        "[MOOD: MENTOR] You are educational and explanatory. "
+        "Teach as you work. Explain your reasoning, share best practices, "
+        "and help the user learn from the process."
+    ),
+}
 
 
 class DuplicateCommandError(ValueError):
@@ -34,12 +78,25 @@ class SkillDefinition(BaseModel):
     edges: List[Dict[str, Any]] = Field(default_factory=list)
     created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
     updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    # ── Innovation fields (backward-compatible defaults) ──
+    version: int = 1
+    mood: str = "neutral"  # forensic | executor | dialoger | creative | guardian | mentor
+    tags: List[str] = Field(default_factory=list)
+    author: str = ""
+    published: bool = False
 
     @field_validator("command")
     @classmethod
     def _validate_command(cls, value: str) -> str:
         if not COMMAND_RE.fullmatch(value or ""):
             raise ValueError("command must match ^/[a-z0-9_-]{2,32}$")
+        return value
+
+    @field_validator("mood")
+    @classmethod
+    def _validate_mood(cls, value: str) -> str:
+        if value not in MOOD_PROMPTS:
+            raise ValueError(f"mood must be one of: {', '.join(MOOD_PROMPTS.keys())}")
         return value
 
 
@@ -50,6 +107,9 @@ class SkillCreateRequest(BaseModel):
     replace_graph: bool = False
     nodes: List[Dict[str, Any]] = Field(default_factory=list)
     edges: List[Dict[str, Any]] = Field(default_factory=list)
+    mood: str = "neutral"
+    tags: List[str] = Field(default_factory=list)
+    author: str = ""
 
 class SkillDescriptionRequest(BaseModel):
     name: str = Field(default="", max_length=120)
@@ -68,6 +128,38 @@ class SkillExecuteResponse(BaseModel):
     skill_id: str
     replace_graph: bool
     status: str
+
+
+class SkillAutoGenRequest(BaseModel):
+    """Request to auto-generate a skill from natural language."""
+    prompt: str = Field(min_length=5, max_length=4000)
+    name_hint: str = Field(default="", max_length=120)
+    replace_graph: bool = False
+    mood: str = "neutral"
+
+
+class SkillAnalytics(BaseModel):
+    """Execution metrics for a skill."""
+    skill_id: str
+    total_runs: int = 0
+    successful_runs: int = 0
+    failed_runs: int = 0
+    success_rate: float = 0.0
+    avg_duration_seconds: float = 0.0
+    total_tokens_used: int = 0
+    last_run_at: Optional[str] = None
+    last_status: Optional[str] = None
+
+
+class SkillUpdateRequest(BaseModel):
+    """Request to update an existing skill (creates new version)."""
+    name: Optional[str] = None
+    description: Optional[str] = None
+    nodes: Optional[List[Dict[str, Any]]] = None
+    edges: Optional[List[Dict[str, Any]]] = None
+    mood: Optional[str] = None
+    replace_graph: Optional[bool] = None
+    tags: Optional[List[str]] = None
 
 
 @dataclass(frozen=True)
@@ -140,11 +232,18 @@ class SkillsService:
             if edge.source not in known or edge.target not in known:
                 raise ValueError("Edge references unknown node id")
 
+        cls._assert_single_orchestrator(nodes)
+        cls._assert_no_cycles(node_ids, parsed_edges)
+
+    @classmethod
+    def _assert_single_orchestrator(cls, nodes: List[Dict[str, Any]]) -> None:
         orchestrator_count = sum(1 for n in nodes if cls._is_orchestrator_node(n))
         if orchestrator_count != 1:
             raise ValueError("Skill must have exactly one orchestrator node")
 
-        graph: Dict[str, List[str]] = {nid: [] for nid in known}
+    @classmethod
+    def _assert_no_cycles(cls, node_ids: List[str], parsed_edges: List[_GraphEdge]) -> None:
+        graph: Dict[str, List[str]] = {nid: [] for nid in node_ids}
         for edge in parsed_edges:
             graph[edge.source].append(edge.target)
 
@@ -176,11 +275,12 @@ class SkillsService:
     def list_skills(cls) -> List[SkillDefinition]:
         cls._ensure_dir()
         out: List[SkillDefinition] = []
-        for f in SKILLS_DIR.glob("*.json"):
-            try:
-                out.append(SkillDefinition.model_validate_json(f.read_text(encoding="utf-8")))
-            except Exception as exc:
-                logger.warning("Failed to parse skill '%s': %s", f.name, exc)
+        with FileLock(SKILLS_LOCK):
+            for f in SKILLS_DIR.glob("*.json"):
+                try:
+                    out.append(SkillDefinition.model_validate_json(f.read_text(encoding="utf-8")))
+                except Exception as exc:
+                    logger.warning("Failed to parse skill '%s': %s", f.name, exc)
         return sorted(out, key=lambda s: s.updated_at, reverse=True)
 
     @classmethod
@@ -190,9 +290,10 @@ class SkillsService:
             path = cls._skill_path(skill_id)
         except ValueError:
             return None
-        if not path.exists():
-            return None
-        return SkillDefinition.model_validate_json(path.read_text(encoding="utf-8"))
+        with FileLock(SKILLS_LOCK):
+            if not path.exists():
+                return None
+            return SkillDefinition.model_validate_json(path.read_text(encoding="utf-8"))
 
     @classmethod
     def _assert_command_unique(cls, command: str, exclude_id: Optional[str] = None) -> None:
@@ -201,36 +302,59 @@ class SkillsService:
                 raise DuplicateCommandError(f"command '{command}' already exists")
 
     @classmethod
-    def create_skill(cls, req: SkillCreateRequest) -> SkillDefinition:
+    def create_skill(cls, req: SkillCreateRequest, use_lock: bool = True) -> SkillDefinition:
         cls._ensure_dir()
         cls._validate_command(req.command)
         cls._validate_graph(req.nodes, req.edges)
-        cls._assert_command_unique(req.command)
 
-        skill = SkillDefinition(
-            id=cls._slugify_id(req.name),
-            name=req.name,
-            description=req.description,
-            command=req.command,
-            replace_graph=req.replace_graph,
-            nodes=req.nodes,
-            edges=req.edges,
-        )
-        cls._atomic_write(cls._skill_path(skill.id), skill.model_dump_json(indent=2))
+        def _do_create():
+            cls._assert_command_unique(req.command)
+            skill = SkillDefinition(
+                id=cls._slugify_id(req.name),
+                name=req.name,
+                description=req.description,
+                command=req.command,
+                replace_graph=req.replace_graph,
+                nodes=req.nodes,
+                edges=req.edges,
+                mood=req.mood,
+                tags=req.tags,
+                author=req.author,
+            )
+            cls._atomic_write(cls._skill_path(skill.id), skill.model_dump_json(indent=2))
+            return skill
+
+        if use_lock:
+            with FileLock(SKILLS_LOCK):
+                skill = _do_create()
+        else:
+            skill = _do_create()
+
         logger.info("Skill created: %s (%s)", skill.name, skill.id)
         return skill
 
     @classmethod
-    def delete_skill(cls, skill_id: str) -> bool:
+    def delete_skill(cls, skill_id: str, use_lock: bool = True) -> bool:
         try:
             path = cls._skill_path(skill_id)
         except ValueError:
             return False
-        if not path.exists():
-            return False
-        path.unlink()
-        logger.info("Skill deleted: %s", skill_id)
-        return True
+
+        def _do_delete():
+            if not path.exists():
+                return False
+            path.unlink()
+            return True
+
+        if use_lock:
+            with FileLock(SKILLS_LOCK):
+                res = _do_delete()
+        else:
+            res = _do_delete()
+
+        if res:
+            logger.info("Skill deleted: %s", skill_id)
+        return res
 
     @classmethod
     def generate_description(cls, req: SkillDescriptionRequest) -> str:
@@ -256,6 +380,9 @@ class SkillsService:
         skill_run_id = f"skill_run_{int(time.time())}_{os.urandom(2).hex()}"
 
         nodes = []
+        mood_prefix = MOOD_PROMPTS.get(skill.mood, "")
+        if mood_prefix:
+            mood_prefix = mood_prefix + "\n\n"
         for n in skill.nodes:
             # map ui node format to CustomPlan node format
             node_type = str(n.get("type", "worker"))
@@ -268,7 +395,7 @@ class SkillsService:
                 provider=data.get("provider", "auto"),
                 role=data.get("role", node_type),
                 node_type=node_type,
-                role_definition=data.get("system_prompt", ""),
+                role_definition=mood_prefix + data.get("system_prompt", ""),
                 is_orchestrator=cls._is_orchestrator_node(n),
                 position=PlanNodePosition(
                     x=n.get("position", {}).get("x", 0),
@@ -297,7 +424,14 @@ class SkillsService:
 
         # Trigger execution in background to not block
         import asyncio
-        asyncio.create_task(cls._execute_plan_background(plan.id, skill.id, skill_run_id))
+        asyncio.create_task(
+            cls._execute_plan_background(
+                plan_id=plan.id,
+                skill_id=skill.id,
+                skill_run_id=skill_run_id,
+                command=skill.command,
+            )
+        )
 
         return SkillExecuteResponse(
             skill_run_id=skill_run_id,
@@ -307,37 +441,280 @@ class SkillsService:
         )
         
     @classmethod
-    async def _execute_plan_background(cls, plan_id: str, skill_id: str, skill_run_id: str) -> None:
+    async def _execute_plan_background(
+        cls,
+        plan_id: str,
+        skill_id: str,
+        skill_run_id: str,
+        command: str,
+    ) -> None:
         from .custom_plan_service import CustomPlanService
         from .notification_service import NotificationService
-        
-        await NotificationService.publish(f"skill_execution_started", {
+
+        started_at = datetime.now(timezone.utc).isoformat()
+        await NotificationService.publish("skill_execution_started", {
             "skill_run_id": skill_run_id,
             "skill_id": skill_id,
+            "command": command,
             "status": "running",
+            "progress": 0.0,
             "message": "Starting skill execution",
-            "started_at": datetime.now(timezone.utc).isoformat(),
+            "started_at": started_at,
+            "finished_at": None,
         })
         
         try:
-            plan = await CustomPlanService.execute_plan(plan_id, skill_id=skill_id, skill_run_id=skill_run_id)
+            plan = await CustomPlanService.execute_plan(
+                plan_id,
+                skill_id=skill_id,
+                skill_run_id=skill_run_id,
+                skill_command=command,
+            )
             if not plan:
                 raise ValueError(f"Plan {plan_id} not found or failed to execute")
                 
-            status = "success" if plan.status == "done" else "error"
-            await NotificationService.publish(f"skill_execution_finished", {
+            status = "completed" if plan.status == "done" else "error"
+            await NotificationService.publish("skill_execution_finished", {
                 "skill_run_id": skill_run_id,
                 "skill_id": skill_id,
+                "command": command,
                 "status": status,
+                "progress": 1.0 if status == "completed" else 0.0,
                 "message": f"Skill execution finished with status: {status}",
+                "started_at": started_at,
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             })
         except Exception as e:
             logger.error(f"Error executing skill {skill_id} via plan {plan_id}: {e}")
-            await NotificationService.publish(f"skill_execution_finished", {
+            await NotificationService.publish("skill_execution_finished", {
                 "skill_run_id": skill_run_id,
                 "skill_id": skill_id,
+                "command": command,
                 "status": "error",
+                "progress": 0.0,
                 "message": f"Skill execution failed: {str(e)}",
+                "started_at": started_at,
                 "finished_at": datetime.now(timezone.utc).isoformat(),
             })
+            cls.record_skill_run(skill_id, "error", 0.0, 0)
+
+    # ── Versioning ────────────────────────────────────────────────────────────
+
+    @classmethod
+    def update_skill(cls, skill_id: str, req: SkillUpdateRequest) -> Optional[SkillDefinition]:
+        """Update a skill, creating a new version and archiving the previous one."""
+        cls._ensure_dir()
+        with FileLock(SKILLS_LOCK):
+            skill = cls.get_skill(skill_id)
+            if not skill:
+                return None
+
+            # Archive current version
+            versions_dir = SKILLS_DIR / "versions" / skill_id
+            versions_dir.mkdir(parents=True, exist_ok=True)
+            archive_path = versions_dir / f"v{skill.version}.json"
+            cls._atomic_write(archive_path, skill.model_dump_json(indent=2))
+
+            # Apply updates
+            data = skill.model_dump()
+            for field, val in req.model_dump(exclude_none=True).items():
+                data[field] = val
+            data["version"] = skill.version + 1
+            data["updated_at"] = datetime.now(timezone.utc)
+
+            # Re-validate if graph changed
+            if req.nodes is not None or req.edges is not None:
+                cls._validate_graph(data["nodes"], data["edges"])
+            if req.mood is not None and req.mood not in MOOD_PROMPTS:
+                raise ValueError(f"Invalid mood: {req.mood}")
+
+            updated = SkillDefinition.model_validate(data)
+            cls._atomic_write(cls._skill_path(skill_id), updated.model_dump_json(indent=2))
+            logger.info("Skill updated: %s (v%d -> v%d)", skill_id, skill.version, updated.version)
+            return updated
+
+    @classmethod
+    def list_skill_versions(cls, skill_id: str) -> List[SkillDefinition]:
+        """List all archived versions of a skill."""
+        versions_dir = SKILLS_DIR / "versions" / skill_id
+        if not versions_dir.exists():
+            return []
+        out: List[SkillDefinition] = []
+        for f in sorted(versions_dir.glob("v*.json")):
+            try:
+                out.append(SkillDefinition.model_validate_json(f.read_text(encoding="utf-8")))
+            except Exception as exc:
+                logger.warning("Failed to parse version %s: %s", f.name, exc)
+        return out
+
+    # ── Auto-Generation from Natural Language ─────────────────────────────────
+
+    @classmethod
+    async def generate_skill_from_prompt(cls, req: SkillAutoGenRequest) -> SkillDefinition:
+        """Generate a complete skill (nodes, edges, config) from a natural language prompt."""
+        from .provider_service import ProviderService
+
+        mood_instruction = MOOD_PROMPTS.get(req.mood, "")
+        mood_suffix = f"\nAgent mood for all workers: {req.mood}. {mood_instruction}" if mood_instruction else ""
+
+        sys_prompt = (
+            "You are an AI skill architect. Generate a skill definition as JSON.\n"
+            "RULES:\n"
+            "- Output ONLY valid JSON, no markdown, no explanations\n"
+            "- Must have exactly one node with type 'orchestrator'\n"
+            "- Worker nodes should have type 'worker', 'reviewer', or 'researcher'\n"
+            "- Each node needs: id, type, data: {label, system_prompt, model: 'auto'}\n"
+            "- Each node needs: position: {x, y} (layout left-to-right, 250px apart)\n"
+            "- Edges connect source -> target (orchestrator delegates to workers)\n"
+            "- Edge ids: 'e-{source}-{target}'\n"
+            f"{mood_suffix}\n\n"
+            f"Task description: {req.prompt}\n\n"
+            'JSON schema:\n'
+            '{"name": "...", "description": "...", "command": "/auto-...",'
+            ' "nodes": [{"id": "orch", "type": "orchestrator", "data": {"label": "...", "system_prompt": "...", "model": "auto"}, "position": {"x": 0, "y": 0}},'
+            ' {"id": "w1", "type": "worker", "data": {"label": "...", "system_prompt": "...", "model": "auto"}, "position": {"x": 250, "y": 0}}],'
+            ' "edges": [{"id": "e-orch-w1", "source": "orch", "target": "w1"}]}'
+        )
+
+        resp = await ProviderService.static_generate(
+            sys_prompt, context={"task_type": "skill_auto_generation", "model": "auto"}
+        )
+        raw = resp.get("content", "").strip()
+
+        # Parse JSON from LLM response (strip markdown fences if present)
+        raw = re.sub(r"```(?:json)?\s*\n?", "", raw).strip()
+        if raw.endswith("```"):
+            raw = raw[:-3].strip()
+        start = raw.find("{")
+        end = raw.rfind("}")
+        if start >= 0 and end > start:
+            raw = raw[start:end + 1]
+
+        skill_data = json.loads(raw)
+
+        # Build create request from LLM output
+        name = req.name_hint or skill_data.get("name", "Auto-generated Skill")
+        command = skill_data.get("command", f"/auto-{int(time.time())}")
+        if not COMMAND_RE.fullmatch(command):
+            command = f"/auto-{int(time.time()) % 100000}"
+
+        create_req = SkillCreateRequest(
+            name=name,
+            description=skill_data.get("description", f"Auto-generated skill: {req.prompt[:100]}"),
+            command=command,
+            replace_graph=req.replace_graph,
+            nodes=skill_data.get("nodes", []),
+            edges=skill_data.get("edges", []),
+            mood=req.mood,
+            tags=["auto-generated"],
+        )
+        return cls.create_skill(create_req)
+
+    # ── Analytics ──────────────────────────────────────────────────────────────
+
+    @classmethod
+    def _analytics_path(cls, skill_id: str) -> Path:
+        ANALYTICS_DIR.mkdir(parents=True, exist_ok=True)
+        return ANALYTICS_DIR / f"{skill_id}.json"
+
+    @classmethod
+    def get_skill_analytics(cls, skill_id: str) -> SkillAnalytics:
+        """Get execution analytics for a skill."""
+        path = cls._analytics_path(skill_id)
+        if path.exists():
+            try:
+                return SkillAnalytics.model_validate_json(path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        return SkillAnalytics(skill_id=skill_id)
+
+    @classmethod
+    def record_skill_run(
+        cls, skill_id: str, status: str, duration: float = 0.0, tokens: int = 0
+    ) -> SkillAnalytics:
+        """Record a completed skill run in analytics."""
+        analytics = cls.get_skill_analytics(skill_id)
+        analytics.total_runs += 1
+        if status == "completed":
+            analytics.successful_runs += 1
+        else:
+            analytics.failed_runs += 1
+        analytics.success_rate = (
+            analytics.successful_runs / max(analytics.total_runs, 1)
+        )
+        # Running average for duration
+        if duration > 0:
+            prev_total = analytics.avg_duration_seconds * max(analytics.total_runs - 1, 1)
+            analytics.avg_duration_seconds = (prev_total + duration) / analytics.total_runs
+        analytics.total_tokens_used += tokens
+        analytics.last_run_at = datetime.now(timezone.utc).isoformat()
+        analytics.last_status = status
+
+        cls._atomic_write(cls._analytics_path(skill_id), analytics.model_dump_json(indent=2))
+        return analytics
+
+    # ── Marketplace ────────────────────────────────────────────────────────────
+
+    @classmethod
+    def publish_skill(cls, skill_id: str, author: str = "") -> SkillDefinition:
+        """Publish a skill to the local marketplace."""
+        skill = cls.get_skill(skill_id)
+        if not skill:
+            raise ValueError(f"Skill {skill_id} not found")
+
+        MARKETPLACE_DIR.mkdir(parents=True, exist_ok=True)
+        skill.published = True
+        skill.author = author or skill.author
+        # Save to marketplace
+        mp_path = MARKETPLACE_DIR / f"{skill.id}.json"
+        cls._atomic_write(mp_path, skill.model_dump_json(indent=2))
+        # Update original
+        with FileLock(SKILLS_LOCK):
+            cls._atomic_write(cls._skill_path(skill_id), skill.model_dump_json(indent=2))
+        logger.info("Skill published to marketplace: %s", skill.name)
+        return skill
+
+    @classmethod
+    def list_published_skills(cls) -> List[SkillDefinition]:
+        """List all skills available in the marketplace."""
+        MARKETPLACE_DIR.mkdir(parents=True, exist_ok=True)
+        out: List[SkillDefinition] = []
+        for f in MARKETPLACE_DIR.glob("*.json"):
+            try:
+                out.append(SkillDefinition.model_validate_json(f.read_text(encoding="utf-8")))
+            except Exception as exc:
+                logger.warning("Failed to parse marketplace skill '%s': %s", f.name, exc)
+        return sorted(out, key=lambda s: s.updated_at, reverse=True)
+
+    @classmethod
+    def install_from_marketplace(cls, marketplace_skill_id: str) -> SkillDefinition:
+        """Install a skill from the marketplace into local skills."""
+        mp_path = MARKETPLACE_DIR / f"{marketplace_skill_id}.json"
+        if not mp_path.exists():
+            raise ValueError(f"Marketplace skill {marketplace_skill_id} not found")
+
+        mp_skill = SkillDefinition.model_validate_json(mp_path.read_text(encoding="utf-8"))
+        req = SkillCreateRequest(
+            name=mp_skill.name,
+            description=mp_skill.description,
+            command=mp_skill.command,
+            replace_graph=mp_skill.replace_graph,
+            nodes=mp_skill.nodes,
+            edges=mp_skill.edges,
+            mood=mp_skill.mood,
+            tags=mp_skill.tags + ["installed-from-marketplace"],
+            author=mp_skill.author,
+        )
+        return cls.create_skill(req)
+
+    # ── Moods helper ──────────────────────────────────────────────────────────
+
+    @classmethod
+    def get_mood_prompt(cls, mood: str) -> str:
+        """Get the system prompt prefix for a given mood."""
+        return MOOD_PROMPTS.get(mood, "")
+
+    @classmethod
+    def list_available_moods(cls) -> Dict[str, str]:
+        """List all available moods with their descriptions."""
+        return dict(MOOD_PROMPTS)

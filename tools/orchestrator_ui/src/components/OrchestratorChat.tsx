@@ -1,7 +1,7 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, Send, Sparkles, X, RefreshCw, AlertTriangle, ChevronDown } from 'lucide-react';
-import { API_BASE, ChatExecutionStep, ChatExecutionStepStatus, OpsApproveResponse, OpsDraft } from '../types';
+import { API_BASE, ChatExecutionStep, ChatExecutionStepStatus, OpsApproveResponse, OpsDraft, Skill, SkillExecuteResponse } from '../types';
 import { useToast } from './Toast';
 
 type ComposerMode = 'generate' | 'draft';
@@ -123,9 +123,14 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
     const [isLoadingDrafts, setIsLoadingDrafts] = useState(false);
     const [approvingId, setApprovingId] = useState<string | null>(null);
     const [stepsCollapsed, setStepsCollapsed] = useState<Set<string>>(new Set());
+    const [skillsCatalog, setSkillsCatalog] = useState<Skill[]>([]);
+    const [skillsLoaded, setSkillsLoaded] = useState(false);
+    const [skillsLoading, setSkillsLoading] = useState(false);
+    const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(0);
     const { addToast } = useToast();
     const scrollRef = useRef<HTMLDivElement>(null);
     const inputRef = useRef<HTMLInputElement>(null);
+    const skillsLoadingRef = useRef(false);
 
     /* ── Auto-scroll ── */
     useEffect(() => {
@@ -138,6 +143,75 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
         () => drafts.filter((d) => d.status === 'draft').sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
         [drafts],
     );
+
+    const parseSlash = useCallback((value: string) => {
+        const trimmed = value.trim();
+        if (!trimmed.startsWith('/')) return null;
+        const [commandRaw, ...argsParts] = trimmed.split(/\s+/);
+        return {
+            command: commandRaw.toLowerCase(),
+            argsRaw: argsParts.join(' ').trim(),
+        };
+    }, []);
+
+    const commandToSkill = useMemo(() => {
+        const map = new Map<string, Skill>();
+        for (const skill of skillsCatalog) {
+            map.set(skill.command.toLowerCase(), skill);
+        }
+        return map;
+    }, [skillsCatalog]);
+
+    const isSlashInput = input.trim().startsWith('/');
+    const slashQuery = useMemo(() => {
+        const parsed = parseSlash(input);
+        return parsed ? parsed.command.slice(1) : '';
+    }, [input, parseSlash]);
+
+    const slashSuggestions = useMemo(() => {
+        if (!isSlashInput) return [];
+        if (input.trim().includes(' ')) return [];
+        const q = slashQuery.toLowerCase();
+        const filtered = skillsCatalog.filter((skill) => (
+            skill.command.slice(1).toLowerCase().includes(q) ||
+            skill.name.toLowerCase().includes(q)
+        ));
+        return filtered.slice(0, 7);
+    }, [isSlashInput, slashQuery, skillsCatalog]);
+
+    const handleSuggestionKeyDown = (
+        e: React.KeyboardEvent,
+        inputValue: string,
+        suggestions: Skill[],
+        selectedIndex: number,
+        setVal: (v: string) => void
+    ) => {
+        const hasArgs = inputValue.trim().includes(' ');
+        if (e.key === 'ArrowDown') {
+            e.preventDefault();
+            setSelectedSuggestionIdx((prev) => (prev + 1) % suggestions.length);
+            return true;
+        }
+        if (e.key === 'ArrowUp') {
+            e.preventDefault();
+            setSelectedSuggestionIdx((prev) => (prev - 1 + suggestions.length) % suggestions.length);
+            return true;
+        }
+        if (e.key === 'Escape') {
+            e.preventDefault();
+            setVal('/');
+            return true;
+        }
+        if (e.key === 'Enter' && !e.shiftKey) {
+            const current = suggestions[selectedIndex];
+            if (!hasArgs && current && inputValue.trim() !== current.command) {
+                e.preventDefault();
+                setVal(`${current.command} `);
+                return true;
+            }
+        }
+        return false;
+    };
 
     const appendMessage = useCallback((message: ChatMessage) => {
         setMessages((prev) => [...prev, message]);
@@ -168,6 +242,40 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
     }, [addToast]);
 
     useEffect(() => { fetchDrafts(); }, [fetchDrafts]);
+
+    const fetchSkillsCatalog = useCallback(async (): Promise<Skill[]> => {
+        if (skillsLoadingRef.current) return [];
+        skillsLoadingRef.current = true;
+        setSkillsLoading(true);
+        try {
+            const response = await fetch(`${API_BASE}/ops/skills`, { credentials: 'include' });
+            if (!response.ok) throw new Error(`HTTP ${response.status}`);
+            const data: Skill[] = await response.json();
+            setSkillsCatalog(data);
+            setSkillsLoaded(true);
+            return data;
+        } catch {
+            addToast('No se pudieron cargar los slash commands de skills', 'error');
+            return [];
+        } finally {
+            skillsLoadingRef.current = false;
+            setSkillsLoading(false);
+        }
+    }, [addToast]);
+
+    useEffect(() => {
+        void fetchSkillsCatalog();
+    }, [fetchSkillsCatalog]);
+
+    useEffect(() => {
+        if (isSlashInput && !skillsLoaded && !skillsLoading) {
+            void fetchSkillsCatalog();
+        }
+    }, [fetchSkillsCatalog, isSlashInput, skillsLoaded, skillsLoading]);
+
+    useEffect(() => {
+        setSelectedSuggestionIdx(0);
+    }, [slashQuery]);
 
     const approveDraft = async (draftId: string) => {
         if (approvingId) return;
@@ -318,12 +426,70 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
         addToast('Draft manual creado', 'success');
     };
 
+    const executeSlashSkill = async (prompt: string) => {
+        const parsed = parseSlash(prompt);
+        if (!parsed) return false;
+
+        let lookupMap = commandToSkill;
+        if (!skillsLoaded) {
+            const freshSkills = await fetchSkillsCatalog();
+            lookupMap = new Map(freshSkills.map((s) => [s.command.toLowerCase(), s]));
+        }
+
+        const skill = lookupMap.get(parsed.command);
+        if (!skill) {
+            const similar = slashSuggestions.slice(0, 3).map((s) => s.command);
+            appendMessage({
+                id: `m-slash-invalid-${Date.now()}`,
+                role: 'system',
+                text: similar.length > 0
+                    ? `Comando ${parsed.command} no encontrado. Sugerencias: ${similar.join(', ')}`
+                    : `Comando ${parsed.command} no encontrado.`,
+                ts: new Date().toISOString(),
+                errorActionable: 'Usa / para ver comandos disponibles o abre Skills Library.',
+            });
+            addToast('Slash command no válido', 'error');
+            return true;
+        }
+
+        if (skill.replace_graph) {
+            globalThis.dispatchEvent(new CustomEvent('ops:load_skill_to_graph', { detail: skill }));
+        }
+
+        const response = await fetch(`${API_BASE}/ops/skills/${skill.id}/execute`, {
+            method: 'POST',
+            credentials: 'include',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+                replace_graph: skill.replace_graph,
+                context: {
+                    source: 'orchestrator-chat',
+                    command: parsed.command,
+                    args_raw: parsed.argsRaw,
+                },
+            }),
+        });
+        if (!response.ok) throw new Error(`HTTP ${response.status}`);
+        const data: SkillExecuteResponse = await response.json();
+
+        appendMessage({
+            id: `m-skill-run-${data.skill_run_id}`,
+            role: 'system',
+            text: `Skill ${skill.command} en cola (${data.skill_run_id}). Modo: ${data.replace_graph ? 'replace_graph' : 'background'}.`,
+            ts: new Date().toISOString(),
+        });
+        addToast(`Skill ejecutándose: ${data.skill_run_id}`, 'success');
+        return true;
+    };
+
     /* ── Send logic ── */
     const handleSend = async (retryPrompt?: string) => {
         const prompt = retryPrompt || input.trim();
         if (!prompt || isSending) return;
 
-        if (mode === 'generate' && !providerConnected) {
+        const slash = parseSlash(prompt);
+
+        if (!slash && mode === 'generate' && !providerConnected) {
             appendMessage({
                 id: `m-noprovider-${Date.now()}`,
                 role: 'system',
@@ -342,7 +508,9 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
         setIsSending(true);
 
         try {
-            if (mode === 'generate') {
+            if (slash) {
+                await executeSlashSkill(prompt);
+            } else if (mode === 'generate') {
                 await handleGenerateDraft(prompt);
             } else {
                 await handleManualDraft(prompt);
@@ -562,19 +730,58 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
 
                 {/* Input */}
                 <div className={`p-3 flex items-center gap-2 shrink-0 ${isCollapsed ? 'h-full items-center pl-16' : 'border-t border-white/[0.04]'}`}>
-                    <input
-                        ref={inputRef}
-                        value={input}
-                        onChange={(e) => setInput(e.target.value)}
-                        onKeyDown={(e) => {
-                            if (e.key === 'Enter' && !e.shiftKey) {
-                                e.preventDefault();
-                                void handleSend();
-                            }
-                        }}
-                        placeholder={mode === 'generate' ? 'Describe el workflow...' : 'Crear draft manual...'}
-                        className="flex-1 h-10 rounded-xl bg-surface-2/60 border border-white/[0.06] px-3 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/50 transition-colors duration-200"
-                    />
+                    <div className="relative flex-1">
+                        <input
+                            ref={inputRef}
+                            value={input}
+                            onChange={(e) => setInput(e.target.value)}
+                            onKeyDown={(e) => {
+                                if (isSlashInput && slashSuggestions.length > 0) {
+                                    const handled = handleSuggestionKeyDown(e, input, slashSuggestions, selectedSuggestionIdx, (val: string) => {
+                                        setInput(val);
+                                        if (val === '/') setInput('/'); // reset case
+                                    });
+                                    if (handled) return;
+                                }
+
+                                if (e.key === 'Enter' && !e.shiftKey) {
+                                    e.preventDefault();
+                                    void handleSend();
+                                }
+                            }}
+                            placeholder={mode === 'generate' ? 'Describe el workflow o usa /comando...' : 'Crear draft manual...'}
+                            className="flex-1 w-full h-10 rounded-xl bg-surface-2/60 border border-white/[0.06] px-3 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/50 transition-colors duration-200"
+                        />
+                        {isSlashInput && (
+                            <div className="absolute left-0 right-0 bottom-11 rounded-xl border border-white/[0.08] bg-surface-1/95 backdrop-blur-lg shadow-xl shadow-black/40 p-1 z-20">
+                                {skillsLoading && (
+                                    <div className="px-2 py-2 text-[11px] text-text-tertiary">Cargando slash commands...</div>
+                                )}
+                                {!skillsLoading && slashSuggestions.length === 0 && (
+                                    <div className="px-2 py-2 text-[11px] text-text-tertiary">No hay comandos que coincidan.</div>
+                                )}
+                                {!skillsLoading && slashSuggestions.length > 0 && (
+                                    <div className="max-h-44 overflow-auto custom-scrollbar">
+                                        {slashSuggestions.map((skill, idx) => (
+                                            <button
+                                                key={skill.id}
+                                                type="button"
+                                                onMouseDown={(e) => {
+                                                    e.preventDefault();
+                                                    setInput(`${skill.command} `);
+                                                    inputRef.current?.focus();
+                                                }}
+                                                className={`w-full text-left rounded-lg px-2 py-1.5 transition-colors ${idx === selectedSuggestionIdx ? 'bg-accent-primary/15 text-accent-primary' : 'text-text-secondary hover:bg-white/[0.05] hover:text-text-primary'}`}
+                                            >
+                                                <div className="text-[11px] font-mono">{skill.command}</div>
+                                                <div className="text-[10px] text-text-tertiary truncate">{skill.name}</div>
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
+                            </div>
+                        )}
+                    </div>
                     <button
                         onClick={() => void handleSend()}
                         disabled={isSending || !input.trim()}

@@ -7,7 +7,13 @@ import time
 from typing import Any, Dict, Optional
 
 from ..config import OPS_DATA_DIR
-from ..ops_models import McpServerConfig, ProviderConfig, ProviderEntry
+from ..ops_models import (
+    McpServerConfig,
+    ProviderConfig,
+    ProviderEntry,
+    ProviderRoleBinding,
+    ProviderRolesConfig,
+)
 from ..providers.base import ProviderAdapter
 from ..providers.openai_compat import OpenAICompatAdapter
 from .provider_capability_service import ProviderCapabilityService
@@ -107,6 +113,10 @@ class ProviderService:
                     capabilities=cls.capabilities_for("ollama_local"),
                 )
             },
+            roles=ProviderRolesConfig(
+                orchestrator=ProviderRoleBinding(provider_id="local_ollama", model="qwen2.5-coder:3b"),
+                workers=[],
+            ),
         )
         cls.CONFIG_FILE.write_text(default.model_dump_json(indent=2), encoding="utf-8")
 
@@ -156,6 +166,8 @@ class ProviderService:
             normalized_entry = cls._normalize_provider_entry(entry)
             normalized[pid] = ProviderAuthService.sanitize_entry_for_storage(pid, normalized_entry)
 
+        roles = cls._normalize_roles(cfg, normalized)
+
         normalized_cfg = ProviderConfig(
             schema_version=2,
             active=cfg.active,
@@ -168,13 +180,80 @@ class ProviderService:
             last_validated_at=cfg.last_validated_at,
             effective_state=dict(cfg.effective_state or {}),
             capabilities_snapshot=dict(cfg.capabilities_snapshot or {}),
-            orchestrator_provider=cfg.orchestrator_provider,
-            worker_provider=cfg.worker_provider,
-            orchestrator_model=cfg.orchestrator_model,
-            worker_model=cfg.worker_model,
+            roles=roles,
+            orchestrator_provider=roles.orchestrator.provider_id,
+            worker_provider=roles.workers[0].provider_id if roles.workers else None,
+            orchestrator_model=roles.orchestrator.model,
+            worker_model=roles.workers[0].model if roles.workers else None,
         )
 
         return ProviderStateService.hydrate_v2_fields(normalized_cfg, cls.normalize_provider_type)
+
+    @classmethod
+    def _normalize_roles(cls, cfg: ProviderConfig, providers: Dict[str, ProviderEntry]) -> ProviderRolesConfig:
+        def _entry_model(provider_id: str) -> str:
+            entry = providers.get(provider_id)
+            if not entry:
+                return ""
+            return str(entry.model_id or entry.model or "").strip()
+
+        def _valid_binding(provider_id: str, model: str | None) -> ProviderRoleBinding | None:
+            if not provider_id or provider_id not in providers:
+                return None
+            resolved_model = str(model or "").strip() or _entry_model(provider_id)
+            if not resolved_model:
+                return None
+            return ProviderRoleBinding(provider_id=provider_id, model=resolved_model)
+
+        orchestrator_binding: ProviderRoleBinding | None = None
+        worker_bindings: list[ProviderRoleBinding] = []
+
+        # New schema first
+        if cfg.roles:
+            orch = _valid_binding(cfg.roles.orchestrator.provider_id, cfg.roles.orchestrator.model)
+            if orch:
+                orchestrator_binding = orch
+            for worker in cfg.roles.workers:
+                wb = _valid_binding(worker.provider_id, worker.model)
+                if wb:
+                    worker_bindings.append(wb)
+
+        # Legacy compatibility fallback
+        if not orchestrator_binding:
+            orch_provider = cfg.orchestrator_provider or cfg.active
+            orch_model = cfg.orchestrator_model or cfg.model_id
+            orch = _valid_binding(str(orch_provider or ""), orch_model)
+            if not orch and cfg.active in providers:
+                orch = _valid_binding(cfg.active, None)
+            if orch:
+                orchestrator_binding = orch
+
+            worker = _valid_binding(str(cfg.worker_provider or ""), cfg.worker_model)
+            if worker:
+                worker_bindings.append(worker)
+
+        # Last-resort stable default
+        if not orchestrator_binding:
+            fallback_provider = cfg.active if cfg.active in providers else next(iter(providers.keys()), "")
+            fallback = _valid_binding(fallback_provider, None)
+            if fallback:
+                orchestrator_binding = fallback
+
+        workers: list[ProviderRoleBinding] = []
+        seen_workers: set[tuple[str, str]] = set()
+        for candidate in worker_bindings:
+            key = (candidate.provider_id, candidate.model)
+            if key in seen_workers:
+                continue
+            if orchestrator_binding and key == (orchestrator_binding.provider_id, orchestrator_binding.model):
+                continue
+            seen_workers.add(key)
+            workers.append(candidate)
+
+        if not orchestrator_binding:
+            raise ValueError("Provider topology requires a valid orchestrator binding")
+
+        return ProviderRolesConfig(orchestrator=orchestrator_binding, workers=workers)
 
     @classmethod
     def get_config(cls) -> Optional[ProviderConfig]:
@@ -230,6 +309,7 @@ class ProviderService:
             last_validated_at=cfg.last_validated_at,
             effective_state=dict(cfg.effective_state or {}),
             capabilities_snapshot=dict(cfg.capabilities_snapshot or {}),
+            roles=cfg.roles,
             orchestrator_provider=cfg.orchestrator_provider,
             worker_provider=cfg.worker_provider,
             orchestrator_model=cfg.orchestrator_model,

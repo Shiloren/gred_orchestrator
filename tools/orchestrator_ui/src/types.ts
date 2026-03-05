@@ -280,6 +280,9 @@ export interface ProviderModelInfo {
     context_window?: number;
     size?: string;
     quality_tier?: string;
+    description?: string;
+    capabilities?: string[];
+    weakness?: string;
 }
 
 export interface ProviderCatalogResponse {
@@ -320,10 +323,21 @@ export interface SaveActiveProviderPayload {
     providerType: string;
     modelId: string;
     authMode: string;
+    roleTarget?: 'orchestrator' | 'worker';
     apiKey?: string;
     account?: string;
     baseUrl?: string;
     org?: string;
+}
+
+export interface ProviderRoleBinding {
+    provider_id: string;
+    model: string;
+}
+
+export interface ProviderRolesConfig {
+    orchestrator: ProviderRoleBinding;
+    workers: ProviderRoleBinding[];
 }
 
 export interface RepoInfo {
@@ -643,6 +657,8 @@ export interface MasteryRecommendation {
 }
 // --- Phase 5: Skills System ---
 
+export type AgentMood = 'neutral' | 'forensic' | 'executor' | 'dialoger' | 'creative' | 'guardian' | 'mentor';
+
 export interface Skill {
     id: string;
     name: string;
@@ -653,6 +669,11 @@ export interface Skill {
     edges: any[];
     created_at: string;
     updated_at: string;
+    version: number;
+    mood: AgentMood;
+    tags: string[];
+    author: string;
+    published: boolean;
 }
 
 export interface SkillExecuteResponse {
@@ -660,6 +681,59 @@ export interface SkillExecuteResponse {
     skill_id: string;
     replace_graph: boolean;
     status: string;
+}
+
+export interface SkillAutoGenRequest {
+    prompt: string;
+    name_hint?: string;
+    replace_graph?: boolean;
+    mood?: AgentMood;
+}
+
+export interface SkillUpdateRequest {
+    name?: string;
+    description?: string;
+    nodes?: any[];
+    edges?: any[];
+    mood?: AgentMood;
+    replace_graph?: boolean;
+    tags?: string[];
+}
+
+export interface SkillAnalytics {
+    skill_id: string;
+    total_runs: number;
+    successful_runs: number;
+    failed_runs: number;
+    success_rate: number;
+    avg_duration_seconds: number;
+    total_tokens_used: number;
+    last_run_at: string | null;
+    last_status: string | null;
+}
+
+export type SkillRunStatus = 'queued' | 'running' | 'completed' | 'failed' | 'error';
+
+export interface SkillRun {
+    id: string;
+    skill_id: string;
+    command: string;
+    status: SkillRunStatus;
+    progress: number;
+    message: string;
+    started_at: string;
+    finished_at?: string | null;
+}
+
+export interface SkillNotificationPayload {
+    skill_run_id: string;
+    skill_id: string;
+    command: string;
+    status: SkillRunStatus;
+    progress: number;
+    message: string;
+    started_at: string;
+    finished_at?: string | null;
 }
 // --- Phase 6: Custom Graph Plans ---
 
