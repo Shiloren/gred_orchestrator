@@ -1,4 +1,4 @@
-import React, { useEffect, useCallback, useMemo, useRef } from 'react';
+import React, { useEffect, useCallback, useMemo, useRef, useState } from 'react';
 import ReactFlow, {
     Background,
     Controls,
@@ -18,6 +18,7 @@ import { Plus } from 'lucide-react';
 import { ComposerNode } from './ComposerNode';
 import { PlanOverlayCard } from './PlanOverlayCard';
 import { GraphToolbar } from './Graph/GraphToolbar';
+import { SkillCreateModal } from './Graph/SkillCreateModal';
 import { NodeEditor } from './Graph/NodeEditor';
 import { ProgressBar } from './Graph/ProgressBar';
 import { AnimatedEdge } from './Graph/AnimatedEdge';
@@ -74,6 +75,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     const hasFitViewRef = useRef(false);
     const keysPressed = useRef(new Set<string>());
     const tabConnectSourceRef = useRef<string | null>(null);
+    const [showSkillModal, setShowSkillModal] = useState(false);
 
     /* Store slices — use selectors to avoid full-store re-renders */
     const isEditMode = useGraphStore((s) => s.isEditMode);
@@ -138,7 +140,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             onNodeCountChangeRef.current?.(nodesWithLiveState.length);
 
             // Detect new graph
-            const newNodeIds = nodesWithLiveState.map((n: any) => n.id).sort().join(',');
+            const newNodeIds = nodesWithLiveState.map((n: any) => n.id).sort((a: string, b: string) => a.localeCompare(b)).join(',');
             if (newNodeIds !== graphStore.prevNodeIds) {
                 graphStore.resetPositions();
                 hasFitViewRef.current = false;
@@ -246,6 +248,56 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         loadPlan();
     }, [activePlanIdFromChat, setNodes, setEdges, addToast]);
 
+    /* ── Load skill from SkillsPanel ── */
+    useEffect(() => {
+        const handleLoadSkill = (e: Event) => {
+            const ev = e as CustomEvent;
+            const skill = ev.detail;
+            if (!skill || !skill.nodes) return;
+            try {
+                const loadedNodes = skill.nodes.map((n: any) => ({
+                    id: n.id,
+                    type: 'custom',
+                    position: n.position || { x: 0, y: 0 },
+                    data: {
+                        label: n.label || n.id,
+                        status: n.status || 'pending',
+                        node_type: n.node_type || 'worker',
+                        role: n.role || n.node_type || 'worker',
+                        model: n.model || 'auto',
+                        provider: n.provider || 'auto',
+                        prompt: n.prompt || '',
+                        role_definition: n.role_definition || '',
+                        is_orchestrator: n.is_orchestrator || n.node_type === 'orchestrator',
+                        trustLevel: 'supervised',
+                        output: n.output,
+                        error: n.error,
+                    },
+                }));
+                const loadedEdges = (skill.edges || []).map((e: any) => ({
+                    id: e.id || `e-${e.source}-${e.target}`,
+                    source: e.source,
+                    target: e.target,
+                    type: 'animated',
+                    animated: true,
+                    style: { stroke: 'var(--status-pending)', strokeWidth: 2 },
+                }));
+
+                setNodes(loadedNodes);
+                setEdges(loadedEdges);
+                useGraphStore.getState().setActivePlanId(null);
+                useGraphStore.getState().setPlanName(skill.name || '');
+                useGraphStore.getState().setPlanDescription(skill.description || '');
+                useGraphStore.getState().setEditMode(true);
+                hasFitViewRef.current = false;
+            } catch (err) {
+                addToast('No se pudo hidratar la skill al grafo.', 'error');
+            }
+        };
+        window.addEventListener('ops:load_skill_to_graph', handleLoadSkill);
+        return () => window.removeEventListener('ops:load_skill_to_graph', handleLoadSkill);
+    }, [setNodes, setEdges, addToast]);
+
     /* -- Sync external selection -- */
     useEffect(() => {
         if (selectedNodeId) {
@@ -298,10 +350,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     const onNodeClick: NodeMouseHandler = useCallback(
         (_event, node) => {
             if (isEditMode && keysPressed.current.has('tab')) {
-                if (!tabConnectSourceRef.current) {
-                    tabConnectSourceRef.current = node.id;
-                    addToast('Nodo origen seleccionado para conectar. Haz tab+click en el destino.', 'info');
-                } else {
+                if (tabConnectSourceRef.current) {
                     if (tabConnectSourceRef.current !== node.id) {
                         const source = tabConnectSourceRef.current;
                         const target = node.id;
@@ -312,6 +361,9 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         addToast('Nodos conectados.', 'success');
                     }
                     tabConnectSourceRef.current = null;
+                } else {
+                    tabConnectSourceRef.current = node.id;
+                    addToast('Nodo origen seleccionado para conectar. Haz tab+click en el destino.', 'info');
                 }
                 return;
             } else {
@@ -538,15 +590,24 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             keysPressed.current.delete(e.key.toLowerCase());
         };
 
-        window.addEventListener('keydown', handleGlobalKeyDown);
-        window.addEventListener('keyup', handleGlobalKeyUp);
+        globalThis.addEventListener('keydown', handleGlobalKeyDown);
+        globalThis.addEventListener('keyup', handleGlobalKeyUp);
         return () => {
-            window.removeEventListener('keydown', handleGlobalKeyDown);
-            window.removeEventListener('keyup', handleGlobalKeyUp);
+            globalThis.removeEventListener('keydown', handleGlobalKeyDown);
+            globalThis.removeEventListener('keyup', handleGlobalKeyUp);
         };
     }, [deleteSelectedElements, duplicateSelectedElements]);
 
     /* ── Save & Execute ── */
+    const handleSaveSkillClick = useCallback(() => {
+        const error = validateGraph(nodes, edges);
+        if (error) {
+            addToastRef.current(error, 'error');
+            return;
+        }
+        setShowSkillModal(true);
+    }, [nodes, edges]);
+
     const handleSaveDraft = useCallback(async () => {
         useGraphStore.getState().setIsSaving(true);
         const error = validateGraph(nodes, edges);
@@ -742,6 +803,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         }}
                         onAddNode={createManualNode}
                         onSaveDraft={handleSaveDraft}
+                        onSaveSkill={handleSaveSkillClick}
                         onExecute={handleExecute}
                     />
                 </Panel>
@@ -759,6 +821,14 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         </Panel>
                     )}
                 </AnimatePresence>
+
+                {showSkillModal && (
+                    <SkillCreateModal
+                        nodesPayload={buildPlanPayload(nodes, edges, '', '').nodes}
+                        edgesPayload={buildPlanPayload(nodes, edges, '', '').edges}
+                        onClose={() => setShowSkillModal(false)}
+                    />
+                )}
             </ReactFlow>
         </div>
     );

@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Edit2, Save, X, Plus, Play } from 'lucide-react';
+import { Sparkles, Edit2, Save, X, Plus, Play } from 'lucide-react';
 import { useGraphStore } from './useGraphStore';
 
 interface GraphToolbarProps {
@@ -8,6 +8,7 @@ interface GraphToolbarProps {
     onExitEdit: () => void;
     onAddNode: () => void;
     onSaveDraft: () => void;
+    onSaveSkill?: () => void;
     onExecute: () => void;
 }
 
@@ -16,6 +17,7 @@ export const GraphToolbar = memo(({
     onExitEdit,
     onAddNode,
     onSaveDraft,
+    onSaveSkill,
     onExecute,
 }: GraphToolbarProps) => {
     const isEditMode = useGraphStore((s) => s.isEditMode);
@@ -75,6 +77,16 @@ export const GraphToolbar = memo(({
                             <Save size={14} />
                             {isSaving ? 'Guardando...' : 'Guardar'}
                         </button>
+
+                        {onSaveSkill && (
+                            <button
+                                onClick={onSaveSkill}
+                                className="flex items-center gap-2 px-3 py-2 bg-violet-500/10 text-violet-400 hover:bg-violet-500/20 rounded-xl transition-colors text-[11px] font-bold"
+                            >
+                                <Sparkles size={14} />
+                                Guardar Skill
+                            </button>
+                        )}
 
                         <button
                             onClick={onExecute}

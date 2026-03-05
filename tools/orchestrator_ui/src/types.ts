@@ -647,19 +647,19 @@ export interface Skill {
     id: string;
     name: string;
     description: string;
-    icon: string;
-    category: string;
-    prompt_template: string;
-    tags: string[];
+    command: string;
+    replace_graph: boolean;
+    nodes: any[];
+    edges: any[];
     created_at: string;
     updated_at: string;
-    last_run_at?: string | null;
-    run_count: number;
 }
 
-export interface SkillTriggerResponse {
-    draft_id: string;
+export interface SkillExecuteResponse {
+    skill_run_id: string;
     skill_id: string;
+    replace_graph: boolean;
+    status: string;
 }
 // --- Phase 6: Custom Graph Plans ---
 

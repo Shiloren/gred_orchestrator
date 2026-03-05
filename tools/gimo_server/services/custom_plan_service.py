@@ -59,6 +59,7 @@ class CustomPlan(BaseModel):
     id: str
     name: str
     description: str = ""
+    context: Dict[str, Any] = Field(default_factory=dict)
     nodes: List[PlanNode] = Field(default_factory=list)
     edges: List[PlanEdge] = Field(default_factory=list)
     status: str = "draft"   # draft | approved | running | done | error
@@ -71,6 +72,7 @@ class CreatePlanRequest(BaseModel):
     """Esquema para crear un plan de ejecucion (CustomPlan)."""
     name: str
     description: str = ""
+    context: Dict[str, Any] = Field(default_factory=dict)
     nodes: List[PlanNode] = Field(default_factory=list)
     edges: List[PlanEdge] = Field(default_factory=list)
 
@@ -239,8 +241,14 @@ class CustomPlanService:
     def create_plan(cls, req: CreatePlanRequest) -> CustomPlan:
         cls._ensure_dir()
         plan_id = f"plan_{int(time.time() * 1000)}_{os.urandom(2).hex()}"
-        plan = CustomPlan(id=plan_id, name=req.name, description=req.description,
-                          nodes=req.nodes, edges=req.edges)
+        plan = CustomPlan(
+            id=plan_id, 
+            name=req.name, 
+            description=req.description,
+            context=req.context,
+            nodes=req.nodes, 
+            edges=req.edges
+        )
         cls._validate_plan(plan)
         cls._save(plan)
         logger.info("Plan created: %s (%s)", plan.name, plan.id)
@@ -349,7 +357,7 @@ class CustomPlanService:
         return layers
 
     @classmethod
-    async def execute_plan(cls, plan_id: str) -> Optional[CustomPlan]:
+    async def execute_plan(cls, plan_id: str, skill_id: Optional[str] = None, skill_run_id: Optional[str] = None) -> Optional[CustomPlan]:
         """Execute a plan layer by layer, respecting dependencies."""
         from ..services.provider_service import ProviderService
         from ..services.notification_service import NotificationService
@@ -376,7 +384,7 @@ class CustomPlanService:
             })
 
             for node_id in layer:
-                await cls._execute_node(plan, node_map, node_id, plan_id)
+                await cls._execute_node(plan, node_map, node_id, plan_id, skill_id, skill_run_id)
 
             cls._save(plan)
 
@@ -384,10 +392,13 @@ class CustomPlanService:
         all_done = all(n.status in ("done", "skipped") for n in plan.nodes)
         plan.status = "done" if all_done else "error"
         cls._save(plan)
+
+        # Notify via custom plan events
         await NotificationService.publish("custom_plan_finished", {
             "plan_id": plan_id, 
             "status": plan.status
         })
+
         return plan
 
     @classmethod
@@ -397,6 +408,8 @@ class CustomPlanService:
         node_map: Dict[str, PlanNode],
         node_id: str,
         plan_id: str,
+        skill_id: Optional[str] = None,
+        skill_run_id: Optional[str] = None,
     ) -> None:
         from ..services.provider_service import ProviderService
         from ..services.notification_service import NotificationService
@@ -412,6 +425,15 @@ class CustomPlanService:
             "node_id": node.id,
             "status": node.status,
         })
+        
+        if skill_run_id and skill_id:
+            await NotificationService.publish("skill_execution_progress", {
+                "skill_run_id": skill_run_id,
+                "skill_id": skill_id,
+                "status": "running",
+                "progress": 0.0,
+                "message": f"Starting node {node.label}",
+            })
 
         dep_outputs = []
         for dep_id in node.depends_on:
@@ -428,6 +450,15 @@ class CustomPlanService:
                 "status": node.status,
                 "output": node.output,
             })
+            
+            if skill_run_id and skill_id:
+                await NotificationService.publish("skill_execution_progress", {
+                    "skill_run_id": skill_run_id,
+                    "skill_id": skill_id,
+                    "status": "running",
+                    "progress": 0.5,
+                    "message": f"Finished node {node.label}",
+                })
             return
 
         prompt_parts = []
@@ -439,16 +470,18 @@ class CustomPlanService:
         final_prompt = "\n\n".join(prompt_parts)
 
         try:
+            gen_context = {
+                **plan.context,
+                "mode": "custom_plan_node",
+                "model": node.model,
+                "provider": node.provider,
+                "role": node.role,
+                "node_type": node.node_type,
+            }
             resp = await asyncio.wait_for(
                 ProviderService.static_generate(
                     prompt=final_prompt,
-                    context={
-                        "mode": "custom_plan_node",
-                        "model": node.model,
-                        "provider": node.provider,
-                        "role": node.role,
-                        "node_type": node.node_type,
-                    },
+                    context=gen_context,
                 ),
                 timeout=300,
             )
@@ -466,3 +499,13 @@ class CustomPlanService:
             "output": node.output,
             "error": node.error,
         })
+        
+        if skill_run_id and skill_id:
+            msg = f"Error in node {node.label}: {node.error}" if node.error else f"Finished node {node.label}"
+            await NotificationService.publish("skill_execution_progress", {
+                "skill_run_id": skill_run_id,
+                "skill_id": skill_id,
+                "status": "running",
+                "progress": 0.5,
+                "message": msg,
+            })

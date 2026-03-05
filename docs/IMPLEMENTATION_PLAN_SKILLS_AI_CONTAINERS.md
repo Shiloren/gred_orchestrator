@@ -143,11 +143,11 @@ Sustituir sistema de Skill actual por modelo canónico de skill visual.
 - `tools/gimo_server/routers/ops/skills_router.py`
 
 ### Tareas
-- [ ] Definir `SkillDefinition` canónico en backend
-- [ ] Reescribir persistencia de skills en `.orch_data/ops/skills/`
-- [ ] Implementar validaciones fuertes (`command`, DAG, orchestrator único)
-- [ ] Implementar GET/POST/DELETE
-- [ ] Implementar endpoint `generate-description`
+- [x] Definir `SkillDefinition` canónico en backend
+- [x] Reescribir persistencia de skills en `.orch_data/ops/skills/`
+- [x] Implementar validaciones fuertes (`command`, DAG, orchestrator único)
+- [x] Implementar GET/POST/DELETE
+- [x] Implementar endpoint `generate-description`
 
 ### Entregables
 - Servicio de skills operando con modelo único
@@ -155,10 +155,10 @@ Sustituir sistema de Skill actual por modelo canónico de skill visual.
 - Tests unitarios backend de validación y CRUD
 
 ### DoD Fase 1
-- [ ] Crear skill válida -> 201
-- [ ] Duplicado de command -> 409/400
-- [ ] Grafo inválido -> 400
-- [ ] Listado devuelve skills parseadas correctamente
+- [x] Crear skill válida -> 201
+- [x] Duplicado de command -> 409/400
+- [x] Grafo inválido -> 400
+- [x] Listado devuelve skills parseadas correctamente
 
 ### System Prompt — Agente Backend Fase 1
 
@@ -572,12 +572,12 @@ SALIDA OBLIGATORIA POR CICLO
 ## 13) Registro de ejecución (rellenable)
 
 ### Fase 1
-- Owner:
-- Fecha inicio:
-- Fecha fin:
-- PR(s):
-- Resultado DoD: PASS / FAIL
-- Incidencias:
+- Owner: Agente A — Backend Core
+- Fecha inicio: 2026-03-05
+- Fecha fin: 2026-03-05
+- PR(s): working tree local (sin PR remoto en esta sesión)
+- Resultado DoD: PASS
+- Incidencias: Ajuste de tests para evitar cierre de lifespan con CancelledError en TestClient de Starlette/AnyIO.
 
 ### Fase 2
 - Owner:
