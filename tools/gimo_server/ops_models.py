@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 from datetime import datetime, timezone
-from typing import Any, Dict, List, Literal, Optional
+from typing import Any, Dict, List, Literal, Optional, Set
 
 from pydantic import BaseModel, Field, field_validator, model_validator
 from pydantic.config import ConfigDict
@@ -833,6 +833,41 @@ class AgentInsight(BaseModel):
     agent_id: Optional[str] = None
     tool: Optional[str] = None
     context: Optional[Dict[str, Any]] = None
+
+
+class ActionDraft(BaseModel):
+    id: str = Field(default_factory=lambda: f"ad_{uuid.uuid4().hex[:10]}")
+    agent_id: str
+    tool: str
+    params: Dict[str, Any] = Field(default_factory=dict)
+    risk_level: Literal["low", "medium", "high", "critical"] = "medium"
+    status: Literal["pending", "approved", "rejected", "timeout"] = "pending"
+    decision_reason: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    updated_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+
+class RoleProfile(BaseModel):
+    tools_allowed: Set[str] = Field(default_factory=set)
+    capability: str
+    trust_tier: str
+    hitl_required: bool = False
+
+
+class ExecutorReport(BaseModel):
+    run_id: str
+    agent_id: str
+    modified_files: List[str] = Field(default_factory=list)
+    safety_summary: str
+    rollback_plan: List[str]
+    timestamp: str
+
+    @field_validator("rollback_plan")
+    @classmethod
+    def must_have_rollback(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("rollback_plan required")
+        return v
 
 
 class TrustEvent(BaseModel):

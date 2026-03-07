@@ -15,6 +15,8 @@ from .base import (
     ProposedAction
 )
 from ..services.tool_registry_service import ToolRegistryService
+from ..services.role_profiles import assert_tool_allowed, get_role_profile
+from ..services.hitl_gate_service import HitlGateService
 
 logger = logging.getLogger("orchestrator.adapters.openai_compatible")
 
@@ -28,6 +30,9 @@ class OpenAICompatibleSession(AgentSession):
         task: str,
         context: Optional[Dict[str, Any]] = None,
         system_prompt: str = "You are a helpful AI assistant.",
+        role_profile: Optional[str] = None,
+        hitl_enabled: bool = False,
+        hitl_timeout_seconds: float = 300.0,
     ):
         self.base_url = base_url
         self.model_name = model_name
@@ -44,6 +49,9 @@ class OpenAICompatibleSession(AgentSession):
         self._proposal_index: Dict[str, ProposedAction] = {}
         self._decision_log: Dict[str, str] = {}
         self._metrics: Dict[str, Any] = {"tokens_used": 0, "cost_usd": 0.0}
+        self._role_profile = role_profile
+        self._hitl_enabled = bool(hitl_enabled)
+        self._hitl_timeout_seconds = float(hitl_timeout_seconds)
         
         self._background_task = asyncio.create_task(self._process_turn())
 
@@ -113,6 +121,19 @@ class OpenAICompatibleSession(AgentSession):
             raise ValueError(f"Unknown proposal id: {action_id}")
         
         action = self._proposal_index[action_id]
+
+        if self._role_profile:
+            assert_tool_allowed(self._role_profile, action.tool)
+            profile = get_role_profile(self._role_profile)
+            if profile.hitl_required and self._hitl_enabled:
+                decision = await HitlGateService.gate_tool_call(
+                    agent_id=f"agent:{self.model_name}",
+                    tool=action.tool,
+                    params=dict(action.params or {}),
+                    timeout_seconds=self._hitl_timeout_seconds,
+                )
+                if decision != "allow":
+                    raise PermissionError(f"HITL denied tool execution: {action.tool}")
         self._decision_log[action_id] = "allowed"
         
         # Execute tool (Mock execution for now, or via ToolRegistry)
@@ -226,5 +247,8 @@ class OpenAICompatibleAdapter(AgentAdapter):
             model_name=self.model_name,
             task=task,
             context=context,
-            system_prompt=self.system_prompt
+            system_prompt=self.system_prompt,
+            role_profile=str((context or {}).get("role_profile") or (policy or {}).get("role_profile") or "").strip() or None,
+            hitl_enabled=bool((context or {}).get("hitl_enabled") or (policy or {}).get("hitl_enabled") or False),
+            hitl_timeout_seconds=float((context or {}).get("hitl_timeout_seconds") or (policy or {}).get("hitl_timeout_seconds") or 300.0),
         )

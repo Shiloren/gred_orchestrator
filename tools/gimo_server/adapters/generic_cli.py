@@ -18,6 +18,8 @@ from ..services.policy_service import PolicyService
 from ..services.storage_service import StorageService
 from ..services.trust_engine import TrustEngine
 from ..services.tool_registry_service import ToolRegistryService
+from ..services.hitl_gate_service import HitlGateService
+from ..services.role_profiles import assert_tool_allowed, get_role_profile
 
 logger = logging.getLogger("orchestrator.adapters.generic_cli")
 
@@ -44,6 +46,9 @@ class GenericCLISession(AgentSession):
         model_name: str = "generic-cli",
         task_type: str = "agent_task",
         actor: str = "agent:generic_cli",
+        role_profile: Optional[str] = None,
+        hitl_enabled: bool = False,
+        hitl_timeout_seconds: float = 300.0,
     ):
         self.process = process
         self.task = task
@@ -59,6 +64,9 @@ class GenericCLISession(AgentSession):
         self._model_name = model_name
         self._task_type = task_type
         self._actor = actor
+        self._role_profile = role_profile
+        self._hitl_enabled = hitl_enabled
+        self._hitl_timeout_seconds = float(hitl_timeout_seconds)
         
         # Start background readers
         self._read_task = asyncio.create_task(self._read_streams())
@@ -155,6 +163,29 @@ class GenericCLISession(AgentSession):
         if action_id not in self._proposal_index:
             raise ValueError(f"Unknown proposal id: {action_id}")
         action = self._proposal_index[action_id]
+
+        if self._role_profile:
+            try:
+                assert_tool_allowed(self._role_profile, action.tool)
+            except PermissionError:
+                self._decision_log[action_id] = "blocked:role_profile_denied"
+                await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=role_profile_denied")
+                self._emit_trust_event(action_id=action_id, outcome="rejected")
+                raise
+
+            profile = get_role_profile(self._role_profile)
+            if profile.hitl_required and self._hitl_enabled:
+                gate_decision = await HitlGateService.gate_tool_call(
+                    agent_id=self._actor,
+                    tool=action.tool,
+                    params=dict(action.params or {}),
+                    timeout_seconds=self._hitl_timeout_seconds,
+                )
+                if gate_decision != "allow":
+                    self._decision_log[action_id] = "blocked:hitl_rejected"
+                    await self._send_stdin_line(f"{self.DENY_CMD_PREFIX} {action_id} reason=hitl_rejected")
+                    self._emit_trust_event(action_id=action_id, outcome="rejected")
+                    raise PermissionError(f"HITL denied tool execution: {action.tool}")
         
         await self._validate_tool_registry(action, action_id)
         tool_entry = ToolRegistryService.get_tool(action.tool)
@@ -306,6 +337,9 @@ class GenericCLIAdapter(AgentAdapter):
         self.trust_event_sink = trust_event_sink
         self.model_name = model_name
         self.actor = actor
+        self.role_profile: Optional[str] = None
+        self.hitl_enabled: bool = False
+        self.hitl_timeout_seconds: float = 300.0
 
     async def spawn(
         self, 
@@ -330,6 +364,9 @@ class GenericCLIAdapter(AgentAdapter):
             await process.stdin.drain()
             
         task_type = str((context or {}).get("task_type") or (policy or {}).get("task_type") or "agent_task")
+        role_profile = str((context or {}).get("role_profile") or (policy or {}).get("role_profile") or "").strip() or None
+        hitl_enabled = bool((context or {}).get("hitl_enabled") or (policy or {}).get("hitl_enabled") or self.hitl_enabled)
+        hitl_timeout = float((context or {}).get("hitl_timeout_seconds") or (policy or {}).get("hitl_timeout_seconds") or self.hitl_timeout_seconds)
         return GenericCLISession(
             process,
             task,
@@ -337,4 +374,7 @@ class GenericCLIAdapter(AgentAdapter):
             model_name=self.model_name,
             task_type=task_type,
             actor=self.actor,
+            role_profile=role_profile,
+            hitl_enabled=hitl_enabled,
+            hitl_timeout_seconds=hitl_timeout,
         )

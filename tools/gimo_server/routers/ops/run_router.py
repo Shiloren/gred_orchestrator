@@ -4,10 +4,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Request
 from tools.gimo_server.security import audit_log, check_rate_limit, verify_token
 from tools.gimo_server.security.auth import AuthContext
 from tools.gimo_server.ops_models import (
+    ActionDraft,
     OpsApproved, OpsApproveResponse, OpsRun, OpsCreateRunRequest,
     WorkflowExecuteRequest, WorkflowGraph, WorkflowCheckpoint
 )
 from tools.gimo_server.services.ops_service import OpsService
+from tools.gimo_server.services.hitl_gate_service import HitlGateService
 from tools.gimo_server.services.storage_service import StorageService
 from tools.gimo_server.services.graph_engine import GraphEngine
 from tools.gimo_server.services.observability_service import ObservabilityService
@@ -19,6 +21,51 @@ from .common import _require_role, _actor_label, _WORKFLOW_ENGINES
 router = APIRouter()
 
 RUN_NOT_FOUND = "Run not found"
+
+
+@router.get("/action-drafts", response_model=List[ActionDraft])
+async def list_action_drafts(
+    request: Request,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+    status: Annotated[Optional[str], Query(description="Filter by status")] = None,
+):
+    _require_role(auth, "operator")
+    return HitlGateService.list_drafts(status=status)
+
+
+@router.post("/action-drafts/{draft_id}/approve", response_model=ActionDraft)
+async def approve_action_draft(
+    request: Request,
+    draft_id: str,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+    reason: Annotated[Optional[str], Query(description="Optional reason")] = None,
+):
+    _require_role(auth, "operator")
+    try:
+        draft = await HitlGateService.approve(draft_id, reason=reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    audit_log("OPS", f"/ops/action-drafts/{draft_id}/approve", draft.id, operation="WRITE", actor=_actor_label(auth))
+    return draft
+
+
+@router.post("/action-drafts/{draft_id}/reject", response_model=ActionDraft)
+async def reject_action_draft(
+    request: Request,
+    draft_id: str,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+    reason: Annotated[Optional[str], Query(description="Optional reason")] = None,
+):
+    _require_role(auth, "operator")
+    try:
+        draft = await HitlGateService.reject(draft_id, reason=reason)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc))
+    audit_log("OPS", f"/ops/action-drafts/{draft_id}/reject", draft.id, operation="WRITE", actor=_actor_label(auth))
+    return draft
 
 @router.post(
     "/drafts/{draft_id}/approve", 

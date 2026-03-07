@@ -23,6 +23,7 @@ class GicsService:
         self._socket: Optional[socket.socket] = None
         self._pipe_file: Optional[Any] = None  # For Windows Named Pipe
         self._actual_socket_path: Optional[str] = None
+        self._health_task: Optional[asyncio.Task] = None
         
     def start_daemon(self) -> None:
         """Start the GICS daemon subprocess."""
@@ -95,6 +96,7 @@ class GicsService:
 
     def stop_daemon(self) -> None:
         """Stop the GICS daemon."""
+        self.stop_health_check()
         if self._process:
             logger.info("Stopping GICS Daemon...")
             self._process.terminate()
@@ -130,6 +132,48 @@ class GicsService:
             except OSError:
                 pass
             self._pipe_file = None
+
+    def _send_with_retry(self, method: str, params: Dict[str, Any] = None, max_retries: int = 3) -> Any:
+        """Send command with exponential backoff retry."""
+        delays = [0.5, 1.0, 2.0]
+        last_error = None
+
+        for attempt in range(max_retries):
+            try:
+                return self.send_command(method, params)
+            except Exception as e:
+                last_error = e
+                self._close_socket()
+                if attempt < max_retries - 1:
+                    delay = delays[min(attempt, len(delays) - 1)]
+                    logger.warning("GICS retry %d/%d after %.1fs: %s", attempt + 1, max_retries, delay, e)
+                    time.sleep(delay)
+
+        logger.error("GICS command %s failed after %d retries: %s", method, max_retries, last_error)
+        return None
+
+    async def _health_loop(self) -> None:
+        while True:
+            try:
+                await asyncio.sleep(60)
+                self._send_with_retry("scan", {"prefix": "ops:", "includeFields": False}, max_retries=1)
+            except asyncio.CancelledError:
+                raise
+            except Exception as exc:
+                logger.warning("GICS health check error: %s", exc)
+
+    def start_health_check(self) -> None:
+        if self._health_task and not self._health_task.done():
+            return
+        try:
+            self._health_task = asyncio.create_task(self._health_loop())
+        except RuntimeError:
+            self._health_task = None
+
+    def stop_health_check(self) -> None:
+        if self._health_task and not self._health_task.done():
+            self._health_task.cancel()
+        self._health_task = None
 
     def _connect(self) -> None:
         """Establish connection to daemon."""
@@ -211,13 +255,13 @@ class GicsService:
             return None 
 
     def put(self, key: str, fields: Dict[str, Any]) -> Any:
-        return self.send_command("put", {"key": key, "fields": fields})
+        return self._send_with_retry("put", {"key": key, "fields": fields})
 
     def get(self, key: str) -> Optional[Dict[str, Any]]:
-        return self.send_command("get", {"key": key})
+        return self._send_with_retry("get", {"key": key})
 
     def scan(self, prefix: str = "", include_fields: bool = True) -> List[Dict[str, Any]]:
-        result = self.send_command("scan", {"prefix": prefix, "includeFields": include_fields})
+        result = self._send_with_retry("scan", {"prefix": prefix, "includeFields": include_fields})
         if result and "items" in result:
             return result["items"]
         return []

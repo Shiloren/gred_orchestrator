@@ -12,12 +12,16 @@ from __future__ import annotations
 
 import asyncio
 import logging
+import re
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Optional
 
+from ..ops_models import ExecutorReport
 from .ops_service import OpsService
 from .provider_service import ProviderService
 from .merge_gate_service import MergeGateService
+from .critic_service import CriticService
 
 logger = logging.getLogger("orchestrator.run_worker")
 
@@ -34,28 +38,43 @@ class RunWorker:
     def __init__(self) -> None:
         self._task: Optional[asyncio.Task] = None
         self._running_ids: set[str] = set()
+        self._wake_event = asyncio.Event()
+        self._running = False
 
     async def start(self) -> None:
         await asyncio.sleep(0)
         if self._task is None or self._task.done():
             self._task = asyncio.create_task(self._loop())
+            self._running = True
             logger.info("RunWorker started")
 
+    def notify(self) -> None:
+        """Wake the worker immediately to process pending runs."""
+        self._wake_event.set()
+
     async def stop(self) -> None:
+        self._running = False
+        self._wake_event.set()  # Wake up to exit cleanly
         if self._task and not self._task.done():
             self._task.cancel()
             await asyncio.gather(self._task, return_exceptions=True)
             logger.info("RunWorker stopped")
 
     async def _loop(self) -> None:
-        while True:
+        while self._running:
+            try:
+                await asyncio.wait_for(self._wake_event.wait(), timeout=30.0)
+            except asyncio.TimeoutError:
+                pass
+            self._wake_event.clear()
+            if not self._running:
+                break
             try:
                 await self._tick()
             except asyncio.CancelledError:
                 raise
             except Exception:
                 logger.exception("RunWorker tick error")
-            await asyncio.sleep(POLL_INTERVAL)
 
     async def _tick(self) -> None:
         await asyncio.sleep(0)
@@ -71,6 +90,18 @@ class RunWorker:
         available_slots = max_concurrent - len(self._running_ids)
         if available_slots <= 0:
             return
+
+        # Admission control via ResourceGovernor
+        try:
+            from .authority import ExecutionAuthority
+            authority = ExecutionAuthority.get()
+            from .resource_governor import AdmissionDecision, TaskWeight
+            decision = authority.resource_governor.evaluate(TaskWeight.MEDIUM)
+            if decision != AdmissionDecision.ALLOW:
+                logger.info("ResourceGovernor deferred runs (decision=%s)", decision.value)
+                return
+        except RuntimeError:
+            pass  # Authority not yet initialized
 
         pending = OpsService.list_pending_runs()
         for run in pending[:available_slots]:
@@ -263,7 +294,76 @@ class RunWorker:
         for task in plan_data.get("tasks", []):
             await self._process_task(run_id, task, intent_effective, path_scope)
 
+        report = self._build_executor_report(run_id, output_text="Structured plan executed", run_result={})
+        OpsService.append_log(run_id, level="INFO", msg=f"ExecutorReport: {report.model_dump_json()}")
+
         OpsService.update_run_status(run_id, "done", msg="Structured plan execution completed")
+
+    async def _critic_with_retry(
+        self,
+        *,
+        run_id: str,
+        output_text: str,
+        base_prompt: str,
+        intent_effective: str,
+        path_scope: list[str],
+    ) -> tuple[bool, str, dict]:
+        """Hidden critic loop with max 2 retries for non-critical verdicts."""
+        current_output = output_text
+        current_raw: dict = {"content": output_text}
+
+        for attempt in range(0, 3):
+            verdict = await CriticService.evaluate(
+                current_output,
+                context={"run_id": run_id, "attempt": attempt + 1, "intent_effective": intent_effective},
+            )
+            OpsService.append_log(
+                run_id,
+                level="INFO",
+                msg=f"Critic verdict: approved={verdict.approved} severity={verdict.severity} issues={verdict.issues}",
+            )
+
+            if verdict.approved:
+                return True, current_output, current_raw
+
+            if verdict.severity == "critical" or attempt >= 2:
+                return False, current_output, current_raw
+
+            retry_prompt = (
+                f"{base_prompt}\n\n"
+                f"CRITIC FEEDBACK (MUST FIX): {verdict.issues}\n"
+                "Rewrite the execution output with concise, safe and actionable format."
+            )
+            current_raw = await ProviderService.static_generate_phase6_strategy(
+                prompt=retry_prompt,
+                context={"mode": "execute_retry"},
+                intent_effective=intent_effective,
+                path_scope=path_scope,
+            )
+            current_output = str(current_raw.get("content") or "")
+
+        return False, current_output, current_raw
+
+    def _build_executor_report(self, run_id: str, *, output_text: str, run_result: dict) -> ExecutorReport:
+        modified_files = sorted(set(re.findall(r"[\w./\\-]+\.[a-zA-Z0-9]{1,8}", output_text)))
+        if not modified_files:
+            modified_files = []
+
+        rollback_plan = [
+            "git reset --hard HEAD",
+            "git clean -fd",
+        ]
+        if run_result.get("commit_before"):
+            rollback_plan.insert(0, f"git reset --hard {run_result['commit_before']}")
+
+        return ExecutorReport(
+            run_id=run_id,
+            agent_id="executor",
+            modified_files=modified_files,
+            safety_summary="Execution completed with policy + critic checks.",
+            rollback_plan=rollback_plan,
+            timestamp=datetime.now(timezone.utc).isoformat(),
+        )
 
     async def _handle_legacy_execution(self, run_id: str, prompt: str, intent_effective: str, path_scope: list[str]) -> None:
         try:
@@ -278,6 +378,18 @@ class RunWorker:
             )
             provider_name = resp.get("provider", "unknown")
             result = resp.get("content", "")
+
+            critic_ok, result, resp = await self._critic_with_retry(
+                run_id=run_id,
+                output_text=str(result),
+                base_prompt=prompt,
+                intent_effective=intent_effective,
+                path_scope=path_scope,
+            )
+            if not critic_ok:
+                OpsService.update_run_status(run_id, "error", msg="Critic rejected output")
+                return
+
             OpsService.append_log(
                 run_id,
                 level="INFO",
@@ -291,6 +403,12 @@ class RunWorker:
             )
             OpsService.append_log(run_id, level="INFO", msg=f"Provider: {provider_name}")
             OpsService.append_log(run_id, level="INFO", msg=f"Result:\n{result[:2000]}")
+
+            report = self._build_executor_report(run_id, output_text=str(result), run_result=resp)
+            # Validator enforces rollback_plan non-empty
+            ExecutorReport.model_validate(report.model_dump())
+            OpsService.append_log(run_id, level="INFO", msg=f"ExecutorReport: {report.model_dump_json()}")
+
             OpsService.update_run_status(run_id, "done", msg="Execution completed")
         except asyncio.TimeoutError:
             OpsService.update_run_status(run_id, "error", msg="Execution timed out")

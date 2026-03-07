@@ -14,6 +14,7 @@ from tools.gimo_server.routes import register_routes
 from tools.gimo_server.version import __version__
 from tools.gimo_server.services.snapshot_service import SnapshotService
 from tools.gimo_server.services.gics_service import GicsService
+from tools.gimo_server.services.log_rotation_service import LogRotationService
 from tools.gimo_server.static_app import mount_static
 from tools.gimo_server.tasks import snapshot_cleanup_loop
 from tools.gimo_server.ops_routes import _ACTIONS_SAFE_PUBLIC_ENDPOINTS, router as ops_router
@@ -236,6 +237,7 @@ async def lifespan(app: FastAPI):
     # Initialize GICS Daemon Service
     gics_service = GicsService()
     gics_service.start_daemon()
+    gics_service.start_health_check()
     app.state.gics = gics_service
     from tools.gimo_server.services.ops_service import OpsService
     OpsService.set_gics(gics_service)
@@ -256,6 +258,17 @@ async def lifespan(app: FastAPI):
 
     mcp_sampling_task = asyncio.create_task(_mcp_sampling_loop())
     
+    # Startup reconcile + rotation for runtime consistency
+    try:
+        from tools.gimo_server.services.sub_agent_manager import SubAgentManager
+        await SubAgentManager.startup_reconcile()
+    except Exception as exc:
+        logger.warning("SubAgent startup reconcile warning: %s", exc)
+    try:
+        LogRotationService.run_rotation()
+    except Exception as exc:
+        logger.warning("Log rotation startup warning: %s", exc)
+
     # Start the Run Worker (processes pending runs in background)
     from tools.gimo_server.services.run_worker import RunWorker
 
@@ -274,6 +287,17 @@ async def lifespan(app: FastAPI):
         pass
     await hw_monitor.start_monitoring()
 
+    # Single authority initialization (runtime critical services)
+    try:
+        from tools.gimo_server.services.authority import ExecutionAuthority
+        from tools.gimo_server.services.resource_governor import ResourceGovernor
+        governor = ResourceGovernor(hw_monitor)
+        ExecutionAuthority.initialize(run_worker, hw_monitor, governor)
+    except RuntimeError:
+        logger.debug("ExecutionAuthority already initialized")
+    except Exception as exc:
+        logger.warning("ExecutionAuthority init warning: %s", exc)
+
     yield
 
     # Shutdown: Clean up resources (never propagate cancellation errors to TestClient)
@@ -281,6 +305,11 @@ async def lifespan(app: FastAPI):
     try:
         tasks = [cleanup_task, threat_cleanup_task, ops_cleanup_task, mcp_sampling_task, integrity_task]
         await _shutdown_services(logger, app, hw_monitor, run_worker, tasks)
+        try:
+            from tools.gimo_server.services.authority import ExecutionAuthority
+            ExecutionAuthority.reset()
+        except Exception:
+            pass
     except Exception as exc:
         logger.debug("Lifespan shutdown suppressed exception: %s", exc)
 

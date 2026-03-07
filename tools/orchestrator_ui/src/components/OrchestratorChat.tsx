@@ -3,6 +3,7 @@ import { motion, AnimatePresence } from 'framer-motion';
 import { Check, Loader2, Send, Sparkles, X, RefreshCw, AlertTriangle, ChevronDown, Activity } from 'lucide-react';
 import { API_BASE, ChatExecutionStep, ChatExecutionStepStatus, OpsApproveResponse, OpsDraft, Skill, SkillExecuteResponse } from '../types';
 import { useToast } from './Toast';
+import { AgentActionApproval, ActionDraftUi } from './AgentActionApproval';
 
 type ComposerMode = 'generate' | 'draft';
 type DraftViewTab = 'pending' | 'approved' | 'rejected_error' | 'all';
@@ -24,6 +25,7 @@ interface ChatMessage {
     executionSteps?: ChatExecutionStep[];
     failed?: boolean;
     failedPrompt?: string;
+    approvalDraft?: ActionDraftUi;
 }
 
 const getMessageStyle = (role: string, failed?: boolean) => {
@@ -269,6 +271,29 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
     }, [addToast]);
 
     useEffect(() => { fetchDrafts(); }, [fetchDrafts]);
+
+    useEffect(() => {
+        const eventSource = new EventSource(`${API_BASE}/ops/stream`, { withCredentials: true });
+        eventSource.onmessage = (evt) => {
+            try {
+                const payload = JSON.parse(evt.data);
+                const type = payload?.event;
+                const data = payload?.data;
+                if (type !== 'action_requires_approval' || !data?.draft) return;
+                const draft = data.draft as ActionDraftUi;
+                appendMessage({
+                    id: `m-approval-${draft.id}`,
+                    role: 'system',
+                    text: `Solicitud HITL: ${draft.agent_id} solicita ${draft.tool}`,
+                    ts: new Date().toISOString(),
+                    approvalDraft: draft,
+                });
+            } catch {
+                // ignore malformed SSE payloads
+            }
+        };
+        return () => eventSource.close();
+    }, [appendMessage]);
 
     useEffect(() => {
         if (!inboundTerminalSummary) return;
@@ -628,6 +653,19 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
                                     <p className="text-xs text-text-primary leading-relaxed whitespace-pre-wrap">
                                         {message.text}
                                     </p>
+                                    {message.approvalDraft && (
+                                        <AgentActionApproval
+                                            draft={message.approvalDraft}
+                                            onResolved={(draftId, decision) => {
+                                                appendMessage({
+                                                    id: `m-approval-resolved-${draftId}-${Date.now()}`,
+                                                    role: 'system',
+                                                    text: `Accion ${draftId} ${decision === 'approve' ? 'aprobada' : 'rechazada'}.`,
+                                                    ts: new Date().toISOString(),
+                                                });
+                                            }}
+                                        />
+                                    )}
                                     {onSendToTerminal && (
                                         <div className="mt-2">
                                             <button

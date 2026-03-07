@@ -107,6 +107,9 @@ class ClaudeCodeAdapter(AgentAdapter):
         )
         
         task_type = str((context or {}).get("task_type") or (policy or {}).get("task_type") or "agent_task")
+        role_profile = str((context or {}).get("role_profile") or (policy or {}).get("role_profile") or "").strip() or None
+        hitl_enabled = bool((context or {}).get("hitl_enabled") or (policy or {}).get("hitl_enabled") or False)
+        hitl_timeout = float((context or {}).get("hitl_timeout_seconds") or (policy or {}).get("hitl_timeout_seconds") or 300.0)
         return ClaudeCodeSession(
             process,
             task,
@@ -114,4 +117,7 @@ class ClaudeCodeAdapter(AgentAdapter):
             model_name=self.model_name,
             task_type=task_type,
             actor=self.actor,
+            role_profile=role_profile,
+            hitl_enabled=hitl_enabled,
+            hitl_timeout_seconds=hitl_timeout,
         )

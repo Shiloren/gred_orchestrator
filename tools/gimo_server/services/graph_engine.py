@@ -26,6 +26,8 @@ from .tool_registry_service import ToolRegistryService
 from .cost_service import CostService
 from .confidence_service import ConfidenceService
 from .cascade_service import CascadeService
+from .hitl_gate_service import HitlGateService
+from .role_profiles import assert_tool_allowed, get_role_profile
 from ..adapters.mcp_client import McpClient
 
 logger = logging.getLogger("orchestrator.services.graph_engine")
@@ -1147,6 +1149,8 @@ class GraphEngine:
         
         if not tool_name:
              raise ValueError(f"Node {node.id} missing tool_name")
+
+        await self._enforce_tool_governance(node=node, tool_name=tool_name, args=args)
              
         # Lookup tool in registry
         tool_entry = ToolRegistryService.get_tool(tool_name)
@@ -1179,6 +1183,25 @@ class GraphEngine:
             return self._execute_native_tool(tool_name, args)
 
         raise NotImplementedError(f"Local tool execution for {tool_name} not implemented yet")
+
+    async def _enforce_tool_governance(self, *, node: WorkflowNode, tool_name: str, args: Dict[str, Any]) -> None:
+        role_profile = str(node.config.get("role_profile") or node.config.get("role") or "").strip()
+        if not role_profile:
+            return
+
+        # Role profile enforcement
+        assert_tool_allowed(role_profile, tool_name)
+
+        # HITL gate for critical tools when role requires it
+        profile = get_role_profile(role_profile)
+        if profile.hitl_required:
+            decision = await HitlGateService.gate_tool_call(
+                agent_id=str(node.agent or node.id),
+                tool=tool_name,
+                params=dict(args or {}),
+            )
+            if decision != "allow":
+                raise PermissionError(f"HITL denied tool call: {tool_name}")
 
     def _execute_native_tool(self, tool_name: str, args: Dict[str, Any]) -> Dict[str, Any]:
         # MVP: Hardcoded native tools for safety until dynamic loading is safe
@@ -1380,6 +1403,7 @@ class GraphEngine:
             return datetime.fromisoformat(txt).astimezone(timezone.utc)
         except Exception:
             return None
+
 
 
 

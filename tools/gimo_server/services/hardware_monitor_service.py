@@ -38,6 +38,7 @@ class HardwareSnapshot:
     gpu_name: str = "none"
     gpu_vram_gb: float = 0.0
     gpu_vram_free_gb: float = 0.0
+    gpu_temp: float = 0.0
     total_ram_gb: float = 0.0
     wsl2_available: bool = False
     installed_providers: list[str] = field(default_factory=list)
@@ -53,7 +54,7 @@ def _detect_wsl2() -> bool:
         return False
 
 def _detect_gpu() -> dict:
-    info = {"vendor": "none", "name": "none", "vram": 0.0, "vram_free": 0.0}
+    info = {"vendor": "none", "name": "none", "vram": 0.0, "vram_free": 0.0, "gpu_temp": 0.0}
     try:
         import pynvml
         pynvml.nvmlInit()
@@ -66,6 +67,11 @@ def _detect_gpu() -> dict:
         info["name"] = name
         info["vram"] = round(mem.total / (1024**3), 2)
         info["vram_free"] = round(mem.free / (1024**3), 2)
+        try:
+            temp = pynvml.nvmlDeviceGetTemperature(handle, pynvml.NVML_TEMPERATURE_GPU)
+            info["gpu_temp"] = float(temp)
+        except Exception:
+            info["gpu_temp"] = 0.0
         pynvml.nvmlShutdown()
         return info
     except Exception:
@@ -156,6 +162,7 @@ class HardwareMonitorService:
             gpu_name=gpu_info["name"],
             gpu_vram_gb=gpu_info["vram"],
             gpu_vram_free_gb=gpu_info["vram_free"],
+            gpu_temp=gpu_info.get("gpu_temp", 0.0),
             total_ram_gb=round(mem.total / (1024 ** 3), 2),
             wsl2_available=_detect_wsl2(),
             installed_providers=_get_installed_providers()
@@ -166,9 +173,20 @@ class HardwareMonitorService:
         t = self._thresholds
         if s.cpu_percent >= t["critical"]["cpu"] or s.ram_percent >= t["critical"]["ram"]:
             return "critical"
+        if s.gpu_vram_gb > 0 and s.gpu_vram_free_gb < 0.5:
+            return "critical"
         if s.cpu_percent >= t["caution"]["cpu"] or s.ram_percent >= t["caution"]["ram"]:
             return "caution"
         return "safe"
+
+    def should_defer_run(self, weight: str = "medium") -> bool:
+        """Check if a run should be deferred based on current load."""
+        level = self.get_load_level()
+        if level == "critical":
+            return True
+        if level == "caution" and weight == "heavy":
+            return True
+        return False
 
     def is_local_safe(self, model_size_gb: Optional[float] = None) -> bool:
         level = self.get_load_level()
@@ -235,3 +253,16 @@ class HardwareMonitorService:
                 f.write(json.dumps(entry) + "\n")
         except Exception:
             pass
+        if new == "critical":
+            try:
+                from .notification_service import NotificationService
+                import asyncio
+                loop = asyncio.get_event_loop()
+                if loop.is_running():
+                    asyncio.create_task(NotificationService.publish(
+                        "system_degraded",
+                        {"level": new, "cpu": snap.cpu_percent, "ram": snap.ram_percent,
+                         "vram_free_gb": snap.gpu_vram_free_gb, "critical": True},
+                    ))
+            except Exception:
+                pass

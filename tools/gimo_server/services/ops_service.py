@@ -40,6 +40,7 @@ class OpsService:
     DRAFTS_DIR = OPS_DIR / "drafts"
     APPROVED_DIR = OPS_DIR / "approved"
     RUNS_DIR = OPS_DIR / "runs"
+    RUN_EVENTS_DIR = OPS_DIR / "run_events"
     RUN_LOGS_DIR = OPS_DIR / "run_logs"
     LOCKS_DIR = OPS_DIR / "locks"
 
@@ -148,6 +149,7 @@ class OpsService:
         cls.DRAFTS_DIR.mkdir(parents=True, exist_ok=True)
         cls.APPROVED_DIR.mkdir(parents=True, exist_ok=True)
         cls.RUNS_DIR.mkdir(parents=True, exist_ok=True)
+        cls.RUN_EVENTS_DIR.mkdir(parents=True, exist_ok=True)
         cls.RUN_LOGS_DIR.mkdir(parents=True, exist_ok=True)
         cls.LOCKS_DIR.mkdir(parents=True, exist_ok=True)
 
@@ -171,6 +173,75 @@ class OpsService:
     @classmethod
     def _run_log_path(cls, run_id: str) -> Path:
         return cls.RUN_LOGS_DIR / f"{run_id}.jsonl"
+
+    @classmethod
+    def _run_events_path(cls, run_id: str) -> Path:
+        return cls.RUN_EVENTS_DIR / f"{run_id}.jsonl"
+
+    @classmethod
+    def _append_run_event(cls, run_id: str, event: Dict[str, Any]) -> None:
+        path = cls._run_events_path(run_id)
+        path.parent.mkdir(parents=True, exist_ok=True)
+        with path.open("a", encoding="utf-8") as fh:
+            fh.write(json.dumps(event, ensure_ascii=False, default=str) + "\n")
+
+    @classmethod
+    def _read_run_events(cls, run_id: str) -> List[Dict[str, Any]]:
+        path = cls._run_events_path(run_id)
+        if not path.exists():
+            return []
+        events: List[Dict[str, Any]] = []
+        for line in path.read_text(encoding="utf-8").splitlines():
+            if not line.strip():
+                continue
+            try:
+                payload = json.loads(line)
+                if isinstance(payload, dict):
+                    events.append(payload)
+            except Exception:
+                continue
+        return events
+
+    @classmethod
+    def _apply_run_event(cls, run: OpsRun, event: Dict[str, Any]) -> None:
+        event_type = str(event.get("event") or "")
+        data = dict(event.get("data") or {})
+        if event_type == "status":
+            status = data.get("status")
+            if status:
+                run.status = status  # type: ignore[assignment]
+            if data.get("started_at"):
+                try:
+                    run.started_at = datetime.fromisoformat(str(data.get("started_at")))
+                except Exception:
+                    pass
+        elif event_type == "stage":
+            run.stage = data.get("stage")
+        elif event_type == "merge_meta":
+            for key in ("commit_before", "commit_after", "lock_id", "lock_expires_at", "heartbeat_at"):
+                if key in data:
+                    value = data.get(key)
+                    if key in {"lock_expires_at", "heartbeat_at"} and value:
+                        try:
+                            value = datetime.fromisoformat(str(value))
+                        except Exception:
+                            pass
+                    setattr(run, key, value)
+
+    @classmethod
+    def _materialize_run(cls, run: OpsRun) -> OpsRun:
+        for event in cls._read_run_events(run.id):
+            cls._apply_run_event(run, event)
+        return run
+
+    @classmethod
+    def _compact_run_events_if_needed(cls, run: OpsRun) -> None:
+        events_path = cls._run_events_path(run.id)
+        events = cls._read_run_events(run.id)
+        if len(events) < 50:
+            return
+        cls._persist_run(run)
+        events_path.write_text("", encoding="utf-8")
 
     @classmethod
     def _persist_run(cls, run: OpsRun) -> None:
@@ -457,6 +528,7 @@ class OpsService:
         for f in cls.RUNS_DIR.glob(cls._RUN_GLOB):
             try:
                 run = OpsRun.model_validate_json(f.read_text(encoding="utf-8"))
+                run = cls._materialize_run(run)
                 run.log = cls._read_run_logs(run.id, tail=cls._RUN_LOG_TAIL)
                 out.append(run)
             except Exception as exc:
@@ -468,8 +540,17 @@ class OpsService:
         run = cls._load_run_metadata(run_id)
         if not run:
             return None
+        run = cls._materialize_run(run)
         run.log = cls._read_run_logs(run_id, tail=cls._RUN_LOG_TAIL)
         return run
+
+    @classmethod
+    def list_pending_runs(cls) -> List[OpsRun]:
+        return [r for r in cls.list_runs() if r.status == "pending"]
+
+    @classmethod
+    def get_runs_by_status(cls, status: str) -> List[OpsRun]:
+        return [r for r in cls.list_runs() if r.status == status]
 
     @classmethod
     def create_run(cls, approved_id: str) -> OpsRun:
@@ -508,6 +589,19 @@ class OpsService:
             entry = cls._append_run_log_entry(run.id, level="INFO", msg="Run created")
             run.log = [entry]
             cls._persist_run(run)
+            cls._append_run_event(
+                run.id,
+                {
+                    "ts": _utcnow().isoformat(),
+                    "event": "status",
+                    "data": {"status": "pending"},
+                },
+            )
+            try:
+                from .authority import ExecutionAuthority
+                ExecutionAuthority.get().run_worker.notify()
+            except Exception:
+                pass
             return run
 
     @classmethod
@@ -526,12 +620,25 @@ class OpsService:
             run = cls._load_run_metadata(run_id)
             if not run:
                 raise ValueError(f"Run {run_id} not found")
-            run.status = status  # type: ignore[assignment]
+            terminal_statuses = {"done", "error", "cancelled", "ROLLBACK_EXECUTED"}
+            started_at = None
             if status == "running" and not run.started_at:
-                run.started_at = _utcnow()
+                started_at = _utcnow().isoformat()
             if msg:
                 cls._append_run_log_entry(run_id, level="INFO", msg=msg)
-            cls._persist_run(run)
+            cls._append_run_event(
+                run_id,
+                {
+                    "ts": _utcnow().isoformat(),
+                    "event": "status",
+                    "data": {"status": status, "started_at": started_at},
+                },
+            )
+            run = cls._materialize_run(run)
+            if status in terminal_statuses:
+                cls._persist_run(run)
+            else:
+                cls._compact_run_events_if_needed(run)
             run.log = cls._read_run_logs(run_id, tail=cls._RUN_LOG_TAIL)
             return run
 
@@ -541,10 +648,18 @@ class OpsService:
             run = cls._load_run_metadata(run_id)
             if not run:
                 raise ValueError(f"Run {run_id} not found")
-            run.stage = stage
+            cls._append_run_event(
+                run_id,
+                {
+                    "ts": _utcnow().isoformat(),
+                    "event": "stage",
+                    "data": {"stage": stage},
+                },
+            )
             if msg:
                 cls._append_run_log_entry(run_id, level="INFO", msg=msg)
-            cls._persist_run(run)
+            run = cls._materialize_run(run)
+            cls._compact_run_events_if_needed(run)
             run.log = cls._read_run_logs(run_id, tail=cls._RUN_LOG_TAIL)
             return run
 
@@ -563,17 +678,22 @@ class OpsService:
             run = cls._load_run_metadata(run_id)
             if not run:
                 raise ValueError(f"Run {run_id} not found")
-            if commit_before is not None:
-                run.commit_before = commit_before
-            if commit_after is not None:
-                run.commit_after = commit_after
-            if lock_id is not None:
-                run.lock_id = lock_id
-            if lock_expires_at is not None:
-                run.lock_expires_at = lock_expires_at
-            if heartbeat_at is not None:
-                run.heartbeat_at = heartbeat_at
-            cls._persist_run(run)
+            cls._append_run_event(
+                run_id,
+                {
+                    "ts": _utcnow().isoformat(),
+                    "event": "merge_meta",
+                    "data": {
+                        **({"commit_before": commit_before} if commit_before is not None else {}),
+                        **({"commit_after": commit_after} if commit_after is not None else {}),
+                        **({"lock_id": lock_id} if lock_id is not None else {}),
+                        **({"lock_expires_at": lock_expires_at.isoformat()} if lock_expires_at is not None else {}),
+                        **({"heartbeat_at": heartbeat_at.isoformat()} if heartbeat_at is not None else {}),
+                    },
+                },
+            )
+            run = cls._materialize_run(run)
+            cls._compact_run_events_if_needed(run)
             run.log = cls._read_run_logs(run_id, tail=cls._RUN_LOG_TAIL)
             return run
 
@@ -614,6 +734,7 @@ class OpsService:
                 if mtime < cutoff:
                     f.unlink(missing_ok=True)
                     cls._run_log_path(f.stem).unlink(missing_ok=True)
+                    cls._run_events_path(f.stem).unlink(missing_ok=True)
                     cleaned += 1
             except Exception:
                 continue

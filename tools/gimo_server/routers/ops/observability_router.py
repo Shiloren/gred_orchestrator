@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, Query, Request, HTTPException
 from tools.gimo_server.security import audit_log, check_rate_limit, verify_token
 from tools.gimo_server.security.auth import AuthContext
 from tools.gimo_server.services.observability_service import ObservabilityService
+from tools.gimo_server.services.notification_service import NotificationService
 from .common import _require_role, _actor_label
 
 router = APIRouter()
@@ -57,3 +58,15 @@ async def observability_alerts(
     alerts = ObservabilityService.get_alerts()
     audit_log("OPS", "/ops/observability/alerts", str(len(alerts)), operation="READ", actor=_actor_label(auth))
     return {"items": alerts, "count": len(alerts)}
+
+
+@router.get("/realtime/metrics")
+async def realtime_metrics(
+    request: Request,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+):
+    _require_role(auth, "operator")
+    data = NotificationService.get_metrics()
+    audit_log("OPS", "/ops/realtime/metrics", "read", operation="READ", actor=_actor_label(auth))
+    return data

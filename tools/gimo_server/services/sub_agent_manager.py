@@ -1,3 +1,5 @@
+import json
+import shutil
 import uuid
 import logging
 from typing import Dict, List, Optional
@@ -10,6 +12,8 @@ from tools.gimo_server.services.provider_catalog_service import ProviderCatalogS
 
 logger = logging.getLogger("orchestrator.sub_agent_manager")
 
+INVENTORY_FILE = WORKTREES_DIR.parent / "runtime" / "sub_agents.json"
+
 class SubAgentManager:
     """Gestiona el ciclo de vida, spawn y estado de agentes secundarios."""
     _sub_agents: Dict[str, SubAgent] = {}
@@ -18,6 +22,67 @@ class SubAgentManager:
     @classmethod
     def _ensure_worktrees_dir(cls):
         WORKTREES_DIR.mkdir(parents=True, exist_ok=True)
+
+    @classmethod
+    def _load_inventory(cls) -> Dict[str, SubAgent]:
+        """Load persisted sub-agent inventory from disk."""
+        if not INVENTORY_FILE.exists():
+            return {}
+        try:
+            data = json.loads(INVENTORY_FILE.read_text(encoding="utf-8"))
+            result = {}
+            for agent_id, agent_data in data.items():
+                result[agent_id] = SubAgent(**agent_data)
+            return result
+        except Exception as e:
+            logger.warning("Failed to load sub-agent inventory: %s", e)
+            return {}
+
+    @classmethod
+    def _persist(cls):
+        """Atomically persist sub-agent inventory to disk."""
+        INVENTORY_FILE.parent.mkdir(parents=True, exist_ok=True)
+        tmp = INVENTORY_FILE.with_suffix(".tmp")
+        try:
+            data = {}
+            for agent_id, agent in cls._sub_agents.items():
+                data[agent_id] = agent.model_dump() if hasattr(agent, 'model_dump') else agent.__dict__
+            tmp.write_text(json.dumps(data, indent=2, default=str), encoding="utf-8")
+            tmp.rename(INVENTORY_FILE)
+        except Exception as e:
+            logger.error("Failed to persist sub-agent inventory: %s", e)
+            tmp.unlink(missing_ok=True)
+
+    @classmethod
+    async def startup_reconcile(cls):
+        """Reconcile persisted inventory with actual disk state on startup."""
+        stored = cls._load_inventory()
+        disk_worktrees = set()
+        if WORKTREES_DIR.exists():
+            disk_worktrees = {p.name for p in WORKTREES_DIR.iterdir() if p.is_dir()}
+        stored_ids = set(stored.keys())
+
+        # GC orphan worktrees (on disk but not in inventory)
+        for orphan in disk_worktrees - stored_ids:
+            orphan_path = WORKTREES_DIR / orphan
+            try:
+                shutil.rmtree(orphan_path, ignore_errors=True)
+                logger.info("Cleaned orphan worktree: %s", orphan)
+            except Exception as e:
+                logger.warning("Failed to clean orphan worktree %s: %s", orphan, e)
+
+        # Remove ghost entries (in inventory but not on disk)
+        for ghost in stored_ids - disk_worktrees:
+            agent = stored.get(ghost)
+            if agent and getattr(agent, 'worktreePath', None):
+                del stored[ghost]
+                logger.info("Removed ghost sub-agent: %s", ghost)
+
+        cls._sub_agents = stored
+        cls._persist()
+        await cls.sync_with_ollama()
+        logger.info("SubAgent reconcile complete: %d agents, %d worktrees",
+                     len(cls._sub_agents), len(disk_worktrees & stored_ids))
 
     @classmethod
     async def create_sub_agent(cls, parent_id: str, request) -> SubAgent:
@@ -54,6 +119,7 @@ class SubAgentManager:
             worktreePath=str(worktree_path) if worktree_path else None
         )
         cls._sub_agents[sub_id] = agent
+        cls._persist()
         logger.info(f"Created sub-agent {sub_id} for parent {parent_id}")
         
         return agent
@@ -113,6 +179,7 @@ class SubAgentManager:
                     logger.error(f"Failed to remove worktree for sub-agent {sub_id}: {e}")
             
             logger.info(f"Terminated sub-agent {sub_id}")
+            cls._persist()
 
     @classmethod
     async def execute_task(cls, sub_id: str, task: str) -> str:

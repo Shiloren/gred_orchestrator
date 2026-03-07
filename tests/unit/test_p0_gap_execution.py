@@ -76,3 +76,8 @@ def test_openai_compat_reuses_async_client(monkeypatch):
 def test_mcp_bridge_does_not_instantiate_runworker():
     bridge_source = Path("tools/gimo_server/mcp_bridge/server.py").read_text(encoding="utf-8")
     assert "RunWorker" not in bridge_source
+
+
+def test_execution_authority_initialized_in_main_lifespan():
+    main_source = Path("tools/gimo_server/main.py").read_text(encoding="utf-8")
+    assert "ExecutionAuthority.initialize" in main_source
