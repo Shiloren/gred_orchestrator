@@ -69,6 +69,26 @@ export const useRepoService = (_token?: string) => {
         }
     }, [fetchRepos]);
 
+    const registerRepo = useCallback(async (path: string) => {
+        setIsLoading(true);
+        try {
+            const headers: HeadersInit = {};
+            const res = await fetch(`${API_BASE}/ui/repos/register?path=${encodeURIComponent(path)}`, {
+                method: 'POST',
+                headers,
+                credentials: 'include',
+            });
+            if (!res.ok) throw new Error('No se pudo registrar el repositorio');
+            await fetchRepos();
+            setError(null);
+        } catch (err) {
+            setError(err instanceof Error ? err.message : 'Error registrando repositorio');
+            throw err;
+        } finally {
+            setIsLoading(false);
+        }
+    }, [fetchRepos]);
+
     useEffect(() => {
         fetchRepos();
     }, [fetchRepos]);
@@ -80,6 +100,7 @@ export const useRepoService = (_token?: string) => {
         error,
         bootstrap,
         selectRepo,
+        registerRepo,
         refresh: fetchRepos
     };
 };

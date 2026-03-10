@@ -1,7 +1,9 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { API_BASE, UserEconomyConfig } from '../types';
-import { Shield, SlidersHorizontal, Coins, Info, ArrowRight } from 'lucide-react';
+import { Shield, SlidersHorizontal, Coins, Info, ArrowRight, Server, Wrench } from 'lucide-react';
 import { useToast } from './Toast';
+
+type SettingsSection = 'providers' | 'general' | 'economy' | 'security' | 'maintenance' | 'about';
 
 interface SettingsPanelProps {
     onOpenMastery: () => void;
@@ -14,6 +16,15 @@ interface OpsConfig {
     operator_can_generate: boolean;
 }
 
+const NAV_ITEMS: { key: SettingsSection; label: string; icon: React.ReactNode }[] = [
+    { key: 'providers', label: 'Proveedores', icon: <Server size={14} /> },
+    { key: 'general', label: 'General', icon: <SlidersHorizontal size={14} /> },
+    { key: 'economy', label: 'Economia', icon: <Coins size={14} /> },
+    { key: 'security', label: 'Seguridad', icon: <Shield size={14} /> },
+    { key: 'maintenance', label: 'Mantenimiento', icon: <Wrench size={14} /> },
+    { key: 'about', label: 'About', icon: <Info size={14} /> },
+];
+
 export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) => {
     const { addToast } = useToast();
     const [config, setConfig] = useState<OpsConfig | null>(null);
@@ -21,6 +32,9 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
     const [economyConfig, setEconomyConfig] = useState<UserEconomyConfig | null>(null);
     const [economySaving, setEconomySaving] = useState(false);
     const [economyMessage, setEconomyMessage] = useState<string>('');
+    const [activeSection, setActiveSection] = useState<SettingsSection>('general');
+    const [hwMetrics, setHwMetrics] = useState<any>(null);
+    const [realtimeMetrics, setRealtimeMetrics] = useState<any>(null);
 
     useEffect(() => {
         const fetchData = async () => {
@@ -35,6 +49,13 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
 
                 const economyRes = await fetch(`${API_BASE}/ops/mastery/config/economy`, { credentials: 'include' });
                 if (economyRes.ok) setEconomyConfig(await economyRes.json());
+
+                const [hwRes, rtRes] = await Promise.all([
+                    fetch(`${API_BASE}/ui/hardware`, { credentials: 'include' }).catch(() => null),
+                    fetch(`${API_BASE}/ops/realtime/metrics`, { credentials: 'include' }).catch(() => null),
+                ]);
+                if (hwRes?.ok) setHwMetrics(await hwRes.json());
+                if (rtRes?.ok) setRealtimeMetrics(await rtRes.json());
             } catch {
                 // non-blocking for settings UI
             }
@@ -92,143 +113,191 @@ export const SettingsPanel: React.FC<SettingsPanelProps> = ({ onOpenMastery }) =
     };
 
     return (
-        <div className="h-full overflow-y-auto custom-scrollbar p-6 bg-surface-0">
-            <div className="max-w-6xl mx-auto space-y-6">
+        <div className="h-full flex bg-surface-0">
+            {/* Lateral nav */}
+            <nav className="w-44 shrink-0 border-r border-border-primary bg-surface-1/50 p-3 space-y-0.5" role="navigation" aria-label="Settings navigation">
+                {NAV_ITEMS.map((item) => (
+                    <button
+                        key={item.key}
+                        onClick={() => setActiveSection(item.key)}
+                        className={`w-full flex items-center gap-2 px-3 py-2 rounded-lg text-xs transition-colors ${activeSection === item.key
+                                ? 'bg-accent-primary/10 text-accent-primary'
+                                : 'text-text-secondary hover:text-text-primary hover:bg-white/[0.03]'
+                            }`}
+                    >
+                        {item.icon}
+                        {item.label}
+                    </button>
+                ))}
+            </nav>
 
-                <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <SlidersHorizontal size={16} className="text-accent-primary" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">General</h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 text-xs">
-                        <SettingCell label="Tema" value="macOS Oscuro" />
-                        <SettingCell label="Idioma" value="es" />
-                        <ToggleCell
-                            label="Auto-ejecución"
-                            checked={config?.default_auto_run ?? false}
-                            onChange={(v) => toggleConfig('default_auto_run', v)}
-                        />
-                        <SettingCell label="Concurrencia" value={String(config?.max_concurrent_runs ?? '—')} />
-                        <SettingCell label="TTL borradores" value={`${config?.draft_cleanup_ttl_days ?? '—'} días`} />
-                        <ToggleCell
-                            label="Operador genera"
-                            checked={config?.operator_can_generate ?? false}
-                            onChange={(v) => toggleConfig('operator_can_generate', v)}
-                        />
-                    </div>
-                </section>
+            {/* Content area */}
+            <div className="flex-1 overflow-y-auto custom-scrollbar p-6">
+                <div className="max-w-4xl mx-auto space-y-6">
 
-                <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Coins size={16} className="text-accent-purple" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Economía</h2>
-                    </div>
-                    {economyConfig ? (
-                        <div className="space-y-3">
-                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
-                                <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
-                                    <label htmlFor="settings-autonomy" className="text-[10px] uppercase tracking-widest text-text-secondary">Autonomía</label>
-                                    <select
-                                        id="settings-autonomy"
-                                        value={economyConfig.autonomy_level}
-                                        onChange={(e) => setEconomyConfig({ ...economyConfig, autonomy_level: e.target.value as UserEconomyConfig['autonomy_level'] })}
-                                        className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
-                                    >
-                                        <option value="manual">manual</option>
-                                        <option value="advisory">consultivo</option>
-                                        <option value="guided">guiado</option>
-                                        <option value="autonomous">autónomo</option>
-                                    </select>
-                                </div>
+                    {activeSection === 'providers' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Server size={16} className="text-blue-400" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Proveedores</h2>
+                            </div>
+                            <p className="text-xs text-text-secondary mb-3">
+                                Configura tus proveedores de LLM desde la vista de Proveedores en el Sidebar.
+                            </p>
+                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 text-xs">
+                                <SettingCell label="Provider activo" value={statusInfo?.version ? 'Configurado' : 'No disponible'} />
+                                <SettingCell label="Modelos disponibles" value="Ver catalogo" />
+                            </div>
+                        </section>
+                    )}
 
-                                <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
-                                    <label htmlFor="settings-budget" className="text-[10px] uppercase tracking-widest text-text-secondary">Presupuesto Global (USD)</label>
-                                    <input
-                                        id="settings-budget"
-                                        type="number"
-                                        value={economyConfig.global_budget_usd ?? ''}
-                                        onChange={(e) => setEconomyConfig({ ...economyConfig, global_budget_usd: e.target.value ? Number(e.target.value) : null })}
-                                        className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
-                                    />
-                                </div>
+                    {activeSection === 'general' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <SlidersHorizontal size={16} className="text-accent-primary" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">General</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                                <SettingCell label="Tema" value="macOS Oscuro" />
+                                <SettingCell label="Idioma" value="es" />
+                                <ToggleCell
+                                    label="Auto-ejecucion"
+                                    checked={config?.default_auto_run ?? false}
+                                    onChange={(v) => toggleConfig('default_auto_run', v)}
+                                />
+                                <SettingCell label="Concurrencia" value={String(config?.max_concurrent_runs ?? '—')} />
+                                <SettingCell label="TTL borradores" value={`${config?.draft_cleanup_ttl_days ?? '—'} dias`} />
+                                <ToggleCell
+                                    label="Operador genera"
+                                    checked={config?.operator_can_generate ?? false}
+                                    onChange={(v) => toggleConfig('operator_can_generate', v)}
+                                />
+                            </div>
+                        </section>
+                    )}
 
-                                <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
-                                    <label htmlFor="settings-cache-ttl" className="text-[10px] uppercase tracking-widest text-text-secondary">TTL Caché (h)</label>
-                                    <input
-                                        id="settings-cache-ttl"
-                                        type="number"
-                                        value={economyConfig.cache_ttl_hours}
-                                        onChange={(e) => setEconomyConfig({ ...economyConfig, cache_ttl_hours: Number(e.target.value) || 0 })}
-                                        className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
-                                    />
-                                </div>
-
-                                <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
-                                    <div className="text-[10px] uppercase tracking-widest text-text-secondary">Indicadores</div>
-                                    <div className="mt-1 space-y-1 text-xs text-text-primary">
-                                        <label className="flex items-center gap-2">
+                    {activeSection === 'economy' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Coins size={16} className="text-accent-purple" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Economia</h2>
+                            </div>
+                            {economyConfig ? (
+                                <div className="space-y-3">
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3">
+                                        <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
+                                            <label htmlFor="settings-autonomy" className="text-[10px] uppercase tracking-widest text-text-secondary">Autonomia</label>
+                                            <select
+                                                id="settings-autonomy"
+                                                value={economyConfig.autonomy_level}
+                                                onChange={(e) => setEconomyConfig({ ...economyConfig, autonomy_level: e.target.value as UserEconomyConfig['autonomy_level'] })}
+                                                className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
+                                            >
+                                                <option value="manual">manual</option>
+                                                <option value="advisory">consultivo</option>
+                                                <option value="guided">guiado</option>
+                                                <option value="autonomous">autonomo</option>
+                                            </select>
+                                        </div>
+                                        <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
+                                            <label htmlFor="settings-budget" className="text-[10px] uppercase tracking-widest text-text-secondary">Presupuesto Global (USD)</label>
                                             <input
-                                                type="checkbox"
-                                                checked={economyConfig.cache_enabled}
-                                                onChange={(e) => setEconomyConfig({ ...economyConfig, cache_enabled: e.target.checked })}
-                                            /> caché
-                                        </label>
-                                        <label className="flex items-center gap-2">
+                                                id="settings-budget"
+                                                type="number"
+                                                value={economyConfig.global_budget_usd ?? ''}
+                                                onChange={(e) => setEconomyConfig({ ...economyConfig, global_budget_usd: e.target.value ? Number(e.target.value) : null })}
+                                                className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
+                                            />
+                                        </div>
+                                        <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
+                                            <label htmlFor="settings-cache-ttl" className="text-[10px] uppercase tracking-widest text-text-secondary">TTL Cache (h)</label>
                                             <input
-                                                type="checkbox"
-                                                checked={economyConfig.show_cost_predictions}
-                                                onChange={(e) => setEconomyConfig({ ...economyConfig, show_cost_predictions: e.target.checked })}
-                                            /> predicciones
-                                        </label>
+                                                id="settings-cache-ttl"
+                                                type="number"
+                                                value={economyConfig.cache_ttl_hours}
+                                                onChange={(e) => setEconomyConfig({ ...economyConfig, cache_ttl_hours: Number(e.target.value) || 0 })}
+                                                className="mt-1 w-full bg-surface-3 border border-border-primary rounded px-2 py-1 text-xs text-text-primary"
+                                            />
+                                        </div>
+                                        <div className="rounded-xl border border-border-primary bg-surface-1 p-3">
+                                            <div className="text-[10px] uppercase tracking-widest text-text-secondary">Indicadores</div>
+                                            <div className="mt-1 space-y-1 text-xs text-text-primary">
+                                                <label className="flex items-center gap-2">
+                                                    <input type="checkbox" checked={economyConfig.cache_enabled} onChange={(e) => setEconomyConfig({ ...economyConfig, cache_enabled: e.target.checked })} /> cache
+                                                </label>
+                                                <label className="flex items-center gap-2">
+                                                    <input type="checkbox" checked={economyConfig.show_cost_predictions} onChange={(e) => setEconomyConfig({ ...economyConfig, show_cost_predictions: e.target.checked })} /> predicciones
+                                                </label>
+                                            </div>
+                                        </div>
+                                    </div>
+                                    <div className="flex items-center gap-3">
+                                        <button onClick={saveEconomy} disabled={economySaving} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-purple/15 text-accent-purple border border-accent-purple/30 hover:bg-accent-purple/25 disabled:opacity-50">Guardar Economia</button>
+                                        {economyMessage && <span className="text-xs text-text-secondary">{economyMessage}</span>}
+                                        <button onClick={onOpenMastery} className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-surface-3 text-text-secondary border border-border-primary hover:text-text-primary">Panel de Economia <ArrowRight size={12} /></button>
                                     </div>
                                 </div>
-                            </div>
-
-                            <div className="flex items-center gap-3">
-                                <button
-                                    onClick={saveEconomy}
-                                    disabled={economySaving}
-                                    className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-purple/15 text-accent-purple border border-accent-purple/30 hover:bg-accent-purple/25 disabled:opacity-50"
-                                >
-                                    Guardar Economía
-                                </button>
-                                {economyMessage && <span className="text-xs text-text-secondary">{economyMessage}</span>}
-                                <button
-                                    onClick={onOpenMastery}
-                                    className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-surface-3 text-text-secondary border border-border-primary hover:text-text-primary"
-                                >
-                                    Panel de Economía
-                                    <ArrowRight size={12} />
-                                </button>
-                            </div>
-                        </div>
-                    ) : (
-                        <p className="text-xs text-text-secondary">Configuración de Economía no disponible.</p>
+                            ) : (
+                                <p className="text-xs text-text-secondary">Configuracion de Economia no disponible.</p>
+                            )}
+                        </section>
                     )}
-                </section>
 
-                <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Shield size={16} className="text-accent-warning" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Seguridad</h2>
-                    </div>
-                    <p className="text-xs text-text-secondary">
-                        Las políticas, interruptores de circuito y dimensiones de confianza se gestionan desde la vista de Seguridad.
-                    </p>
-                </section>
+                    {activeSection === 'security' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Shield size={16} className="text-accent-warning" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Seguridad</h2>
+                            </div>
+                            <p className="text-xs text-text-secondary">
+                                Las politicas, interruptores de circuito y dimensiones de confianza se gestionan desde la vista de Seguridad.
+                            </p>
+                            <div className="mt-3 grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                <SettingCell label="HITL" value="Activo" />
+                                <SettingCell label="Role Profiles" value="3 (explorer, auditor, executor)" />
+                                <SettingCell label="Circuit Breaker" value={realtimeMetrics ? `${realtimeMetrics.circuit_opens ?? 0} opens` : '—'} />
+                            </div>
+                        </section>
+                    )}
 
-                <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
-                    <div className="flex items-center gap-2 mb-4">
-                        <Info size={16} className="text-accent-trust" />
-                        <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Acerca de</h2>
-                    </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
-                        <SettingCell label="Versión" value={statusInfo?.version ?? '—'} />
-                        <SettingCell label="Uptime" value={formatUptime(statusInfo?.uptime_seconds)} />
-                        <SettingCell label="Endpoints" value="/ui/* + /ops/*" />
-                    </div>
-                </section>
+                    {activeSection === 'maintenance' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Wrench size={16} className="text-orange-400" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Mantenimiento</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3 text-xs">
+                                <SettingCell label="CPU" value={hwMetrics ? `${hwMetrics.cpu_percent?.toFixed(1)}%` : '—'} />
+                                <SettingCell label="RAM" value={hwMetrics ? `${hwMetrics.ram_percent?.toFixed(1)}%` : '—'} />
+                                <SettingCell label="GPU VRAM Free" value={hwMetrics ? `${hwMetrics.gpu_vram_free_gb?.toFixed(1)} GB` : '—'} />
+                                <SettingCell label="Load Level" value={hwMetrics?.load_level ?? '—'} />
+                                <SettingCell label="SSE Subscribers" value={String(realtimeMetrics?.subscribers ?? '—')} />
+                                <SettingCell label="Events Published" value={String(realtimeMetrics?.published ?? '—')} />
+                                <SettingCell label="Events Dropped" value={String(realtimeMetrics?.dropped ?? '—')} />
+                                <SettingCell label="Coalesced" value={String(realtimeMetrics?.coalesced ?? '—')} />
+                                <SettingCell label="Forced Disconnects" value={String(realtimeMetrics?.forced_disconnects ?? '—')} />
+                            </div>
+                            <p className="text-[11px] text-text-secondary mt-3">
+                                SSE subscribers = clientes en vivo conectados al stream de eventos. Coalesced = eventos agrupados para reducir ruido.
+                            </p>
+                        </section>
+                    )}
 
+                    {activeSection === 'about' && (
+                        <section className="rounded-2xl border border-border-primary bg-surface-2 p-5">
+                            <div className="flex items-center gap-2 mb-4">
+                                <Info size={16} className="text-accent-trust" />
+                                <h2 className="text-sm font-black uppercase tracking-widest text-text-primary">Acerca de</h2>
+                            </div>
+                            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 text-xs">
+                                <SettingCell label="Version" value={statusInfo?.version ?? '—'} />
+                                <SettingCell label="Uptime" value={formatUptime(statusInfo?.uptime_seconds)} />
+                                <SettingCell label="Endpoints" value="/ui/* + /ops/*" />
+                            </div>
+                        </section>
+                    )}
+
+                </div>
             </div>
         </div>
     );

@@ -1,4 +1,4 @@
-import React, { useEffect, useRef } from 'react';
+import React, { useEffect, useRef, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
 import { X } from 'lucide-react';
 
@@ -18,6 +18,8 @@ const widthMap = {
     full: 'max-w-[90vw]',
 };
 
+const FOCUSABLE = 'a[href], button:not([disabled]), textarea:not([disabled]), input:not([disabled]), select:not([disabled]), [tabindex]:not([tabindex="-1"])';
+
 export const OverlayDrawer: React.FC<OverlayDrawerProps> = ({
     isOpen,
     onClose,
@@ -26,6 +28,7 @@ export const OverlayDrawer: React.FC<OverlayDrawerProps> = ({
     children,
 }) => {
     const closeRef = useRef<HTMLButtonElement>(null);
+    const drawerRef = useRef<HTMLElement>(null);
 
     /* Close on Escape */
     useEffect(() => {
@@ -36,6 +39,22 @@ export const OverlayDrawer: React.FC<OverlayDrawerProps> = ({
         globalThis.addEventListener('keydown', handler);
         return () => globalThis.removeEventListener('keydown', handler);
     }, [isOpen, onClose]);
+
+    /* Focus trap */
+    const handleKeyDown = useCallback((e: React.KeyboardEvent) => {
+        if (e.key !== 'Tab' || !drawerRef.current) return;
+        const focusable = drawerRef.current.querySelectorAll<HTMLElement>(FOCUSABLE);
+        if (focusable.length === 0) return;
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        if (e.shiftKey && document.activeElement === first) {
+            e.preventDefault();
+            last.focus();
+        } else if (!e.shiftKey && document.activeElement === last) {
+            e.preventDefault();
+            first.focus();
+        }
+    }, []);
 
     /* Auto-focus close button for keyboard a11y */
     useEffect(() => {
@@ -61,9 +80,11 @@ export const OverlayDrawer: React.FC<OverlayDrawerProps> = ({
 
                     {/* Drawer */}
                     <motion.aside
+                        ref={drawerRef}
                         role="dialog"
                         aria-modal="true"
                         aria-label={title}
+                        onKeyDown={handleKeyDown}
                         initial={{ x: '100%', opacity: 0.8 }}
                         animate={{ x: 0, opacity: 1 }}
                         exit={{ x: '100%', opacity: 0.8 }}

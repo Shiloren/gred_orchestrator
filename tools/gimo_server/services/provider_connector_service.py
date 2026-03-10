@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import asyncio
 import hashlib
+import os
 import shutil
 from asyncio.subprocess import PIPE
 from typing import Any, Dict, Optional
@@ -36,6 +37,60 @@ class ProviderConnectorService:
         },
     }
     _install_jobs: Dict[str, CliDependencyInstallResponse] = {}
+
+    @classmethod
+    async def _run_install_preflight(cls, install_command: str) -> tuple[bool, list[str]]:
+        """Commercial-grade preflight for CLI installation.
+
+        We fail fast with explicit reasons instead of relying on implicit shell failures.
+        """
+        checks: list[str] = []
+
+        npm_path = shutil.which("npm")
+        node_path = shutil.which("node")
+        if not npm_path:
+            checks.append("missing:npm")
+        else:
+            checks.append(f"ok:npm:{npm_path}")
+        if not node_path:
+            checks.append("missing:node")
+        else:
+            checks.append(f"ok:node:{node_path}")
+
+        # Validate npm registry connectivity (required for npm-based dependencies).
+        if npm_path:
+            try:
+                ping = await asyncio.create_subprocess_exec(
+                    "npm", "ping", "--registry=https://registry.npmjs.org/", stdout=PIPE, stderr=PIPE
+                )
+                _, ping_err = await asyncio.wait_for(ping.communicate(), timeout=15)
+                if ping.returncode != 0:
+                    detail = (ping_err or b"").decode("utf-8", errors="ignore").strip()
+                    checks.append(f"fail:npm_registry:{detail or 'unreachable'}")
+                else:
+                    checks.append("ok:npm_registry")
+            except Exception as exc:
+                checks.append(f"fail:npm_registry:{exc}")
+
+        # Validate writable npm global prefix for "npm install -g ...".
+        if " -g " in f" {install_command} " and npm_path:
+            try:
+                proc = await asyncio.create_subprocess_exec("npm", "config", "get", "prefix", stdout=PIPE, stderr=PIPE)
+                out, _ = await asyncio.wait_for(proc.communicate(), timeout=8)
+                prefix = (out or b"").decode("utf-8", errors="ignore").strip()
+                if not prefix:
+                    checks.append("fail:npm_prefix:empty")
+                elif not os.path.isdir(prefix):
+                    checks.append(f"fail:npm_prefix:not_found:{prefix}")
+                elif not os.access(prefix, os.W_OK):
+                    checks.append(f"fail:npm_prefix:not_writable:{prefix}")
+                else:
+                    checks.append(f"ok:npm_prefix:{prefix}")
+            except Exception as exc:
+                checks.append(f"fail:npm_prefix:{exc}")
+
+        ok = not any(item.startswith(("missing:", "fail:")) for item in checks)
+        return ok, checks
 
     @staticmethod
     def _is_cli_installed(binary_name: str) -> bool:
@@ -106,6 +161,20 @@ class ProviderConnectorService:
             return
 
         logs: list[str] = [f"$ {install_command}"]
+
+        preflight_ok, preflight_logs = await cls._run_install_preflight(install_command)
+        logs.extend(preflight_logs)
+        if not preflight_ok:
+            cls._set_dependency_job(
+                dependency_id=dependency_id,
+                job_id=job_id,
+                status="error",
+                message=f"Environment not ready for {dependency_id} installation",
+                progress=1.0,
+                logs=logs,
+            )
+            return
+
         cls._set_dependency_job(
             dependency_id=dependency_id,
             job_id=job_id,

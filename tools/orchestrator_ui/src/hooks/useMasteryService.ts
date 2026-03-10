@@ -1,5 +1,13 @@
 import { useState, useCallback } from 'react';
-import { API_BASE, UserEconomyConfig, MasteryStatus, CostAnalytics, BudgetForecast, MasteryRecommendation } from '../types';
+import {
+    API_BASE,
+    UserEconomyConfig,
+    MasteryStatus,
+    CostAnalytics,
+    BudgetForecast,
+    MasteryRecommendation,
+    PlanEconomySnapshot,
+} from '../types';
 import { useToast } from '../components/Toast';
 
 export function useMasteryService() {
@@ -78,6 +86,34 @@ export function useMasteryService() {
         }, 'Recommendations');
     }, [apiCall]);
 
+    const fetchPlanEconomy = useCallback(async (planId: string, days = 30): Promise<PlanEconomySnapshot> => {
+        return apiCall(async () => {
+            const res = await fetch(`${API_BASE}/ops/mastery/plans/${planId}/economy?days=${days}`, fetchOpts);
+            if (!res.ok) throw new Error(`HTTP ${res.status}`);
+            return res.json();
+        }, 'Plan Economy');
+    }, [apiCall]);
+
+    const updatePlanAutonomy = useCallback(
+        async (
+            planId: string,
+            level: 'manual' | 'advisory' | 'guided' | 'autonomous',
+            nodeIds: string[] = [],
+        ): Promise<PlanEconomySnapshot> => {
+            return apiCall(async () => {
+                const res = await fetch(`${API_BASE}/ops/mastery/plans/${planId}/autonomy`, {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    credentials: 'include',
+                    body: JSON.stringify({ level, node_ids: nodeIds }),
+                });
+                if (!res.ok) throw new Error(`HTTP ${res.status}`);
+                return res.json();
+            }, 'Update Plan Autonomy');
+        },
+        [apiCall],
+    );
+
     return {
         loading,
         error,
@@ -86,6 +122,8 @@ export function useMasteryService() {
         fetchStatus,
         fetchAnalytics,
         fetchForecast,
-        fetchRecommendations
+        fetchRecommendations,
+        fetchPlanEconomy,
+        updatePlanAutonomy,
     };
 }

@@ -728,6 +728,37 @@ class MasteryStatus(BaseModel):
     tips: List[str]
 
 
+class NodeEconomyMetrics(BaseModel):
+    node_id: str
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    total_tokens: int = 0
+    cost_usd: float = 0.0
+    roi_score: float = 0.0
+    roi_band: int = 1
+    yield_optimized: bool = False
+    model_used: Optional[str] = None
+    provider_used: Optional[str] = None
+
+
+class PlanEconomySnapshot(BaseModel):
+    plan_id: str
+    status: str = "draft"
+    autonomy_level: Literal["manual", "advisory", "guided", "autonomous"] = "manual"
+    total_cost_usd: float = 0.0
+    total_tokens: int = 0
+    prompt_tokens: int = 0
+    completion_tokens: int = 0
+    estimated_savings_usd: float = 0.0
+    nodes_optimized: int = 0
+    nodes: List[NodeEconomyMetrics] = Field(default_factory=list)
+
+
+class PlanAutonomyUpdateRequest(BaseModel):
+    level: Literal["manual", "advisory", "guided", "autonomous"]
+    node_ids: List[str] = Field(default_factory=list)
+
+
 class OpsConfig(BaseModel):
     """Global OPS runtime configuration persisted to .orch_data/ops/config.json."""
 

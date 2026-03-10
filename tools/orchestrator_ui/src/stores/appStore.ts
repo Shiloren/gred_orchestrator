@@ -14,6 +14,7 @@ export type SidebarTab = 'graph' | 'plans';
  * These never replace the graph — they float on top.
  */
 export type OverlayId =
+    | 'connections'
     | 'settings'
     | 'evals'
     | 'metrics'
@@ -99,7 +100,7 @@ interface AppActions {
 /* ── Helpers ───────────────────────────────────────────── */
 
 const SIDEBAR_TABS = new Set<string>(['graph', 'plans']);
-const OVERLAY_IDS = new Set<string>(['settings', 'evals', 'metrics', 'mastery', 'security', 'operations']);
+const OVERLAY_IDS = new Set<string>(['connections', 'settings', 'evals', 'metrics', 'mastery', 'security', 'operations']);
 
 /* ── Store ──────────────────────────────────────────────── */
 

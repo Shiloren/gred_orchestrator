@@ -130,6 +130,71 @@ def test_append_only_state_and_materialized_read():
     assert materialized.stage == "stage-1"
 
 
+def test_sub_agent_reconcile_cleans_orphans(tmp_path, monkeypatch):
+    """Orphan worktrees are cleaned and ghost entries removed on startup."""
+    from tools.gimo_server.services.sub_agent_manager import SubAgentManager, INVENTORY_FILE
+    import json
+
+    worktrees_dir = tmp_path / "worktrees"
+    worktrees_dir.mkdir()
+
+    # Create an orphan worktree (on disk, not in inventory)
+    orphan = worktrees_dir / "orphan_abc"
+    orphan.mkdir()
+    (orphan / "dummy.txt").write_text("x")
+
+    # Create a ghost entry (in inventory, not on disk)
+    runtime_dir = tmp_path / "runtime"
+    runtime_dir.mkdir(parents=True, exist_ok=True)
+    inv_file = runtime_dir / "sub_agents.json"
+    inv_file.write_text(json.dumps({
+        "ghost_xyz": {
+            "id": "ghost_xyz", "parentId": "system", "name": "Ghost",
+            "model": "test", "status": "idle", "worktreePath": str(worktrees_dir / "ghost_xyz"),
+            "config": {"model": "test", "temperature": 0.7, "max_tokens": 2048},
+        }
+    }))
+
+    monkeypatch.setattr("tools.gimo_server.services.sub_agent_manager.WORKTREES_DIR", worktrees_dir)
+    monkeypatch.setattr("tools.gimo_server.services.sub_agent_manager.INVENTORY_FILE", inv_file)
+
+    async def _noop_sync():
+        pass
+
+    monkeypatch.setattr(SubAgentManager, "sync_with_ollama", classmethod(lambda cls: _noop_sync()))
+    SubAgentManager._sub_agents = {}
+
+    asyncio.run(SubAgentManager.startup_reconcile())
+
+    # Orphan dir should be cleaned
+    assert not orphan.exists()
+    # Ghost should be removed from inventory
+    assert "ghost_xyz" not in SubAgentManager._sub_agents
+
+
+def test_gics_retry_with_backoff(monkeypatch):
+    """GICS retry delivers after transient failures."""
+    from tools.gimo_server.services.gics_service import GicsService
+
+    svc = GicsService()
+    svc._token = "test-token"
+    call_count = {"n": 0}
+
+    def _fake_send(method, params=None):
+        call_count["n"] += 1
+        if call_count["n"] < 3:
+            raise ConnectionError("fake transient")
+        return {"result": "ok"}
+
+    monkeypatch.setattr(svc, "send_command", _fake_send)
+    # Zero out sleep delays for test speed
+    monkeypatch.setattr("time.sleep", lambda _: None)
+
+    result = svc._send_with_retry("put", {"key": "k", "fields": {}})
+    assert result == {"result": "ok"}
+    assert call_count["n"] == 3
+
+
 def test_log_rotation_rotates_and_deletes(tmp_path, monkeypatch):
     scan_dir = tmp_path / "logs"
     scan_dir.mkdir(parents=True, exist_ok=True)

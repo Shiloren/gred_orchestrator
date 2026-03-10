@@ -6,7 +6,7 @@ import { EvalRunViewer } from './EvalRunViewer';
 import { EvalDataset, EvalRunSummary } from '../../types';
 
 export const EvalDashboard: React.FC = () => {
-    const { datasets, runs, createDataset, isLoading } = useEvalsService();
+    const { datasets, runs, createDataset, isLoading, error } = useEvalsService();
     const [view, setView] = useState<'list' | 'editor' | 'run'>('list');
     const [selectedRunId, setSelectedRunId] = useState<number | null>(null);
     const [selectedDataset, setSelectedDataset] = useState<EvalDataset | null>(null);
@@ -55,7 +55,7 @@ export const EvalDashboard: React.FC = () => {
                 <div className="flex items-center justify-between mb-4">
                     <div>
                         <h1 className="text-2xl font-bold text-text-primary">Evaluaciones</h1>
-                        <p className="text-text-secondary mt-1">Test regression de workflows contra datasets golden.</p>
+                        <p className="text-text-secondary mt-1">Valida flujos con casos de prueba antes de desplegar cambios.</p>
                     </div>
                     <button
                         onClick={handleCreateDataset}
@@ -77,6 +77,11 @@ export const EvalDashboard: React.FC = () => {
                         </div>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar p-4 space-y-3">
+                        {error && (
+                            <div className="text-xs rounded-lg border border-accent-alert/30 bg-accent-alert/10 text-accent-alert p-3">
+                                {error}
+                            </div>
+                        )}
                         {isLoading && (
                             <div className="text-center text-text-secondary py-8">Cargando...</div>
                         )}

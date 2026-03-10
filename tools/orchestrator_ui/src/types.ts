@@ -1,4 +1,20 @@
-export const API_BASE = import.meta.env.VITE_API_URL || `http://${globalThis.location?.hostname ?? 'localhost'}:9325`;
+const _envApiBase = import.meta.env.VITE_API_URL?.trim();
+
+function resolveDefaultApiBase(): string {
+    const host = globalThis.location?.hostname;
+    if (!host) return 'http://127.0.0.1:9325';
+
+    // For local/dev hosts, keep same host to avoid mixed-host cookies issues.
+    if (host === 'localhost' || host === '127.0.0.1') {
+        return `http://${host}:9325`;
+    }
+
+    // In desktop wrappers / custom shells the UI hostname may not route to backend.
+    // Default to loopback unless explicitly overridden via VITE_API_URL.
+    return 'http://127.0.0.1:9325';
+}
+
+export const API_BASE = _envApiBase || resolveDefaultApiBase();
 
 export type TrustLevel = 'autonomous' | 'supervised' | 'restricted';
 
@@ -32,6 +48,13 @@ export interface GraphNode {
         task_description?: string;
         depends_on?: string[];
         estimated_tokens?: number;
+        cost_usd?: number;
+        prompt_tokens?: number;
+        completion_tokens?: number;
+        roi_score?: number;
+        roi_band?: number;
+        yield_optimized?: boolean;
+        economyLayerEnabled?: boolean;
         editable?: boolean;
     };
     position: { x: number; y: number };
@@ -706,6 +729,32 @@ export interface MasteryRecommendation {
     task_type: string;
     suggested_model: string;
     reason: string;
+}
+
+export interface NodeEconomyMetrics {
+    node_id: string;
+    prompt_tokens: number;
+    completion_tokens: number;
+    total_tokens: number;
+    cost_usd: number;
+    roi_score: number;
+    roi_band: number;
+    yield_optimized: boolean;
+    model_used?: string | null;
+    provider_used?: string | null;
+}
+
+export interface PlanEconomySnapshot {
+    plan_id: string;
+    status: string;
+    autonomy_level: 'manual' | 'advisory' | 'guided' | 'autonomous';
+    total_cost_usd: number;
+    total_tokens: number;
+    prompt_tokens: number;
+    completion_tokens: number;
+    estimated_savings_usd: number;
+    nodes_optimized: number;
+    nodes: NodeEconomyMetrics[];
 }
 // --- Phase 5: Skills System ---
 

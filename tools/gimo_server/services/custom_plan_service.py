@@ -5,12 +5,14 @@ import logging
 import os
 import time
 import asyncio
+import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional
 
 from pydantic import BaseModel, Field
 from ..config import OPS_DATA_DIR
+from ..ops_models import CostEvent
 
 logger = logging.getLogger("orchestrator.custom_plans")
 
@@ -478,11 +480,64 @@ class CustomPlanService:
 
         try:
             from ..services.provider_service import ProviderService
+            from ..services.storage_service import StorageService
+            from ..services.ops_service import OpsService
             gen_context = {**plan.context, "mode": "custom_plan_node", "model": node.model, "provider": node.provider, "role": node.role, "node_type": node.node_type}
             resp = await asyncio.wait_for(ProviderService.static_generate(prompt=final_prompt, context=gen_context), timeout=300)
             node.output = str(resp.get("content", "")).strip()
             node.status = "done"
             node.error = None
+
+            prompt_tokens = int(resp.get("prompt_tokens") or 0)
+            completion_tokens = int(resp.get("completion_tokens") or 0)
+            total_tokens = int(resp.get("tokens_used") or (prompt_tokens + completion_tokens))
+            cost_usd = float(resp.get("cost_usd") or 0.0)
+            quality_score = 85.0 if node.status == "done" else 40.0
+            cascade_level = 1 if str(resp.get("execution_decision") or "") == "FALLBACK_MODEL_USED" else 0
+
+            try:
+                storage = StorageService(OpsService._gics)
+                storage.cost.save_cost_event(CostEvent(
+                    id=f"ce_{uuid.uuid4().hex[:12]}",
+                    workflow_id=plan_id,
+                    node_id=node.id,
+                    model=str(resp.get("model") or node.model or "auto"),
+                    provider=str(resp.get("provider") or node.provider or "auto"),
+                    task_type=str(node.node_type or node.role or "worker"),
+                    input_tokens=prompt_tokens,
+                    output_tokens=completion_tokens,
+                    total_tokens=total_tokens,
+                    cost_usd=cost_usd,
+                    quality_score=quality_score,
+                    cascade_level=cascade_level,
+                    cache_hit=bool(resp.get("cache_hit", False)),
+                ))
+                cfg = OpsService.get_config()
+                snap = storage.cost.get_plan_snapshot(
+                    plan_id=plan_id,
+                    status=plan.status,
+                    autonomy_level=cfg.economy.autonomy_level,
+                    days=30,
+                )
+                await NotificationService.publish("custom_node_economy", {
+                    "plan_id": plan_id,
+                    "node_id": node.id,
+                    "cost_usd": cost_usd,
+                    "prompt_tokens": prompt_tokens,
+                    "completion_tokens": completion_tokens,
+                    "total_tokens": total_tokens,
+                    "roi_score": next((n.roi_score for n in snap.nodes if n.node_id == node.id), 0.0),
+                    "roi_band": next((n.roi_band for n in snap.nodes if n.node_id == node.id), 1),
+                    "yield_optimized": bool(cascade_level > 0),
+                })
+                await NotificationService.publish("custom_session_economy", {
+                    "plan_id": plan_id,
+                    "spend_usd": snap.total_cost_usd,
+                    "savings_usd": snap.estimated_savings_usd,
+                    "nodes_optimized": snap.nodes_optimized,
+                })
+            except Exception:
+                pass
         except Exception as exc:
             node.status = "error"
             node.error = str(exc)[:500]

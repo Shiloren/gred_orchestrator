@@ -1,9 +1,18 @@
+from datetime import datetime, timezone
 from typing import Annotated, Any, Dict, List
 from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import ValidationError
 from tools.gimo_server.security import verify_token
 from tools.gimo_server.security.auth import AuthContext
-from ...ops_models import WorkflowNode, UserEconomyConfig, MasteryStatus, BudgetForecast, CostAnalytics
+from ...ops_models import (
+    WorkflowNode,
+    UserEconomyConfig,
+    MasteryStatus,
+    BudgetForecast,
+    CostAnalytics,
+    PlanEconomySnapshot,
+    PlanAutonomyUpdateRequest,
+)
 from ...services.model_router_service import ModelRouterService
 from ...services.budget_forecast_service import BudgetForecastService
 
@@ -32,9 +41,71 @@ async def update_economy_config(
     current_ops_config.economy = economy_config
     
     # Save full config
-    OpsService.save_config(current_ops_config)
+    OpsService.set_config(current_ops_config)
     
     return current_ops_config.economy
+
+
+@router.get("/plans/{plan_id}/economy", response_model=PlanEconomySnapshot)
+async def get_plan_economy_snapshot(
+    plan_id: str,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    days: Annotated[int, Query(ge=1, le=365)] = 30,
+):
+    """Return economy snapshot for a specific custom plan."""
+    from ...services.storage_service import StorageService
+    from ...services.custom_plan_service import CustomPlanService
+    from ...services.ops_service import OpsService
+
+    plan = CustomPlanService.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    cfg = OpsService.get_config()
+    storage = StorageService(OpsService._gics)
+    return storage.cost.get_plan_snapshot(
+        plan_id=plan_id,
+        status=plan.status,
+        autonomy_level=cfg.economy.autonomy_level,
+        days=days,
+    )
+
+
+@router.post("/plans/{plan_id}/autonomy", response_model=PlanEconomySnapshot)
+async def update_plan_autonomy(
+    plan_id: str,
+    body: PlanAutonomyUpdateRequest,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+):
+    """Update autonomy level globally and optionally annotate selected node configs."""
+    from ...services.custom_plan_service import CustomPlanService
+    from ...services.ops_service import OpsService
+    from ...services.storage_service import StorageService
+
+    plan = CustomPlanService.get_plan(plan_id)
+    if not plan:
+        raise HTTPException(status_code=404, detail="Plan not found")
+
+    cfg = OpsService.get_config()
+    cfg.economy.autonomy_level = body.level
+    OpsService.set_config(cfg)
+
+    if body.node_ids:
+        node_ids = set(body.node_ids)
+        for node in plan.nodes:
+            if node.id in node_ids:
+                node.config = dict(node.config or {})
+                node.config["autonomy_level"] = body.level
+        plan.updated_at = datetime.now(timezone.utc)
+        CustomPlanService._save(plan)
+
+    storage = StorageService(OpsService._gics)
+    return storage.cost.get_plan_snapshot(
+        plan_id=plan_id,
+        status=plan.status,
+        autonomy_level=cfg.economy.autonomy_level,
+        days=30,
+    )
 
 
 @router.post("/recommend", response_model=Dict[str, Any])

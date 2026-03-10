@@ -111,7 +111,7 @@ export const useEvalsService = (_token?: string) => {
     return {
         datasets: datasetsList,
         runs: runsList,
-        isLoading: isLoading || !datasets || !runs,
+        isLoading: isLoading || ((!datasets && !datasetsError) || (!runs && !runsError)),
         error: error || (datasetsError ? 'Failed to load datasets' : null) || (runsError ? 'Failed to load runs' : null),
         createDataset,
         runEval,

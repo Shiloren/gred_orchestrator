@@ -34,6 +34,7 @@ export function TokenMastery() {
     const [analytics, setAnalytics] = useState<CostAnalytics | null>(null);
     const [forecast, setForecast] = useState<BudgetForecast[]>([]);
     const [activeTab, setActiveTab] = useState<'dashboard' | 'settings'>('dashboard');
+    const [loadError, setLoadError] = useState<string | null>(null);
 
     useEffect(() => {
         loadData();
@@ -41,6 +42,7 @@ export function TokenMastery() {
 
     const loadData = async () => {
         try {
+            setLoadError(null);
             const [cfg, sts, ana, fct] = await Promise.all([
                 fetchConfig(),
                 fetchStatus(),
@@ -51,8 +53,8 @@ export function TokenMastery() {
             setStatus(sts);
             setAnalytics(ana);
             setForecast(fct);
-        } catch (err) {
-            console.error(err);
+        } catch {
+            setLoadError('No se pudo cargar Economía en este momento. Revisa conexión/back-end y vuelve a intentar.');
         }
     };
 
@@ -75,8 +77,25 @@ export function TokenMastery() {
         });
     };
 
+    if (loadError) {
+        return (
+            <div className="p-8">
+                <div className="rounded-xl border border-accent-alert/30 bg-accent-alert/10 p-6 text-center">
+                    <div className="text-sm text-accent-alert font-semibold">Economía no disponible</div>
+                    <div className="text-xs text-text-secondary mt-2">{loadError}</div>
+                    <button
+                        onClick={loadData}
+                        className="mt-4 px-4 py-2 text-xs rounded-lg bg-surface-3 border border-border-primary hover:bg-surface-2"
+                    >
+                        Reintentar
+                    </button>
+                </div>
+            </div>
+        );
+    }
+
     if (!config || !status || !analytics) {
-        return <div className="p-8 text-center text-text-secondary">Loading Token Mastery...</div>;
+        return <div className="p-8 text-center text-text-secondary">Cargando panel de Economía...</div>;
     }
 
     const getAlertColor = (level?: string) => {

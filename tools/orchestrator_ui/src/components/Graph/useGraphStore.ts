@@ -37,11 +37,18 @@ interface GraphState {
     activePlanId: string | null;
     isExecuting: boolean;
     isSaving: boolean;
+    economyLayerEnabled: boolean;
+    ecoModeQuickEnabled: boolean;
 
     /* Tracking */
     userPositions: Record<string, { x: number; y: number }>;
     prevNodeIds: string;
     hasFitView: boolean;
+    sessionEconomy: {
+        spendUsd: number;
+        savingsUsd: number;
+        nodesOptimized: number;
+    };
 
     /* Actions */
     setEditMode: (on: boolean) => void;
@@ -51,6 +58,10 @@ interface GraphState {
     setActivePlanId: (id: string | null) => void;
     setIsExecuting: (v: boolean) => void;
     setIsSaving: (v: boolean) => void;
+    setEconomyLayerEnabled: (v: boolean) => void;
+    setEcoModeQuickEnabled: (v: boolean) => void;
+    updateSessionEconomy: (delta: Partial<{ spendUsd: number; savingsUsd: number; nodesOptimized: number }>) => void;
+    resetSessionEconomy: () => void;
     setHasFitView: (v: boolean) => void;
     trackPosition: (id: string, pos: { x: number; y: number }) => void;
     resetPositions: () => void;
@@ -65,9 +76,16 @@ export const useGraphStore = create<GraphState>((set) => ({
     activePlanId: null,
     isExecuting: false,
     isSaving: false,
+    economyLayerEnabled: false,
+    ecoModeQuickEnabled: false,
     userPositions: {},
     prevNodeIds: '',
     hasFitView: false,
+    sessionEconomy: {
+        spendUsd: 0,
+        savingsUsd: 0,
+        nodesOptimized: 0,
+    },
 
     setEditMode: (on) => set({ isEditMode: on, selectedEditNodeId: null }),
     setSelectedEditNodeId: (id) => set({ selectedEditNodeId: id }),
@@ -76,6 +94,20 @@ export const useGraphStore = create<GraphState>((set) => ({
     setActivePlanId: (id) => set({ activePlanId: id }),
     setIsExecuting: (v) => set({ isExecuting: v }),
     setIsSaving: (v) => set({ isSaving: v }),
+    setEconomyLayerEnabled: (v) => set({ economyLayerEnabled: v }),
+    setEcoModeQuickEnabled: (v) => set({ ecoModeQuickEnabled: v }),
+    updateSessionEconomy: (delta) =>
+        set((s) => ({
+            sessionEconomy: {
+                spendUsd: delta.spendUsd ?? s.sessionEconomy.spendUsd,
+                savingsUsd: delta.savingsUsd ?? s.sessionEconomy.savingsUsd,
+                nodesOptimized: delta.nodesOptimized ?? s.sessionEconomy.nodesOptimized,
+            },
+        })),
+    resetSessionEconomy: () =>
+        set({
+            sessionEconomy: { spendUsd: 0, savingsUsd: 0, nodesOptimized: 0 },
+        }),
     setHasFitView: (v) => set({ hasFitView: v }),
     trackPosition: (id, pos) =>
         set((s) => ({ userPositions: { ...s.userPositions, [id]: pos } })),

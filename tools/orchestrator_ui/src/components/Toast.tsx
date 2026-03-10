@@ -69,6 +69,12 @@ export const ToastProvider: React.FC<{ children: React.ReactNode }> = ({ childre
                                 animate={{ opacity: 1, x: 0, scale: 1 }}
                                 exit={{ opacity: 0, x: 40, scale: 0.95 }}
                                 transition={{ type: 'spring', stiffness: 500, damping: 30, delay: i * 0.05 }}
+                                drag="x"
+                                dragConstraints={{ left: 0 }}
+                                dragElastic={0.3}
+                                onDragEnd={(_e, info) => {
+                                    if (info.offset.x > 80) removeToast(toast.id);
+                                }}
                                 className={`pointer-events-auto flex items-center gap-2.5 px-4 py-2.5 rounded-xl border text-xs font-medium shadow-lg shadow-black/20 backdrop-blur-xl cursor-pointer max-w-sm ${STYLES[toast.type]}`}
                                 onClick={() => removeToast(toast.id)}
                                 role="status"

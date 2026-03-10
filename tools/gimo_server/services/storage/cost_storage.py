@@ -5,7 +5,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any, Dict, List, Optional
 from collections import defaultdict
 
-from ...ops_models import CostEvent
+from ...ops_models import CostEvent, NodeEconomyMetrics, PlanEconomySnapshot
 
 logger = logging.getLogger("orchestrator.ops.cost")
 
@@ -259,3 +259,84 @@ class CostStorage:
         events = self._fetch_events(hours=hours)
         total_spend = sum(e.get("cost_usd", 0.0) for e in events)
         return total_spend / hours
+
+    def get_plan_node_metrics(self, plan_id: str, days: Optional[int] = 30) -> List[NodeEconomyMetrics]:
+        events = [e for e in self._fetch_events(days=days) if str(e.get("workflow_id")) == str(plan_id)]
+        by_node: Dict[str, Dict[str, Any]] = defaultdict(lambda: {
+            "prompt_tokens": 0,
+            "completion_tokens": 0,
+            "total_tokens": 0,
+            "cost_usd": 0.0,
+            "quality_sum": 0.0,
+            "quality_count": 0,
+            "cascade_hits": 0,
+            "model_used": None,
+            "provider_used": None,
+        })
+
+        for e in events:
+            node_id = str(e.get("node_id") or "")
+            if not node_id:
+                continue
+            rec = by_node[node_id]
+            rec["prompt_tokens"] += int(e.get("input_tokens", 0) or 0)
+            rec["completion_tokens"] += int(e.get("output_tokens", 0) or 0)
+            rec["total_tokens"] += int(e.get("total_tokens", 0) or 0)
+            rec["cost_usd"] += float(e.get("cost_usd", 0.0) or 0.0)
+            q = float(e.get("quality_score", 0.0) or 0.0)
+            if q > 0:
+                rec["quality_sum"] += q
+                rec["quality_count"] += 1
+            if int(e.get("cascade_level", 0) or 0) > 0:
+                rec["cascade_hits"] += 1
+            rec["model_used"] = rec["model_used"] or e.get("model")
+            rec["provider_used"] = rec["provider_used"] or e.get("provider")
+
+        out: List[NodeEconomyMetrics] = []
+        for node_id, rec in by_node.items():
+            avg_quality = (rec["quality_sum"] / rec["quality_count"]) if rec["quality_count"] > 0 else 0.0
+            roi_score = avg_quality / (rec["cost_usd"] + 1e-6)
+            roi_band = max(1, min(10, int(round(roi_score / 25.0)) or 1))
+            out.append(NodeEconomyMetrics(
+                node_id=node_id,
+                prompt_tokens=int(rec["prompt_tokens"]),
+                completion_tokens=int(rec["completion_tokens"]),
+                total_tokens=int(rec["total_tokens"]),
+                cost_usd=round(float(rec["cost_usd"]), 6),
+                roi_score=round(float(roi_score), 4),
+                roi_band=roi_band,
+                yield_optimized=bool(rec["cascade_hits"] > 0),
+                model_used=rec["model_used"],
+                provider_used=rec["provider_used"],
+            ))
+
+        return sorted(out, key=lambda x: x.cost_usd, reverse=True)
+
+    def get_plan_snapshot(
+        self,
+        plan_id: str,
+        *,
+        status: str = "draft",
+        autonomy_level: str = "manual",
+        days: Optional[int] = 30,
+    ) -> PlanEconomySnapshot:
+        nodes = self.get_plan_node_metrics(plan_id=plan_id, days=days)
+        total_cost = sum(n.cost_usd for n in nodes)
+        total_tokens = sum(n.total_tokens for n in nodes)
+        prompt_tokens = sum(n.prompt_tokens for n in nodes)
+        completion_tokens = sum(n.completion_tokens for n in nodes)
+        nodes_optimized = sum(1 for n in nodes if n.yield_optimized)
+        estimated_savings = round(sum(n.cost_usd * 0.15 for n in nodes if n.yield_optimized), 6)
+
+        return PlanEconomySnapshot(
+            plan_id=plan_id,
+            status=status,
+            autonomy_level=autonomy_level,  # type: ignore[arg-type]
+            total_cost_usd=round(total_cost, 6),
+            total_tokens=int(total_tokens),
+            prompt_tokens=int(prompt_tokens),
+            completion_tokens=int(completion_tokens),
+            estimated_savings_usd=estimated_savings,
+            nodes_optimized=nodes_optimized,
+            nodes=nodes,
+        )

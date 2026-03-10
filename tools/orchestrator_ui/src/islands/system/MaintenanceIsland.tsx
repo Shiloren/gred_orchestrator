@@ -51,9 +51,10 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
         error: securityError
     } = useSecurityService(token);
 
-    const { repos, activeRepo, bootstrap, selectRepo, isLoading: isRepoLoading } = useRepoService(token);
+    const { repos, activeRepo, bootstrap, selectRepo, registerRepo, isLoading: isRepoLoading } = useRepoService(token);
 
     const [selectedRepoPath, setSelectedRepoPath] = useState<string>('');
+    const [manualRepoPath, setManualRepoPath] = useState<string>('');
     const [uptimeLabel, setUptimeLabel] = useState<string>('—');
 
     useEffect(() => {
@@ -386,6 +387,32 @@ export const MaintenanceIsland: React.FC<MaintenanceIslandProps> = ({ token }) =
                                     ))}
                                 </select>
                                 <ChevronDown className="absolute right-6 top-1/2 -translate-y-1/2 w-4 h-4 text-zinc-500 pointer-events-none transition-transform group-hover:text-zinc-300" />
+                                <div className="text-[10px] text-zinc-500">
+                                    ¿No aparece tu repo? Pega la ruta completa y regístrala manualmente.
+                                </div>
+                                <div className="flex gap-2">
+                                    <input
+                                        value={manualRepoPath}
+                                        onChange={(e) => setManualRepoPath(e.target.value)}
+                                        placeholder="C:\\ruta\\a\\tu\\repositorio"
+                                        className="flex-1 bg-black/40 border border-white/10 rounded-xl px-4 py-2 text-xs text-white outline-none focus:border-blue-500/40"
+                                    />
+                                    <button
+                                        onClick={async () => {
+                                            if (!manualRepoPath.trim()) return;
+                                            try {
+                                                await registerRepo(manualRepoPath.trim());
+                                                setSelectedRepoPath(manualRepoPath.trim());
+                                            } catch {
+                                                // error handled in hook state
+                                            }
+                                        }}
+                                        disabled={!manualRepoPath.trim() || isRepoLoading}
+                                        className="px-4 py-2 rounded-xl text-xs font-black uppercase tracking-wider bg-white/5 border border-white/10 hover:bg-white/10 disabled:opacity-40"
+                                    >
+                                        Registrar
+                                    </button>
+                                </div>
                             </div>
                         </div>
                         <div className="flex space-x-4">

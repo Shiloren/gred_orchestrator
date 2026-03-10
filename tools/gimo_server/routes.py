@@ -1,3 +1,797 @@
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
+
 import logging
 import os
 import re
@@ -437,6 +1231,33 @@ def list_repos_handler(
         except ValueError:
             pass
 
+    # Include manually registered repositories even if they are outside REPO_ROOT_DIR.
+    merged_paths: set[str] = set()
+    merged_repos: list[dict[str, str]] = []
+    for r in repos:
+        try:
+            rp = str(Path(r.path).resolve())
+            if rp not in merged_paths:
+                merged_paths.add(rp)
+                merged_repos.append({"name": r.name, "path": rp})
+        except Exception:
+            continue
+
+    for p in registry.get("repos", []):
+        try:
+            resolved = Path(p).resolve()
+            if not resolved.exists() or not resolved.is_dir():
+                continue
+            rp = str(resolved)
+            if rp in merged_paths:
+                continue
+            merged_paths.add(rp)
+            merged_repos.append({"name": resolved.name, "path": rp})
+        except Exception:
+            continue
+
+    merged_repos = sorted(merged_repos, key=lambda x: x["name"].lower())
+
     if changed:
         registry["repos"] = new_repos_list
         save_repo_registry(registry)
@@ -458,8 +1279,29 @@ def list_repos_handler(
     return {
         "root": sanitize_path(str(REPO_ROOT_DIR)),
         "active_repo": sanitize_path(active_repo) if active_repo else None,
-        "repos": [{"name": r.name, "path": sanitize_path(r.path)} for r in repos],
+        "repos": [{"name": r["name"], "path": sanitize_path(r["path"])} for r in merged_repos],
     }
+
+
+def register_repo_handler(
+    path: str = Query(...),
+    auth: AuthContext = Depends(require_read_only_access),
+    rl: None = Depends(check_rate_limit),
+):
+    repo_path = Path(path).resolve()
+    if not repo_path.exists() or not repo_path.is_dir():
+        raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
+
+    registry = load_repo_registry()
+    repos = list(registry.get("repos", []))
+    rp = str(repo_path)
+    if rp not in repos:
+        repos.append(rp)
+        registry["repos"] = repos
+        save_repo_registry(registry)
+
+    audit_log("REPO", "REGISTER", rp, actor=auth.token)
+    return {"status": "success", "path": rp}
 
 
 def get_active_repo_handler(
@@ -495,6 +1337,15 @@ def _is_path_within_base(path: Path, base: Path) -> bool:
         return False
 
 
+def _is_registered_repo_path(path: Path) -> bool:
+    try:
+        registry = load_repo_registry()
+        registered = {str(Path(p).resolve()) for p in registry.get("repos", [])}
+        return str(path.resolve()) in registered
+    except Exception:
+        return False
+
+
 def open_repo_handler(
     path: str = Query(...),
     auth: AuthContext = Depends(require_read_only_access),
@@ -517,7 +1368,7 @@ def select_repo_handler(
     rl: None = Depends(check_rate_limit),
 ):
     repo_path = Path(path).resolve()
-    if not _is_path_within_base(repo_path, REPO_ROOT_DIR):
+    if not _is_path_within_base(repo_path, REPO_ROOT_DIR) and not _is_registered_repo_path(repo_path):
         raise HTTPException(status_code=400, detail=ERR_REPO_OUT_OF_BASE)
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
@@ -657,7 +1508,7 @@ def vitaminize_repo_handler(
     rl: None = Depends(check_rate_limit),
 ):
     repo_path = Path(path).resolve()
-    if not _is_path_within_base(repo_path, REPO_ROOT_DIR):
+    if not _is_path_within_base(repo_path, REPO_ROOT_DIR) and not _is_registered_repo_path(repo_path):
         raise HTTPException(status_code=400, detail=ERR_REPO_OUT_OF_BASE)
     if not repo_path.exists():
         raise HTTPException(status_code=404, detail=ERR_REPO_NOT_FOUND)
@@ -1035,6 +1886,7 @@ def register_routes(app: FastAPI):
     app.get("/ui/audit")(get_ui_audit_handler)
     app.get("/ui/allowlist")(get_ui_allowlist_handler)
     app.get("/ui/repos")(list_repos_handler)
+    app.post("/ui/repos/register")(register_repo_handler)
     app.get("/ui/repos/active")(get_active_repo_handler)
     app.post("/ui/repos/open")(open_repo_handler)
     app.post("/ui/repos/select")(select_repo_handler)

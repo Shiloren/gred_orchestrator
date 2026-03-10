@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Check, Loader2, Send, Sparkles, X, RefreshCw, AlertTriangle, ChevronDown, Activity } from 'lucide-react';
+import { Check, Loader2, Send, Sparkles, X, RefreshCw, AlertTriangle, ChevronDown, Activity, Bot, User } from 'lucide-react';
 import { API_BASE, ChatExecutionStep, ChatExecutionStepStatus, OpsApproveResponse, OpsDraft, Skill, SkillExecuteResponse } from '../types';
 import { useToast } from './Toast';
 import { AgentActionApproval, ActionDraftUi } from './AgentActionApproval';
@@ -45,6 +45,11 @@ const getRoleLabel = (role: string) => {
     if (role === 'user') return 'Tu';
     if (role === 'assistant') return 'GIMO';
     return 'Sistema';
+};
+
+const getRoleAvatar = (role: string) => {
+    if (role === 'user') return <User size={12} />;
+    return <Bot size={12} />;
 };
 
 const getStepStyle = (status: string) => {
@@ -139,7 +144,7 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
     const [selectedSuggestionIdx, setSelectedSuggestionIdx] = useState(0);
     const { addToast } = useToast();
     const scrollRef = useRef<HTMLDivElement>(null);
-    const inputRef = useRef<HTMLInputElement>(null);
+    const inputRef = useRef<HTMLTextAreaElement>(null);
     const skillsLoadingRef = useRef(false);
 
     /* ── Auto-scroll ── */
@@ -148,6 +153,14 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
             scrollRef.current.scrollTo({ top: scrollRef.current.scrollHeight, behavior: 'smooth' });
         }
     }, [messages]);
+
+    /* ── Auto-resize textarea ── */
+    useEffect(() => {
+        const el = inputRef.current;
+        if (!el) return;
+        el.style.height = '0';
+        el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+    }, [input]);
 
     const sortedDrafts = useMemo(
         () => [...drafts].sort((a, b) => +new Date(b.created_at) - +new Date(a.created_at)),
@@ -643,7 +656,10 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
                                 >
                                     {/* Role label + timestamp */}
                                     <div className="flex items-center justify-between mb-1">
-                                        <span className={`text-[9px] uppercase tracking-wider font-bold ${getRoleTextStyle(message.role, message.failed)}`}>
+                                        <span className={`text-[9px] uppercase tracking-wider font-bold flex items-center gap-1.5 ${getRoleTextStyle(message.role, message.failed)}`}>
+                                            <span className="w-4 h-4 rounded-full bg-white/[0.06] flex items-center justify-center shrink-0">
+                                                {getRoleAvatar(message.role)}
+                                            </span>
                                             {getRoleLabel(message.role)}
                                         </span>
                                         <span className="text-[9px] text-text-tertiary">{formatTime(message.ts)}</span>
@@ -832,7 +848,7 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
                 {/* Input */}
                 <div className={`p-3 flex items-center gap-2 shrink-0 ${isCollapsed ? 'h-full items-center pl-16' : 'border-t border-white/[0.04]'}`}>
                     <div className="relative flex-1">
-                        <input
+                        <textarea
                             ref={inputRef}
                             value={input}
                             onChange={(e) => setInput(e.target.value)}
@@ -850,8 +866,9 @@ export const OrchestratorChat: React.FC<OrchestratorChatProps> = ({
                                     void handleSend();
                                 }
                             }}
+                            rows={1}
                             placeholder={mode === 'generate' ? 'Describe el workflow o usa /comando...' : 'Crear draft manual...'}
-                            className="flex-1 w-full h-10 rounded-xl bg-surface-2/60 border border-white/[0.06] px-3 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/50 transition-colors duration-200"
+                            className="flex-1 w-full min-h-[40px] max-h-[120px] rounded-xl bg-surface-2/60 border border-white/[0.06] px-3 py-2.5 text-sm text-text-primary placeholder:text-text-tertiary outline-none focus:border-accent-primary/50 transition-colors duration-200 resize-none overflow-y-auto"
                         />
                         {isSlashInput && (
                             <div className="absolute left-0 right-0 bottom-11 rounded-xl border border-white/[0.08] bg-surface-1/95 backdrop-blur-lg shadow-xl shadow-black/40 p-1 z-20">

@@ -58,8 +58,7 @@ describe('MaintenanceIsland', () => {
         clearLockdown: vi.fn(),
         resetThreats: vi.fn(),
         downgrade: vi.fn(),
-        refresh: vi.fn()
-        ,
+        refresh: vi.fn(),
         fetchTrustDashboard: vi.fn(),
         getCircuitBreakerConfig: vi.fn().mockResolvedValue(null)
     }
@@ -104,26 +103,25 @@ describe('MaintenanceIsland', () => {
 
     it('renders service status', () => {
         render(<MaintenanceIsland />)
-        expect(screen.getByText('RUNNING')).toBeInTheDocument()
+        expect(screen.getByText('EJECUTANDO')).toBeInTheDocument()
     })
 
     it('renders system status label', () => {
         render(<MaintenanceIsland />)
-        // "Status" appears as a heading label in the system core card
-        const statusElements = screen.getAllByText('Status')
+        const statusElements = screen.getAllByText('Estado')
         expect(statusElements.length).toBeGreaterThanOrEqual(1)
     })
 
     it('calls restart when restart button clicked', () => {
         render(<MaintenanceIsland />)
-        const restartButton = screen.getByTitle('Restart Service')
+        const restartButton = screen.getByTitle('Reiniciar Servicio')
         fireEvent.click(restartButton)
         expect(mockSystemService.restart).toHaveBeenCalled()
     })
 
     it('calls stop when stop button clicked', () => {
         render(<MaintenanceIsland />)
-        const stopButton = screen.getByTitle('Stop Service')
+        const stopButton = screen.getByTitle('Detener Servicio')
         fireEvent.click(stopButton)
         expect(mockSystemService.stop).toHaveBeenCalled()
     })
@@ -134,7 +132,7 @@ describe('MaintenanceIsland', () => {
             status: 'STOPPED'
         })
         render(<MaintenanceIsland />)
-        const stopButton = screen.getByTitle('Stop Service')
+        const stopButton = screen.getByTitle('Detener Servicio')
         expect(stopButton).toBeDisabled()
     })
 
@@ -150,51 +148,44 @@ describe('MaintenanceIsland', () => {
     it('renders lockdown status when lockdown is true', () => {
         setLockdown(true)
         render(<MaintenanceIsland />)
-        // LOCKDOWN appears in both status and security level sections
-        const lockdownElements = screen.getAllByText('LOCKDOWN')
-        expect(lockdownElements.length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText('BLOQUEO')).toBeInTheDocument()
     })
 
     it('calls clearLockdown when reset button clicked', () => {
         setLockdown(true)
         render(<MaintenanceIsland />)
-        const resetButton = screen.getByTitle('Reset to NOMINAL')
+        const resetButton = screen.getByTitle('Restablecer a NOMINAL')
         fireEvent.click(resetButton)
         expect(mockSecurityService.clearLockdown).toHaveBeenCalled()
     })
 
-    it('displays LOCKDOWN as status label when in lockdown', () => {
+    it('displays BLOQUEO as status label when in lockdown', () => {
         setLockdown(true)
         render(<MaintenanceIsland />)
-        const lockdownElements = screen.getAllByText('LOCKDOWN')
-        expect(lockdownElements.length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText('BLOQUEO')).toBeInTheDocument()
     })
 
     it('renders repository dropdown with repos', () => {
         render(<MaintenanceIsland />)
-        const select = screen.getByLabelText('Target Repository')
+        const select = screen.getByLabelText('Repositorio Destino')
         expect(select).toBeInTheDocument()
-        // Check options exist
         const options = select.querySelectorAll('option')
         expect(options.length).toBeGreaterThanOrEqual(2)
     })
 
     it('shows active repo', () => {
         render(<MaintenanceIsland />)
-        // Active repo is shown - may appear multiple times (dropdown + display)
         const elements = screen.getAllByText(/\/path\/to\/repo1/)
         expect(elements.length).toBeGreaterThanOrEqual(1)
     })
 
-
     it('calls bootstrap when Bootstrap button clicked', () => {
         render(<MaintenanceIsland />)
 
-        // Select a repo first
-        const select = screen.getByLabelText('Target Repository')
+        const select = screen.getByLabelText('Repositorio Destino')
         fireEvent.change(select, { target: { value: '/path/to/repo1' } })
 
-        const bootstrapButton = screen.getByText('Bootstrap files')
+        const bootstrapButton = screen.getByText('Inicializar archivos')
         fireEvent.click(bootstrapButton)
         expect(mockRepoService.bootstrap).toHaveBeenCalledWith('/path/to/repo1')
     })
@@ -202,11 +193,10 @@ describe('MaintenanceIsland', () => {
     it('calls selectRepo when Activate button clicked', () => {
         render(<MaintenanceIsland />)
 
-        // Select a different repo
-        const select = screen.getByLabelText('Target Repository')
+        const select = screen.getByLabelText('Repositorio Destino')
         fireEvent.change(select, { target: { value: '/path/to/repo2' } })
 
-        const activateButton = screen.getByText('Activate')
+        const activateButton = screen.getByText('Activar')
         fireEvent.click(activateButton)
         expect(mockRepoService.selectRepo).toHaveBeenCalledWith('/path/to/repo2')
     })
@@ -220,36 +210,35 @@ describe('MaintenanceIsland', () => {
     it('shows no matches message when logs empty', () => {
         mockEmptyLogs()
         render(<MaintenanceIsland />)
-        expect(screen.getByText('No matching events')).toBeInTheDocument()
+        expect(screen.getByText('No hay eventos coincidentes')).toBeInTheDocument()
     })
 
     it('updates search term on input', () => {
         render(<MaintenanceIsland />)
-        const searchInput = screen.getByPlaceholderText('Search logs...')
+        const searchInput = screen.getByPlaceholderText('Buscar logs...')
         fireEvent.change(searchInput, { target: { value: 'test' } })
         expect(mockAuditLog.setSearchTerm).toHaveBeenCalledWith('test')
     })
 
     it('updates filter on select change', () => {
         render(<MaintenanceIsland />)
-        const filterSelect = screen.getByDisplayValue('ANY')
+        const filterSelect = screen.getByDisplayValue('CUALQUIERA')
         fireEvent.change(filterSelect, { target: { value: 'deny' } })
         expect(mockAuditLog.setFilter).toHaveBeenCalledWith('deny')
     })
 
     it('calls refreshLogs when refresh button clicked', () => {
         render(<MaintenanceIsland />)
-        const refreshButton = screen.getByTitle('Refresh Logs')
+        const refreshButton = screen.getByTitle('Refrescar Logs')
         fireEvent.click(refreshButton)
         expect(mockAuditLog.refresh).toHaveBeenCalled()
     })
 
     it('exports logs when export button clicked', () => {
         render(<MaintenanceIsland />)
-        const exportButton = screen.getByTitle('Export Logs')
+        const exportButton = screen.getByTitle('Exportar Logs')
         fireEvent.click(exportButton)
 
-        // Verify URL APIs were called (mocked in setup.ts)
         expect(URL.createObjectURL).toHaveBeenCalled()
         expect(URL.revokeObjectURL).toHaveBeenCalled()
     })
@@ -274,16 +263,16 @@ describe('MaintenanceIsland', () => {
     it('shows LOCKDOWN security level when in lockdown', () => {
         setLockdown(true)
         render(<MaintenanceIsland />)
-        expect(screen.getAllByText('LOCKDOWN').length).toBeGreaterThanOrEqual(1)
+        expect(screen.getByText('LOCKDOWN')).toBeInTheDocument()
     })
 
     it('applies correct status colors for different statuses', () => {
         const statuses = [
-            { id: 'RUNNING', label: 'RUNNING' },
-            { id: 'STOPPED', label: 'STOPPED' },
-            { id: 'STARTING', label: 'STARTING' },
-            { id: 'STOPPING', label: 'STOPPING' },
-            { id: 'UNKNOWN', label: 'UNKNOWN' }
+            { id: 'RUNNING', label: 'EJECUTANDO' },
+            { id: 'STOPPED', label: 'DETENIDO' },
+            { id: 'STARTING', label: 'INICIANDO' },
+            { id: 'STOPPING', label: 'DETENIENDO' },
+            { id: 'UNKNOWN', label: 'DESCONOCIDO' }
         ] as const
 
         statuses.forEach(({ id, label }) => {
@@ -303,8 +292,8 @@ describe('MaintenanceIsland', () => {
             isLoading: true
         })
         render(<MaintenanceIsland />)
-        const restartButton = screen.getByTitle('Restart Service')
-        const stopButton = screen.getByTitle('Stop Service')
+        const restartButton = screen.getByTitle('Reiniciar Servicio')
+        const stopButton = screen.getByTitle('Detener Servicio')
         expect(restartButton).toBeDisabled()
         expect(stopButton).toBeDisabled()
     })
@@ -312,8 +301,8 @@ describe('MaintenanceIsland', () => {
     it('disables buttons when in lockdown', () => {
         setLockdown(true)
         render(<MaintenanceIsland />)
-        const restartButton = screen.getByTitle('Restart Service')
-        const stopButton = screen.getByTitle('Stop Service')
+        const restartButton = screen.getByTitle('Reiniciar Servicio')
+        const stopButton = screen.getByTitle('Detener Servicio')
         expect(restartButton).toBeDisabled()
         expect(stopButton).toBeDisabled()
     })
@@ -321,7 +310,7 @@ describe('MaintenanceIsland', () => {
     it('disables reset button when security isLoading in lockdown', () => {
         setLockdown(true, { isLoading: true })
         render(<MaintenanceIsland />)
-        const resetButton = screen.getByTitle('Reset to NOMINAL')
+        const resetButton = screen.getByTitle('Restablecer a NOMINAL')
         expect(resetButton).toBeDisabled()
     })
 
@@ -337,14 +326,11 @@ describe('MaintenanceIsland', () => {
         mockEmptyLogs()
 
         render(<MaintenanceIsland />)
-        const exportButton = screen.getByTitle('Export Logs')
+        const exportButton = screen.getByTitle('Exportar Logs')
 
-        // Clear URL mocks before clicking
         vi.mocked(URL.createObjectURL).mockClear()
         fireEvent.click(exportButton)
 
-
-        // Should not call createObjectURL when logs are empty
         expect(URL.createObjectURL).not.toHaveBeenCalled()
     })
 

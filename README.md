@@ -14,7 +14,7 @@ Monorepo unificado de GIMO: orquestador multiagente + plataforma web de licencia
 - **GIMO Web** — Landing, autenticaci&oacute;n Firebase, licencias y suscripciones Stripe
 - **575+ tests** automatizados con pytest
 
-## Quickstart
+## Quickstart (Windows portable)
 
 ### Requisitos previos
 
@@ -22,15 +22,26 @@ Monorepo unificado de GIMO: orquestador multiagente + plataforma web de licencia
 - Node.js 18+
 - Ollama (opcional, para modelos locales)
 
-### Opci&oacute;n 1: Launcher autom&aacute;tico (Windows)
+### Flujo recomendado: clone → 2 comandos
 
 ```bash
+bootstrap.cmd
 GIMO_DEV_LAUNCHER.cmd
 ```
 
-Genera el token, inicia backend, frontend y web, y abre el navegador.
+`bootstrap.cmd` prepara entorno portable (venv, dependencias, `.env`, `.env.local`, MCP).
 
-### Opci&oacute;n 2: Manual
+`GIMO_DEV_LAUNCHER.cmd` inicia backend + UI + web y abre la UI.
+
+### Comandos operativos
+
+```bash
+scripts\dev\up.cmd      # levantar servicios
+scripts\dev\down.cmd    # detener servicios y liberar puertos
+scripts\dev\doctor.cmd  # diagn&oacute;stico r&aacute;pido del entorno
+```
+
+### Flujo manual (avanzado)
 
 ```bash
 # 1. Instalar dependencias backend

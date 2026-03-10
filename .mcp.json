@@ -2,10 +2,14 @@
   "mcpServers": {
     "gimo": {
       "command": "python",
-      "args": ["-m", "tools.gimo_server.mcp_bridge.server"],
-      "cwd": "C:\\Users\\shilo\\Documents\\Github\\gred_in_multiagent_orchestrator",
+      "args": [
+        "-m",
+        "tools.gimo_server.mcp_bridge.server"
+      ],
+      "cwd": ".",
       "env": {
-        "PYTHONIOENCODING": "utf-8"
+        "PYTHONIOENCODING": "utf-8",
+        "ORCH_REPO_ROOT": "."
       }
     }
   }

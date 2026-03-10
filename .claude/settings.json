@@ -1,0 +1,11 @@
+{
+  "permissions": {
+    "deny": [
+      "agent:Explore",
+      "agent:general-purpose"
+    ],
+    "allow": [
+      "agent:Plan"
+    ]
+  }
+}

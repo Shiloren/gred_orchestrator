@@ -69,6 +69,15 @@ export function ProfilePanel({
         }
     };
 
+    const openAccountPortal = async () => {
+        const win = window.open(GIMO_ACCOUNT_URL, '_blank', 'noopener,noreferrer');
+        if (win) {
+            addToast('Abriendo portal de cuenta…', 'info');
+            return;
+        }
+        await copyToClipboard(GIMO_ACCOUNT_URL, 'URL de cuenta');
+    };
+
     const formatDate = (value?: string | null) => {
         if (!value) return '—';
         const d = new Date(value);
@@ -152,7 +161,7 @@ export function ProfilePanel({
                             )}
                         </div>
                         <button
-                            onClick={() => window.open(GIMO_ACCOUNT_URL, '_blank')}
+                            onClick={openAccountPortal}
                             className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-accent-primary/15 text-accent-primary border border-accent-primary/30 hover:bg-accent-primary/25"
                         >
                             Gestionar suscripción
@@ -201,7 +210,7 @@ export function ProfilePanel({
                         </div>
 
                         <button
-                            onClick={() => window.open(GIMO_ACCOUNT_URL, '_blank')}
+                            onClick={openAccountPortal}
                             className="inline-flex items-center gap-2 text-xs px-3 py-2 rounded-lg bg-surface-3 text-text-primary border border-border-primary hover:bg-surface-2"
                         >
                             Gestionar licencia

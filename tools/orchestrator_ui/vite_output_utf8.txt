@@ -1,0 +1,64 @@
+﻿node.exe : [31mfailed to 
+load config from C:\Users\s
+hilo\Documents\GitHub\Gred-
+In-Compression-System\Gred-
+in-Multiagent-Orchestrator\
+tools\orchestrator_ui\vite.
+config.ts[39m
+En línea: 1 Carácter: 1
++ & "C:\Program 
+Files\nodejs/node.exe" 
+"C:\Program 
+Files\nodejs/node_mo ...
++ ~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~~~~~~~~~~~
+~~~~~~~~~~~~~~~~~
+    + CategoryInfo         
+     : NotSpecified: ([3  
+  1mfailed to ....config   
+ .ts[39m:String) [], R    
+emoteException
+    + FullyQualifiedErrorI 
+   d : NativeCommandError
+ 
+[31merror during build:
+Error 
+[ERR_MODULE_NOT_FOUND]: 
+Cannot find package 
+'@vitejs/plugin-react' 
+imported from C:\Users\shil
+o\Documents\GitHub\Gred-In-
+Compression-System\Gred-in-
+Multiagent-Orchestrator\too
+ls\orchestrator_ui\node_mod
+ules\.vite-temp\vite.config
+.ts.timestamp-1773003601924
+-cc91bc87c7f2b.mjs
+    at 
+Object.getPackageJSONURL (n
+ode:internal/modules/packag
+e_json_reader:316:9)
+    at packageResolve (node
+:internal/modules/esm/resol
+ve:768:81)
+    at moduleResolve (node:
+internal/modules/esm/resolv
+e:858:18)
+    at defaultResolve (node
+:internal/modules/esm/resol
+ve:990:11)
+    at 
+#cachedDefaultResolve (node
+:internal/modules/esm/loade
+r:737:20)
+    at 
+ModuleLoader.resolve (node:
+internal/modules/esm/loader
+:714:38)
+    at ModuleLoader.getModu
+leJobForImport (node:intern
+al/modules/esm/loader:293:3
+8)
+    at #link (node:internal
+/modules/esm/module_job:208
+:49)[39m

@@ -10,13 +10,27 @@ const firebaseConfig = {
     appId: import.meta.env.VITE_FIREBASE_APP_ID,
 };
 
+const requiredFirebaseEnvKeys: Array<keyof typeof firebaseConfig> = [
+    'apiKey',
+    'authDomain',
+    'projectId',
+    'appId',
+];
+
+export function getMissingFirebaseEnvKeys(): string[] {
+    return requiredFirebaseEnvKeys
+        .filter((key) => !firebaseConfig[key])
+        .map((key) => {
+            if (key === 'apiKey') return 'VITE_FIREBASE_API_KEY';
+            if (key === 'authDomain') return 'VITE_FIREBASE_AUTH_DOMAIN';
+            if (key === 'projectId') return 'VITE_FIREBASE_PROJECT_ID';
+            if (key === 'appId') return 'VITE_FIREBASE_APP_ID';
+            return String(key);
+        });
+}
+
 export function isFirebaseConfigured(): boolean {
-    return Boolean(
-        firebaseConfig.apiKey &&
-        firebaseConfig.authDomain &&
-        firebaseConfig.projectId &&
-        firebaseConfig.appId,
-    );
+    return getMissingFirebaseEnvKeys().length === 0;
 }
 
 let _app: FirebaseApp | null = null;

@@ -30,7 +30,7 @@ HTMLCanvasElement.prototype.getContext = () => {
     return {
         fillRect: vi.fn(),
         clearRect: vi.fn(),
-        getImageData: vi.fn((x, y, w, h) => {
+        getImageData: vi.fn((_x: number, _y: number, w: number, h: number) => {
             return {
                 data: new Array(w * h * 4)
             };

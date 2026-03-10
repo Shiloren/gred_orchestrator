@@ -1,6 +1,6 @@
-import React, { useEffect, useMemo, useState } from 'react';
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { X, Activity, Terminal, Settings, ListChecks, Cpu, AlertTriangle } from 'lucide-react';
+import { X, Activity, Terminal, Settings, ListChecks, Cpu, AlertTriangle, Coins } from 'lucide-react';
 import { AgentPlanPanel } from './AgentPlanPanel';
 import { TrustBadge } from './TrustBadge';
 import { QualityAlertPanel } from './QualityAlertPanel';
@@ -11,6 +11,8 @@ import { GraphNode, API_BASE } from '../types';
 import { SystemPromptEditor } from './SystemPromptEditor';
 import { useAvailableModels } from '../hooks/useAvailableModels';
 import { useToast } from './Toast';
+import { useGraphStore } from './Graph/useGraphStore';
+import { useMasteryService } from '../hooks/useMasteryService';
 
 interface HardwareInfo {
     cpu_percent: number;
@@ -33,12 +35,13 @@ interface InspectPanelProps {
     onClose: () => void;
 }
 
-type PanelView = 'overview' | 'plan' | 'quality' | 'chat' | 'delegation' | 'prompt' | 'config';
+type PanelView = 'overview' | 'plan' | 'quality' | 'chat' | 'delegation' | 'prompt' | 'config' | 'economy';
 
 const TABS: { id: PanelView; label: string; icon: typeof Terminal }[] = [
     { id: 'prompt', label: 'Prompt', icon: Terminal },
     { id: 'config', label: 'Config', icon: Settings },
     { id: 'plan', label: 'Plan', icon: ListChecks },
+    { id: 'economy', label: 'Economía', icon: Coins },
     { id: 'overview', label: 'Info', icon: Activity },
 ];
 
@@ -58,9 +61,48 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
     const [view, setView] = useState<PanelView>('overview');
     const { models, loading: modelsLoading } = useAvailableModels();
     const { addToast } = useToast();
+    const activePlanId = useGraphStore((s) => s.activePlanId);
+    const { fetchPlanEconomy, updatePlanAutonomy } = useMasteryService();
     const [hwInfo, setHwInfo] = useState<HardwareInfo | null>(null);
+    const [planEconomy, setPlanEconomy] = useState<any | null>(null);
 
     // Fetch hardware state
+    useEffect(() => {
+        if (!activePlanId) return;
+        let mounted = true;
+        const refresh = async () => {
+            try {
+                const snap = await fetchPlanEconomy(activePlanId, 30);
+                if (mounted) setPlanEconomy(snap);
+            } catch {
+                /* ignore */
+            }
+        };
+        refresh();
+        const id = setInterval(refresh, 8000);
+        return () => {
+            mounted = false;
+            clearInterval(id);
+        };
+    }, [activePlanId, fetchPlanEconomy]);
+
+    const selectedNodeEconomy = useMemo(() => {
+        if (!planEconomy || !selectedNodeId) return null;
+        return (planEconomy.nodes || []).find((n: any) => n.node_id === selectedNodeId) || null;
+    }, [planEconomy, selectedNodeId]);
+
+    const changeAutonomy = useCallback(async (level: 'manual' | 'advisory' | 'guided' | 'autonomous') => {
+        if (!activePlanId) return;
+        try {
+            const nodeIds = selectedNodeId ? [selectedNodeId] : [];
+            const updated = await updatePlanAutonomy(activePlanId, level, nodeIds);
+            setPlanEconomy(updated);
+            addToast(`Autonomía actualizada a ${level}`, 'success');
+        } catch {
+            addToast('No se pudo actualizar autonomía', 'error');
+        }
+    }, [activePlanId, selectedNodeId, updatePlanAutonomy, addToast]);
+
     useEffect(() => {
         let active = true;
         const poll = async () => {
@@ -400,6 +442,70 @@ export const InspectPanel: React.FC<InspectPanelProps> = ({
                                                         {value}
                                                     </span>
                                                 </div>
+                                            ))}
+                                        </div>
+                                    </div>
+                                </div>
+                            )}
+                            {view === 'economy' && (
+                                <div className="space-y-4">
+                                    <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.04] space-y-3">
+                                        <div className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">
+                                            Economía del Nodo
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Coste</span>
+                                            <span className="font-mono text-emerald-300">${Number(selectedNodeEconomy?.cost_usd || selectedNode?.data?.cost_usd || 0).toFixed(4)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Prompt tokens</span>
+                                            <span className="font-mono text-text-primary">{selectedNodeEconomy?.prompt_tokens ?? selectedNode?.data?.prompt_tokens ?? 0}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Completion tokens</span>
+                                            <span className="font-mono text-text-primary">{selectedNodeEconomy?.completion_tokens ?? selectedNode?.data?.completion_tokens ?? 0}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">ROI local</span>
+                                            <span className="font-mono text-cyan-300">{(selectedNodeEconomy?.roi_score ?? selectedNode?.data?.roi_score ?? 0).toFixed(2)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Yield Intelligence</span>
+                                            <span className="font-mono text-violet-300">{(selectedNodeEconomy?.yield_optimized ?? selectedNode?.data?.yield_optimized) ? 'Optimized' : 'Standard'}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.04] space-y-3">
+                                        <div className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">
+                                            Sesión
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Gasto acumulado</span>
+                                            <span className="font-mono text-emerald-300">${Number(planEconomy?.total_cost_usd || 0).toFixed(4)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Ahorro estimado</span>
+                                            <span className="font-mono text-lime-300">${Number(planEconomy?.estimated_savings_usd || 0).toFixed(4)}</span>
+                                        </div>
+                                        <div className="flex justify-between text-xs">
+                                            <span className="text-text-secondary">Nodos optimizados</span>
+                                            <span className="font-mono text-text-primary">{planEconomy?.nodes_optimized ?? 0}</span>
+                                        </div>
+                                    </div>
+
+                                    <div className="p-4 rounded-xl bg-surface-2/50 border border-white/[0.04] space-y-2">
+                                        <div className="text-[10px] text-text-secondary font-bold uppercase tracking-widest">
+                                            Autonomía
+                                        </div>
+                                        <div className="grid grid-cols-2 gap-2">
+                                            {(['manual', 'advisory', 'guided', 'autonomous'] as const).map((level) => (
+                                                <button
+                                                    key={level}
+                                                    onClick={() => changeAutonomy(level)}
+                                                    className="text-[10px] uppercase tracking-wider px-2 py-1 rounded-lg bg-white/[0.04] hover:bg-white/[0.08] text-text-secondary"
+                                                >
+                                                    {level}
+                                                </button>
                                             ))}
                                         </div>
                                     </div>

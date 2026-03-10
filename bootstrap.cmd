@@ -1,8 +1,8 @@
 @echo off
 setlocal
 
-set "ROOT_DIR=%~dp0..\.."
+set "ROOT_DIR=%~dp0"
 cd /d "%ROOT_DIR%"
 
-call scripts\dev\up.cmd %*
+call scripts\dev\bootstrap.cmd %*
 exit /b %ERRORLEVEL%

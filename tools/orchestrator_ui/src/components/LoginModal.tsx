@@ -1,7 +1,7 @@
 import { useEffect, useMemo, useState, type FormEvent } from 'react';
 import { signInWithPopup } from 'firebase/auth';
 import { API_BASE } from '../types';
-import { auth, googleProvider, isFirebaseConfigured } from '../lib/firebase';
+import { auth, getMissingFirebaseEnvKeys, googleProvider, isFirebaseConfigured } from '../lib/firebase';
 import { useToast } from './Toast';
 import { AuthGraphBackground } from './AuthGraphBackground';
 import { useColdRoomStatus } from '../hooks/useColdRoomStatus';
@@ -153,7 +153,18 @@ export function LoginModal({ onAuthenticated }: Props) {
 
     const handleGoogleLogin = async () => {
         if (!isFirebaseConfigured() || !auth || !googleProvider) {
-            setError('Firebase no está configurado. Revisa variables VITE_FIREBASE_*');
+            const missingKeys = getMissingFirebaseEnvKeys();
+            const missingLabel = missingKeys.length > 0 ? ` Faltan: ${missingKeys.join(', ')}.` : '';
+
+            if (import.meta.env.DEV) {
+                console.warn('[FirebaseConfig] Configuración incompleta para Google SSO.', {
+                    missingKeys,
+                });
+            }
+
+            setError(
+                `Firebase no está configurado para este frontend.${missingLabel} Si acabas de editar .env.local, reinicia Vite.`,
+            );
             return;
         }
 

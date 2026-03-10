@@ -11,6 +11,7 @@ import {
     Search,
     Wrench,
     UserCheck,
+    Gem,
 } from 'lucide-react';
 
 /* ── Color system per node type ────────────────────── */
@@ -97,6 +98,10 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
     const isRunning = status === 'running';
     const isError = status === 'error' || status === 'failed';
     const isDone = status === 'done';
+    const economyLayerEnabled = Boolean(data?.economyLayerEnabled);
+    const costUsd = Number(data?.cost_usd || 0);
+    const roiBand = Number(data?.roi_band || 0);
+    const yieldOptimized = Boolean(data?.yield_optimized);
 
     return (
         <div
@@ -106,10 +111,10 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
                 ${colors.border}
                 ${colors.bg}
                 bg-surface-2/90 backdrop-blur-lg
-                shadow-lg ${selected ? colors.glow : 'shadow-black/20'}
+                shadow-lg ${isRunning ? 'shadow-blue-500/25' : isError ? 'shadow-red-500/20' : isDone ? 'shadow-emerald-500/15' : selected ? colors.glow : 'shadow-black/20'}
                 transition-all duration-200
                 ${selected ? 'ring-1 ring-white/20 scale-[1.02]' : ''}
-                ${isRunning ? 'node-running' : ''}
+                ${isRunning ? 'node-running animate-pulse' : ''}
             `}
         >
             {/* Running shimmer overlay */}
@@ -158,6 +163,22 @@ export const ComposerNode = memo(({ data, selected }: NodeProps) => {
                         {model || 'auto'}
                     </span>
                 </div>
+
+                {economyLayerEnabled && (
+                    <div className="mt-2 flex items-center gap-1.5 flex-wrap">
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-emerald-500/10 text-emerald-300 border border-emerald-500/20">
+                            ${costUsd.toFixed(4)}
+                        </span>
+                        <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-cyan-500/10 text-cyan-300 border border-cyan-500/20">
+                            ROI {Math.max(1, Math.min(10, roiBand || 1))}/10
+                        </span>
+                        {yieldOptimized && (
+                            <span className="inline-flex items-center gap-1 text-[9px] font-mono px-1.5 py-0.5 rounded bg-violet-500/10 text-violet-300 border border-violet-500/20">
+                                <Gem size={10} /> Yield
+                            </span>
+                        )}
+                    </div>
+                )}
 
                 {/* Error preview */}
                 {isError && nodeError && (

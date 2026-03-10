@@ -1,6 +1,6 @@
 import { memo } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
-import { Sparkles, Edit2, Save, X, Plus, Play } from 'lucide-react';
+import { Sparkles, Edit2, Save, X, Plus, Play, Coins, Leaf } from 'lucide-react';
 import { useGraphStore } from './useGraphStore';
 
 interface GraphToolbarProps {
@@ -10,6 +10,10 @@ interface GraphToolbarProps {
     onSaveDraft: () => void;
     onSaveSkill?: () => void;
     onExecute: () => void;
+    economyLayerEnabled: boolean;
+    ecoModeQuickEnabled: boolean;
+    onToggleEconomyLayer: () => void;
+    onToggleEcoModeQuick: () => void;
 }
 
 export const GraphToolbar = memo(({
@@ -19,6 +23,10 @@ export const GraphToolbar = memo(({
     onSaveDraft,
     onSaveSkill,
     onExecute,
+    economyLayerEnabled,
+    ecoModeQuickEnabled,
+    onToggleEconomyLayer,
+    onToggleEcoModeQuick,
 }: GraphToolbarProps) => {
     const isEditMode = useGraphStore((s) => s.isEditMode);
     const isSaving = useGraphStore((s) => s.isSaving);
@@ -95,6 +103,30 @@ export const GraphToolbar = memo(({
                         >
                             <Play size={14} />
                             Ejecutar
+                        </button>
+
+                        <button
+                            onClick={onToggleEconomyLayer}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-colors text-[11px] font-bold ${economyLayerEnabled
+                                ? 'bg-emerald-500/20 text-emerald-300'
+                                : 'bg-white/[0.04] text-text-secondary hover:text-text-primary'
+                                }`}
+                            title="Mostrar/Ocultar capa de economía"
+                        >
+                            <Coins size={14} />
+                            Economía
+                        </button>
+
+                        <button
+                            onClick={onToggleEcoModeQuick}
+                            className={`flex items-center gap-2 px-3 py-2 rounded-xl transition-colors text-[11px] font-bold ${ecoModeQuickEnabled
+                                ? 'bg-lime-500/20 text-lime-300'
+                                : 'bg-white/[0.04] text-text-secondary hover:text-text-primary'
+                                }`}
+                            title="Eco Switch global"
+                        >
+                            <Leaf size={14} />
+                            Eco-Switch
                         </button>
 
                         <div className="w-px h-5 bg-white/[0.06] mx-1" />

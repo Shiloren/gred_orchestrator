@@ -36,6 +36,7 @@ import {
 import { API_BASE } from '../types';
 import { useToast } from './Toast';
 import { useAvailableModels } from '../hooks/useAvailableModels';
+import { useMasteryService } from '../hooks/useMasteryService';
 
 /* ── Node & Edge types ─────────────────────────────── */
 
@@ -76,6 +77,7 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     const keysPressed = useRef(new Set<string>());
     const tabConnectSourceRef = useRef<string | null>(null);
     const [showSkillModal, setShowSkillModal] = useState(false);
+    const { fetchConfig, saveConfig, fetchPlanEconomy } = useMasteryService();
 
     /* Store slices — use selectors to avoid full-store re-renders */
     const isEditMode = useGraphStore((s) => s.isEditMode);
@@ -83,6 +85,9 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
     const planName = useGraphStore((s) => s.planName);
     const planDescription = useGraphStore((s) => s.planDescription);
     const activePlanId = useGraphStore((s) => s.activePlanId);
+    const economyLayerEnabled = useGraphStore((s) => s.economyLayerEnabled);
+    const ecoModeQuickEnabled = useGraphStore((s) => s.ecoModeQuickEnabled);
+    const sessionEconomy = useGraphStore((s) => s.sessionEconomy);
 
     /* ── Track user-moved positions ── */
     const onNodesChangeRef = useRef(onNodesChange);
@@ -135,7 +140,13 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
             const data = await response.json();
             const graphStore = useGraphStore.getState();
             const formattedEdges = normalizeServerEdges(data.edges);
-            const nodesWithLiveState = normalizeServerNodes(data.nodes, graphStore.userPositions);
+            const nodesWithLiveState = normalizeServerNodes(data.nodes, graphStore.userPositions).map((n: any) => ({
+                ...n,
+                data: {
+                    ...n.data,
+                    economyLayerEnabled: graphStore.economyLayerEnabled,
+                },
+            }));
 
             onNodeCountChangeRef.current?.(nodesWithLiveState.length);
 
@@ -248,6 +259,18 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         loadPlan();
     }, [activePlanIdFromChat, setNodes, setEdges, addToast]);
 
+    useEffect(() => {
+        setNodes((nds) =>
+            nds.map((n: any) => ({
+                ...n,
+                data: {
+                    ...n.data,
+                    economyLayerEnabled,
+                },
+            })),
+        );
+    }, [economyLayerEnabled, setNodes]);
+
     /* ── Load skill from SkillsPanel ── */
     useEffect(() => {
         const handleLoadSkill = (e: Event) => {
@@ -332,6 +355,32 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         }),
                     );
                 }
+                if (eventType === 'custom_node_economy' && data?.plan_id === activePlanId) {
+                    setNodes((nds) =>
+                        nds.map((n: any) => {
+                            if (n.id !== data.node_id) return n;
+                            return {
+                                ...n,
+                                data: {
+                                    ...n.data,
+                                    cost_usd: data.cost_usd ?? n.data?.cost_usd,
+                                    prompt_tokens: data.prompt_tokens ?? n.data?.prompt_tokens,
+                                    completion_tokens: data.completion_tokens ?? n.data?.completion_tokens,
+                                    roi_score: data.roi_score ?? n.data?.roi_score,
+                                    roi_band: data.roi_band ?? n.data?.roi_band,
+                                    yield_optimized: data.yield_optimized ?? n.data?.yield_optimized,
+                                },
+                            };
+                        }),
+                    );
+                }
+                if (eventType === 'custom_session_economy' && data?.plan_id === activePlanId) {
+                    useGraphStore.getState().updateSessionEconomy({
+                        spendUsd: Number(data.spend_usd || 0),
+                        savingsUsd: Number(data.savings_usd || 0),
+                        nodesOptimized: Number(data.nodes_optimized || 0),
+                    });
+                }
                 if (eventType === 'custom_plan_finished' && data?.plan_id === activePlanId) {
                     useGraphStore.getState().setIsExecuting(false);
                     addToast(
@@ -345,6 +394,72 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
         };
         return () => eventSource.close();
     }, [isEditMode, activePlanId, setNodes, addToast]);
+
+    useEffect(() => {
+        if (!activePlanId || !economyLayerEnabled) return;
+        let mounted = true;
+        const refresh = async () => {
+            try {
+                const snap = await fetchPlanEconomy(activePlanId, 30);
+                if (!mounted) return;
+                const map = new Map(snap.nodes.map((n) => [n.node_id, n]));
+                setNodes((nds) =>
+                    nds.map((n: any) => {
+                        const econ = map.get(n.id);
+                        if (!econ) return n;
+                        return {
+                            ...n,
+                            data: {
+                                ...n.data,
+                                cost_usd: econ.cost_usd,
+                                prompt_tokens: econ.prompt_tokens,
+                                completion_tokens: econ.completion_tokens,
+                                roi_score: econ.roi_score,
+                                roi_band: econ.roi_band,
+                                yield_optimized: econ.yield_optimized,
+                            },
+                        };
+                    }),
+                );
+                useGraphStore.getState().updateSessionEconomy({
+                    spendUsd: snap.total_cost_usd,
+                    savingsUsd: snap.estimated_savings_usd,
+                    nodesOptimized: snap.nodes_optimized,
+                });
+            } catch {
+                /* ignore */
+            }
+        };
+        refresh();
+        const id = setInterval(refresh, 6000);
+        return () => {
+            mounted = false;
+            clearInterval(id);
+        };
+    }, [activePlanId, economyLayerEnabled, fetchPlanEconomy, setNodes]);
+
+    const handleToggleEconomyLayer = useCallback(() => {
+        const next = !useGraphStore.getState().economyLayerEnabled;
+        useGraphStore.getState().setEconomyLayerEnabled(next);
+    }, []);
+
+    const handleToggleEcoModeQuick = useCallback(async () => {
+        const next = !useGraphStore.getState().ecoModeQuickEnabled;
+        useGraphStore.getState().setEcoModeQuickEnabled(next);
+        try {
+            const cfg = await fetchConfig();
+            const nextCfg = {
+                ...cfg,
+                eco_mode: {
+                    ...cfg.eco_mode,
+                    mode: next ? 'smart' : 'off',
+                },
+            };
+            await saveConfig(nextCfg as any);
+        } catch {
+            useGraphStore.getState().setEcoModeQuickEnabled(!next);
+        }
+    }, [fetchConfig, saveConfig]);
 
     /* ── Interactions ── */
     const onNodeClick: NodeMouseHandler = useCallback(
@@ -805,8 +920,22 @@ export const GraphCanvas: React.FC<GraphCanvasProps> = ({
                         onSaveDraft={handleSaveDraft}
                         onSaveSkill={handleSaveSkillClick}
                         onExecute={handleExecute}
+                        economyLayerEnabled={economyLayerEnabled}
+                        ecoModeQuickEnabled={ecoModeQuickEnabled}
+                        onToggleEconomyLayer={handleToggleEconomyLayer}
+                        onToggleEcoModeQuick={handleToggleEcoModeQuick}
                     />
                 </Panel>
+
+                {economyLayerEnabled && (
+                    <Panel position="top-right" className="mt-3 mr-3">
+                        <div className="px-3 py-2 rounded-xl border border-emerald-500/20 bg-surface-1/90 backdrop-blur-xl text-[10px] font-mono shadow-lg">
+                            <div className="text-emerald-300">Spend ${sessionEconomy.spendUsd.toFixed(4)}</div>
+                            <div className="text-lime-300">Savings ${sessionEconomy.savingsUsd.toFixed(4)}</div>
+                            <div className="text-text-tertiary">Optimized nodes {sessionEconomy.nodesOptimized}</div>
+                        </div>
+                    </Panel>
+                )}
 
                 {/* Node editor panel */}
                 <AnimatePresence>

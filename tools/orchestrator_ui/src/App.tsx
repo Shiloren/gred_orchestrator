@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect, useState, useCallback } from 'react';
+import { motion, AnimatePresence } from 'framer-motion';
 import { AlertTriangle, RefreshCw } from 'lucide-react';
 import { useAppStore } from './stores/appStore';
 import { useToast } from './components/Toast';
@@ -23,27 +24,36 @@ const PlansView = lazy(() => import('./views/PlansView'));
 
 /* Overlay content (lazy) */
 const SettingsPanel = lazy(() => import('./components/SettingsPanel').then(m => ({ default: m.SettingsPanel })));
+const ProviderSettings = lazy(() => import('./components/ProviderSettings').then(m => ({ default: m.ProviderSettings })));
 const EvalDashboard = lazy(() => import('./components/evals/EvalDashboard').then(m => ({ default: m.EvalDashboard })));
 const ObservabilityPanel = lazy(() => import('./components/observability/ObservabilityPanel').then(m => ({ default: m.ObservabilityPanel })));
 const TrustSettings = lazy(() => import('./components/TrustSettings').then(m => ({ default: m.TrustSettings })));
 const MaintenanceIsland = lazy(() => import('./islands/system/MaintenanceIsland').then(m => ({ default: m.MaintenanceIsland })));
 const TokenMastery = lazy(() => import('./components/TokenMastery').then(m => ({ default: m.TokenMastery })));
 
-/* ── Loading fallback ──────────────────────────────────── */
+/* ── Loading fallback with skeleton ───────────────────── */
 const ViewLoader = () => (
-    <div className="h-full flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-            <div className="relative w-8 h-8">
-                <div className="absolute inset-0 border-2 border-accent-primary/20 rounded-full" />
-                <div className="absolute inset-0 border-2 border-accent-primary border-t-transparent rounded-full animate-spin" />
+    <div className="h-full flex flex-col p-6 gap-4 animate-pulse">
+        <div className="h-8 w-48 rounded-lg bg-surface-3/40" />
+        <div className="flex-1 flex gap-4">
+            <div className="flex-1 flex flex-col gap-3">
+                <div className="h-4 w-full rounded bg-surface-3/30" />
+                <div className="h-4 w-5/6 rounded bg-surface-3/30" />
+                <div className="h-4 w-3/4 rounded bg-surface-3/30" />
+                <div className="h-32 w-full rounded-xl bg-surface-3/20 mt-2" />
             </div>
-            <span className="text-[10px] text-text-tertiary uppercase tracking-widest">Cargando</span>
+            <div className="w-64 flex flex-col gap-3">
+                <div className="h-4 w-full rounded bg-surface-3/30" />
+                <div className="h-4 w-2/3 rounded bg-surface-3/30" />
+                <div className="h-24 w-full rounded-xl bg-surface-3/20 mt-2" />
+            </div>
         </div>
     </div>
 );
 
 /* ── Overlay config ────────────────────────────────────── */
 const overlayConfig = {
+    connections: { title: 'Conexiones y Modelos', width: 'full' as const },
     settings: { title: 'Ajustes', width: 'lg' as const },
     evals: { title: 'Evaluaciones', width: 'xl' as const },
     metrics: { title: 'Métricas & Observabilidad', width: 'xl' as const },
@@ -171,7 +181,12 @@ export default function App() {
     if (store.bootState === 'checking' || store.authenticated === null) {
         return (
             <output className="min-h-screen bg-surface-0 flex items-center justify-center block" aria-label="Iniciando GIMO">
-                <div className="flex flex-col items-center gap-5">
+                <motion.div
+                    initial={{ opacity: 0, scale: 0.95 }}
+                    animate={{ opacity: 1, scale: 1 }}
+                    transition={{ duration: 0.4, ease: 'easeOut' }}
+                    className="flex flex-col items-center gap-5"
+                >
                     {/* Animated logo */}
                     <div className="relative">
                         <div className="w-16 h-16 rounded-2xl bg-accent-primary/10 border border-accent-primary/20 flex items-center justify-center animate-glow-pulse">
@@ -179,11 +194,20 @@ export default function App() {
                         </div>
                         <div className="absolute -inset-2 rounded-3xl border border-accent-primary/10 animate-pulse" />
                     </div>
-                    <div className="flex flex-col items-center gap-1.5">
+                    <div className="flex flex-col items-center gap-2">
                         <span className="text-sm font-semibold text-text-primary">GIMO</span>
                         <span className="text-[10px] text-text-tertiary tracking-widest uppercase">Iniciando sistema</span>
+                        {/* Progress bar */}
+                        <div className="w-40 h-1 rounded-full bg-surface-3/40 overflow-hidden mt-1">
+                            <motion.div
+                                className="h-full bg-accent-primary rounded-full"
+                                initial={{ width: '0%' }}
+                                animate={{ width: '85%' }}
+                                transition={{ duration: 3, ease: 'easeInOut' }}
+                            />
+                        </div>
                     </div>
-                </div>
+                </motion.div>
             </output>
         );
     }
@@ -242,6 +266,12 @@ export default function App() {
 
     const renderOverlayContent = () => {
         switch (store.activeOverlay) {
+            case 'connections':
+                return (
+                    <div className="p-6 h-full">
+                        <ProviderSettings />
+                    </div>
+                );
             case 'settings':
                 return <SettingsPanel onOpenMastery={() => store.openOverlay('mastery')} />;
             case 'evals':
@@ -280,12 +310,12 @@ export default function App() {
             </a>
             <MenuBar
                 status={status}
-                onNewPlan={() => store.setActiveTab('plans')}
                 onSelectView={(tab) => store.navigate(tab)}
-                onSelectSettingsView={(tab) => store.navigate(tab)}
+                onOpenSettings={() => store.openOverlay('settings')}
                 onRefreshSession={() => void checkSession()}
                 onOpenCommandPalette={() => store.toggleCommandPalette(true)}
                 onMcpSync={() => { commandHandlers.mcp_sync?.(); }}
+                onOpenConnections={() => store.openOverlay('connections')}
                 userDisplayName={displayName}
                 userEmail={email}
                 userPhotoUrl={profile?.user?.photoURL}
@@ -295,9 +325,20 @@ export default function App() {
             <div className="flex flex-1 overflow-hidden">
                 <Sidebar />
                 <main id="main-content" role="main" className="flex-1 relative overflow-hidden">
-                    <Suspense fallback={<ViewLoader />}>
-                        {renderMainView()}
-                    </Suspense>
+                    <AnimatePresence mode="wait">
+                        <motion.div
+                            key={store.activeTab}
+                            initial={{ opacity: 0 }}
+                            animate={{ opacity: 1 }}
+                            exit={{ opacity: 0 }}
+                            transition={{ duration: 0.15 }}
+                            className="h-full"
+                        >
+                            <Suspense fallback={<ViewLoader />}>
+                                {renderMainView()}
+                            </Suspense>
+                        </motion.div>
+                    </AnimatePresence>
                 </main>
             </div>
 

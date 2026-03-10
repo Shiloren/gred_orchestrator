@@ -5,7 +5,7 @@ import asyncio
 from tools.gimo_server.security import verify_token
 from tools.gimo_server.security.auth import AuthContext
 from .routers.ops import (
-    plan_router, run_router, eval_router, trust_router, config_router, observability_router, mastery_router, skills_router, custom_plan_router, conversation_router
+    plan_router, run_router, eval_router, trust_router, config_router, observability_router, mastery_router, skills_router, custom_plan_router, conversation_router, hitl_router
 )
 
 router = APIRouter(prefix="/ops", tags=["ops"])
@@ -21,6 +21,7 @@ router.include_router(mastery_router.router)
 router.include_router(skills_router.router)
 router.include_router(custom_plan_router.router)
 router.include_router(conversation_router.router)
+router.include_router(hitl_router.router)
 
 # Phase 9 — Actions-Safe public contract (strict allowlist)
 _ACTIONS_SAFE_PUBLIC_ENDPOINTS: tuple[tuple[str, str], ...] = (

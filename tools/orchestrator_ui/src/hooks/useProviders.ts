@@ -191,8 +191,19 @@ export const useProviders = () => {
             method: 'POST',
             ...getRequestInit(true),
         });
-        if (!res.ok) throw new Error('Failed to start Claude login flow');
-        return await res.json();
+        const data = await res.json().catch(() => ({}));
+        if (data?.status === 'error') {
+            const err: any = new Error(data?.message || 'Claude login error');
+            if (data?.action) err.action = data.action;
+            throw err;
+        }
+        if (!res.ok) {
+            const message = data?.message || data?.detail || 'Failed to start Claude login flow';
+            const err: any = new Error(message);
+            if (data?.action) err.action = data.action;
+            throw err;
+        }
+        return data;
     }, []);
 
     const listCliDependencies = useCallback(async () => {

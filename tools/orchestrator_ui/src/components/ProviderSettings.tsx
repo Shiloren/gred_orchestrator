@@ -97,6 +97,8 @@ export const ProviderSettings: React.FC = () => {
         testProvider,
         startCodexDeviceLogin,
         startClaudeLogin,
+        installCliDependency,
+        getCliDependencyInstallJob,
     } = useProviders();
     const { addToast } = useToast();
 
@@ -113,7 +115,7 @@ export const ProviderSettings: React.FC = () => {
     const [baseUrl, setBaseUrl] = useState('');
     const [org, setOrg] = useState('');
     const [validateResult, setValidateResult] = useState<any>(null);
-    const [installState, setInstallState] = useState<{ status: string; message: string; progress?: number; job_id?: string } | null>(null);
+    const [installState, setInstallState] = useState<{ status: string; message: string; progress?: number; job_id?: string; is_cli?: boolean; dependency_id?: string } | null>(null);
     const [showAdvanced, setShowAdvanced] = useState(false);
 
     // Codex device flow state
@@ -262,21 +264,40 @@ export const ProviderSettings: React.FC = () => {
         }
     }, [modelId, providerType, installModel, addToast]);
 
+    const handleInstallCliDependency = useCallback(async (dependencyId: string) => {
+        try {
+            const res = await installCliDependency(dependencyId);
+            setInstallState({ ...res, is_cli: true, dependency_id: dependencyId });
+            addToast(res?.message || 'Instalación de CLI lanzada', 'info');
+        } catch (err: any) {
+            addToast(err.message || 'Error iniciando instalación', 'error');
+        }
+    }, [installCliDependency, addToast]);
+
     useEffect(() => {
         if (!installState?.job_id) return;
         if (!['queued', 'running'].includes(installState.status)) return;
         let cancelled = false;
         const timer = setInterval(async () => {
             try {
-                const next = await getInstallJob(providerType, installState.job_id!);
+                let next;
+                if (installState.is_cli && installState.dependency_id) {
+                    next = await getCliDependencyInstallJob(installState.dependency_id, installState.job_id!);
+                    next = { ...next, is_cli: true, dependency_id: installState.dependency_id };
+                } else {
+                    next = await getInstallJob(providerType, installState.job_id!);
+                }
+
                 if (cancelled) return;
                 setInstallState(next);
                 if (next.status === 'done') {
-                    addToast('Modelo instalado correctamente', 'success');
+                    addToast('Instalación completada correctamente', 'success');
                     clearInterval(timer);
+                    // Clear error states so the user can proceed
+                    setDeviceLoginState(null);
                 }
                 if (next.status === 'error') {
-                    addToast(next.message || 'Error instalando modelo', 'error');
+                    addToast(next.message || 'Error en la instalación', 'error');
                     clearInterval(timer);
                 }
             } catch {
@@ -290,7 +311,7 @@ export const ProviderSettings: React.FC = () => {
             cancelled = true;
             clearInterval(timer);
         };
-    }, [installState?.job_id, installState?.status, providerType]);
+    }, [installState?.job_id, installState?.status, installState?.is_cli, installState?.dependency_id, providerType, getInstallJob, getCliDependencyInstallJob, setDeviceLoginState, addToast]);
 
     const handleTestConnection = async () => {
         try {
@@ -357,7 +378,7 @@ export const ProviderSettings: React.FC = () => {
                 }
             }
         } catch (err: any) {
-            setDeviceLoginState({ status: 'error', message: err.message || 'Error al iniciar flujo de Claude' });
+            setDeviceLoginState({ status: 'error', message: err.message || 'Error al iniciar flujo de Claude', action: err?.action });
             addToast('Error al conectar cuenta Anthropic', 'error');
         }
     };
@@ -643,14 +664,20 @@ export const ProviderSettings: React.FC = () => {
                                                                 <button
                                                                     type="button"
                                                                     onClick={() => {
-                                                                        if (navigator.clipboard) {
-                                                                            void navigator.clipboard.writeText(deviceLoginState.action || '');
-                                                                            addToast('Comando copiado', 'success');
-                                                                        }
+                                                                        handleInstallCliDependency('codex_cli');
                                                                     }}
                                                                     className="inline-flex items-center gap-1 px-2 py-1 rounded border border-accent-alert/40 hover:bg-accent-alert/20 text-[11px]"
+                                                                    disabled={installState?.status === 'queued' || installState?.status === 'running'}
                                                                 >
-                                                                    Copiar comando de instalación
+                                                                    {(installState?.status === 'queued' || installState?.status === 'running') && installState.is_cli ? (
+                                                                        <>
+                                                                            <Download className="w-3 h-3 animate-bounce" /> Instalando...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Download className="w-3 h-3" /> Instalar Codex CLI automáticamente
+                                                                        </>
+                                                                    )}
                                                                 </button>
                                                             ) : null}
                                                         </div>
@@ -729,7 +756,29 @@ export const ProviderSettings: React.FC = () => {
                                                     <div className="text-sm font-medium">Cuenta de Anthropic (Pro/Team)</div>
                                                     <div className="text-xs text-text-secondary mt-1">Usa tu sesión local de Claude (requiere claude CLI instalada).</div>
                                                     {deviceLoginState?.status === 'error' && (
-                                                        <div className="mt-2 text-xs text-accent-alert bg-accent-alert/10 p-2 rounded">{deviceLoginState.message}</div>
+                                                        <div className="mt-2 text-xs text-accent-alert bg-accent-alert/10 p-2 rounded space-y-2">
+                                                            <div>{deviceLoginState.message}</div>
+                                                            {deviceLoginState.action ? (
+                                                                <button
+                                                                    type="button"
+                                                                    onClick={() => {
+                                                                        handleInstallCliDependency('claude_cli');
+                                                                    }}
+                                                                    className="inline-flex items-center gap-1 px-2 py-1 rounded border border-accent-alert/40 hover:bg-accent-alert/20 text-[11px]"
+                                                                    disabled={installState?.status === 'queued' || installState?.status === 'running'}
+                                                                >
+                                                                    {(installState?.status === 'queued' || installState?.status === 'running') && installState.is_cli ? (
+                                                                        <>
+                                                                            <Download className="w-3 h-3 animate-bounce" /> Instalando...
+                                                                        </>
+                                                                    ) : (
+                                                                        <>
+                                                                            <Download className="w-3 h-3" /> Instalar Claude CLI automáticamente
+                                                                        </>
+                                                                    )}
+                                                                </button>
+                                                            ) : null}
+                                                        </div>
                                                     )}
                                                 </div>
                                                 <Button onClick={handleClaudeLogin} className="w-full bg-[#d97757] hover:bg-[#b86246] text-white flex items-center justify-center gap-2 shadow-md h-10 transition-colors">

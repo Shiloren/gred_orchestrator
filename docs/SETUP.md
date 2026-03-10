@@ -5,6 +5,39 @@
 
 > Scope: monorepo GIMO — backend (`tools/gimo_server/`), UI (`tools/orchestrator_ui/`), web (`apps/web/`).
 
+## Portable Dev Workflow (Windows)
+
+### One-time per device
+
+```cmd
+bootstrap.cmd
+```
+
+What it does automatically:
+
+- Creates/uses `.venv`
+- Installs Python dependencies (`requirements.txt`)
+- Runs `npm ci` for `tools/orchestrator_ui` and `apps/web`
+- Creates `.env` from `.env.example` if missing
+- Generates `ORCH_TOKEN` if missing
+- Creates `tools/orchestrator_ui/.env.local` with portable defaults
+- Runs `python scripts\setup_mcp.py`
+
+### Daily commands
+
+```cmd
+GIMO_DEV_LAUNCHER.cmd      :: Canonical launcher (backend + UI + web)
+scripts\dev\down.cmd      :: Stop all local services and free ports
+scripts\dev\doctor.cmd    :: Diagnose local setup quickly
+```
+
+### Legacy launchers (kept as compatibility wrappers)
+
+- `scripts\ops\launch_full.cmd`
+- `scripts\ops\start_orch.cmd`
+
+Both forward to the canonical `scripts\dev\up.cmd`.
+
 ## Backend (Python)
 
 ```cmd
@@ -103,7 +136,7 @@ Cline/Antigravity (MCP client)
 "gimo" server entry
   command: python
   args: -m tools.gimo_server.mcp_bridge.server
-  cwd:  C:\Users\shilo\Documents\Github\gred_in_multiagent_orchestrator
+  cwd:  .   (or your local repo absolute path)
         │
         ▼
 tools.gimo_server.mcp_bridge.server (FastMCP stdio)
@@ -112,7 +145,7 @@ tools.gimo_server.mcp_bridge.server (FastMCP stdio)
         └─ native tools (native_tools.py)
 ```
 
-### Minimal `gimo` config
+### Minimal `gimo` config (manual fallback)
 
 ```json
 {
@@ -120,15 +153,18 @@ tools.gimo_server.mcp_bridge.server (FastMCP stdio)
     "gimo": {
       "command": "python",
       "args": ["-m", "tools.gimo_server.mcp_bridge.server"],
-      "cwd": "C:\\Users\\shilo\\Documents\\Github\\gred_in_multiagent_orchestrator",
+      "cwd": "C:\\path\\to\\Gred-in-Multiagent-Orchestrator",
       "env": {
         "PYTHONIOENCODING": "utf-8",
-        "ORCH_REPO_ROOT": "C:\\Users\\shilo\\Documents\\Github\\gred_in_multiagent_orchestrator"
+        "PYTHONUTF8": "1",
+        "ORCH_REPO_ROOT": "C:\\path\\to\\Gred-in-Multiagent-Orchestrator"
       }
     }
   }
 }
 ```
+
+> Recommended for production/dev teams: use `scripts/setup_mcp.py` instead of hand-editing JSON.
 
 ### Config locations (Windows)
 
@@ -141,6 +177,14 @@ In this environment, the active paths are:
 
 ```cmd
 python scripts\setup_mcp.py
+```
+
+Advanced options:
+
+```cmd
+python scripts\setup_mcp.py --check
+python scripts\setup_mcp.py --repo-root "C:\path\to\Gred-in-Multiagent-Orchestrator"
+python scripts\setup_mcp.py --python-command "C:\Python311\python.exe"
 ```
 
 Validation without modifying config:

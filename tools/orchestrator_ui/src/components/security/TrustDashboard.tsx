@@ -53,7 +53,7 @@ export const TrustDashboard: React.FC<TrustDashboardProps> = ({ records }) => {
                             <tr>
                                 <td colSpan={6} className="px-4 py-8 text-center text-text-secondary text-xs">
                                     <ShieldAlert size={16} className="mx-auto mb-2 opacity-50" />
-                                    No trust records found.
+                                    Aún no hay datos de confianza. Ejecuta flujos y vuelve a revisar este panel.
                                 </td>
                             </tr>
                         ) : (
