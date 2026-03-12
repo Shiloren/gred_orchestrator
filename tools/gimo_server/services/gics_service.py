@@ -73,8 +73,28 @@ class GicsService:
         
         env["GICS_SOCKET_PATH"] = socket_path_str
         env["GICS_TOKEN_PATH"] = str(GICS_TOKEN_PATH)
+        env["GICS_DAEMON_SCRIPT"] = str(GICS_DAEMON_SCRIPT)
 
-        cmd = ["node", str(GICS_DAEMON_SCRIPT)]
+        bootstrap_js = (
+            "import { pathToFileURL } from 'url';"
+            "const scriptPath = process.env.GICS_DAEMON_SCRIPT;"
+            "const mod = await import(pathToFileURL(scriptPath).href);"
+            "const GICSDaemon = mod.GICSDaemon;"
+            "if (!GICSDaemon) { throw new Error('GICSDaemon export not found'); }"
+            "const daemon = new GICSDaemon({"
+            "dataPath: process.env.GICS_DATA_PATH,"
+            "socketPath: process.env.GICS_SOCKET_PATH,"
+            "tokenPath: process.env.GICS_TOKEN_PATH,"
+            "maxMemSizeBytes: Number(process.env.GICS_MAX_MEM_SIZE_BYTES || 33554432),"
+            "maxDirtyCount: Number(process.env.GICS_MAX_DIRTY_COUNT || 1000)"
+            "});"
+            "await daemon.start();"
+            "const graceful = async () => { try { await daemon.stop(); } catch {} process.exit(0); };"
+            "process.on('SIGTERM', graceful);"
+            "process.on('SIGINT', graceful);"
+        )
+
+        cmd = ["node", "--input-type=module", "-e", bootstrap_js]
         
         try:
             self._process = subprocess.Popen(
@@ -86,6 +106,15 @@ class GicsService:
             )
             logger.info("GICS Daemon started with pid=%s", self._process.pid)
             self._wait_for_token()
+            if self._process.poll() is not None:
+                _stdout = (self._process.stdout.read() if self._process.stdout else "") or ""
+                _stderr = (self._process.stderr.read() if self._process.stderr else "") or ""
+                logger.error(
+                    "GICS Daemon exited early (code=%s). stdout=%s stderr=%s",
+                    self._process.returncode,
+                    _stdout.strip()[:500],
+                    _stderr.strip()[:500],
+                )
             
             # Update the stored socket path to match what we told the daemon
             # (In case we changed it for Windows named pipe)

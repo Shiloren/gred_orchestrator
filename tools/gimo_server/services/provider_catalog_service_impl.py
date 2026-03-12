@@ -25,6 +25,7 @@ from .provider_catalog_ollama_helpers import (
     ollama_health as _ollama_health_helper,
     ollama_list_installed as _ollama_list_installed_helper,
 )
+from .provider_metadata import OPENAI_COMPAT_CATALOG_TYPES, REMOTE_MODELS_BASE_URLS
 from ..security import audit_log
 
 
@@ -65,62 +66,6 @@ _DEFAULT_PROVIDER_MODELS: Dict[str, List[Dict[str, str]]] = {
     "tgi": [{"id": "meta-llama/Llama-3.1-8B-Instruct", "label": "Llama 3.1 8B Instruct"}],
 }
 
-_OPENAI_COMPATIBLE_PROVIDERS = {
-    "openai",
-    "codex",
-    "groq",
-    "openrouter",
-    "custom_openai_compatible",
-    "deepseek",
-    "qwen",
-    "moonshot",
-    "zai",
-    "minimax",
-    "baidu",
-    "tencent",
-    "bytedance",
-    "iflytek",
-    "01-ai",
-    "together",
-    "fireworks",
-    "huggingface",
-    "vllm",
-    "llama-cpp",
-    "tgi",
-}
-
-_REMOTE_MODELS_BASE_URLS: Dict[str, str] = {
-    "openai": "https://api.openai.com/v1",
-    "codex": "https://api.openai.com/v1",
-    "groq": "https://api.groq.com/openai/v1",
-    "openrouter": "https://openrouter.ai/api/v1",
-    "anthropic": "https://api.anthropic.com/v1",
-    "claude": "https://api.anthropic.com/v1",
-    "google": "https://generativelanguage.googleapis.com/v1beta/openai",
-    "mistral": "https://api.mistral.ai/v1",
-    "cohere": "https://api.cohere.ai/compatibility/v1",
-    "deepseek": "https://api.deepseek.com/v1",
-    "qwen": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-    "moonshot": "https://api.moonshot.cn/v1",
-    "zai": "https://api.z.ai/api/paas/v4",
-    "minimax": "https://api.minimax.chat/v1",
-    "baidu": "https://qianfan.baidubce.com/v2",
-    "tencent": "https://api.lkeap.cloud.tencent.com/v1",
-    "bytedance": "https://ark.cn-beijing.volces.com/api/v3",
-    "iflytek": "https://spark-api-open.xf-yun.com/v1",
-    "01-ai": "https://api.lingyiwanwu.com/v1",
-    "together": "https://api.together.xyz/v1",
-    "fireworks": "https://api.fireworks.ai/inference/v1",
-    "huggingface": "https://router.huggingface.co/v1",
-    "azure-openai": "",
-    "aws-bedrock": "",
-    "vertex-ai": "",
-    "replicate": "",
-    "custom_openai_compatible": "",
-    "vllm": "",
-    "llama-cpp": "",
-    "tgi": "",
-}
 
 
 def _is_truthy_env(value: str | None) -> bool:
@@ -424,7 +369,7 @@ class ProviderCatalogService:
             warnings.append("This provider needs endpoint/credentials configuration to discover runtime models dynamically. Showing curated defaults.")
             return _fallback_models_for(canonical), warnings
 
-        if canonical in _OPENAI_COMPATIBLE_PROVIDERS:
+        if canonical in OPENAI_COMPAT_CATALOG_TYPES:
             return await cls._handle_openai_compatible_catalog(canonical, payload, warnings)
             
         return [], warnings
@@ -512,7 +457,7 @@ class ProviderCatalogService:
     ) -> List[NormalizedModelInfo]:
         base_url = (payload.base_url or "").strip()
         if not base_url:
-            base_url = _REMOTE_MODELS_BASE_URLS.get(provider_type, "")
+            base_url = REMOTE_MODELS_BASE_URLS.get(provider_type, "")
         if not base_url:
             return []
 

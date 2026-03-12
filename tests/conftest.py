@@ -1,5 +1,7 @@
 """Shared pytest configuration and fixtures for all test modules."""
 
+import asyncio
+import inspect
 import os
 from pathlib import Path
 from unittest.mock import MagicMock, patch
@@ -31,6 +33,39 @@ def pytest_ignore_collect(collection_path: Path, config: pytest.Config) -> bool 
     if collection_path.name in IGonRED_COLLECTION_FILES:
         return True
     return None
+
+
+def pytest_collection_modifyitems(
+    session: pytest.Session,
+    config: pytest.Config,
+    items: list[pytest.Item],
+) -> None:
+    """Bridge legacy @pytest.mark.asyncio tests to AnyIO plugin execution.
+
+    The repo uses AnyIO plugin in CI/runtime. Some legacy tests are still marked
+    with ``asyncio``; we mirror that marker to ``anyio`` so async tests execute
+    deterministically without requiring pytest-asyncio.
+    """
+    _ = session
+    _ = config
+    for item in items:
+        if item.get_closest_marker("asyncio"):
+            item.add_marker(pytest.mark.anyio)
+
+
+def pytest_pyfunc_call(pyfuncitem: pytest.Function) -> bool | None:
+    """Minimal async test runner fallback when pytest-asyncio is unavailable.
+
+    Runs coroutine tests under ``asyncio.run`` so legacy ``@pytest.mark.asyncio``
+    tests remain executable in environments that only ship AnyIO plugin.
+    """
+    test_fn = pyfuncitem.obj
+    if not inspect.iscoroutinefunction(test_fn):
+        return None
+
+    kwargs = {name: pyfuncitem.funcargs[name] for name in pyfuncitem._fixtureinfo.argnames}
+    asyncio.run(test_fn(**kwargs))
+    return True
 
 
 @pytest.fixture(scope="session")

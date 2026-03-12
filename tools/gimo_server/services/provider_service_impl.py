@@ -21,6 +21,8 @@ from .provider_connector_service import ProviderConnectorService
 from .provider_auth_service import ProviderAuthService
 from .provider_state_service import ProviderStateService
 from .provider_service_adapter_registry import build_provider_adapter
+from .provider_config_change_service import ProviderConfigChangeService
+from .provider_topology_service import ProviderTopologyService
 from .llm_cache import NormalizedLLMCache
 from .model_router_service import ModelRouterService
 from .observability_service import ObservabilityService
@@ -101,63 +103,20 @@ class ProviderService:
 
     @classmethod
     def _has_account_mode_provider(cls, providers: Dict[str, ProviderEntry], provider_type: str) -> bool:
-        canonical = cls.normalize_provider_type(provider_type)
-        for entry in providers.values():
-            entry_type = cls.normalize_provider_type(entry.provider_type or entry.type)
-            auth_mode = str(entry.auth_mode or "").strip().lower()
-            if entry_type == canonical and auth_mode == "account":
-                return True
-        return False
+        return ProviderTopologyService.has_account_mode_provider(
+            providers,
+            provider_type,
+            cls.normalize_provider_type,
+        )
 
     @classmethod
     def _inject_cli_account_providers(cls, providers: Dict[str, ProviderEntry]) -> Dict[str, ProviderEntry]:
-        """Auto-provision account-mode providers when local CLIs are available.
-
-        This keeps GIMO as an orchestrator of host-installed tools: if a supported
-        authenticated CLI exists in PATH, expose an account-mode provider entry
-        without forcing dependency re-installation.
-        """
-        out = dict(providers)
-        specs = [
-            {
-                "provider_type": "codex",
-                "provider_id": "codex-account",
-                "binary": "codex",
-                "display_name": "Codex Account Mode",
-                "model": "gpt-5-codex",
-            },
-            {
-                "provider_type": "claude",
-                "provider_id": "claude-account",
-                "binary": "claude",
-                "display_name": "Claude Account Mode",
-                "model": "claude-3-7-sonnet-latest",
-            },
-        ]
-
-        for spec in specs:
-            provider_type = str(spec["provider_type"])
-            provider_id = str(spec["provider_id"])
-            binary = str(spec["binary"])
-            if shutil.which(binary) is None:
-                continue
-            if provider_id in out:
-                continue
-            if cls._has_account_mode_provider(out, provider_type):
-                continue
-
-            model = str(spec["model"])
-            out[provider_id] = ProviderEntry(
-                type=provider_type,
-                provider_type=provider_type,
-                display_name=str(spec["display_name"]),
-                auth_mode="account",
-                model=model,
-                model_id=model,
-                capabilities=cls.capabilities_for(provider_type),
-            )
-
-        return out
+        """Auto-provision account-mode providers when local CLIs are available."""
+        return ProviderTopologyService.inject_cli_account_providers(
+            providers,
+            normalize_provider_type=cls.normalize_provider_type,
+            capabilities_for=cls.capabilities_for,
+        )
 
     @classmethod
     def _normalize_config(cls, cfg: ProviderConfig) -> ProviderConfig:
@@ -193,78 +152,31 @@ class ProviderService:
 
     @classmethod
     def _get_entry_model(cls, provider_id: str, providers: Dict[str, ProviderEntry]) -> str:
-        entry = providers.get(provider_id)
-        return str(entry.model_id or entry.model or "").strip() if entry else ""
+        return ProviderTopologyService._get_entry_model(provider_id, providers)
 
     @classmethod
     def _create_binding(cls, provider_id: str, model: str | None, providers: Dict[str, ProviderEntry]) -> ProviderRoleBinding | None:
-        if not provider_id or provider_id not in providers:
-            return None
-        resolved_model = str(model or "").strip() or cls._get_entry_model(provider_id, providers)
-        return ProviderRoleBinding(provider_id=provider_id, model=resolved_model) if resolved_model else None
+        return ProviderTopologyService._create_binding(provider_id, model, providers)
 
     @classmethod
     def _get_roles_from_schema(cls, cfg: ProviderConfig, providers: Dict[str, ProviderEntry]) -> tuple[ProviderRoleBinding | None, list[ProviderRoleBinding]]:
-        orchestrator = None
-        workers = []
-        if cfg.roles:
-            orchestrator = cls._create_binding(cfg.roles.orchestrator.provider_id, cfg.roles.orchestrator.model, providers)
-            for worker in cfg.roles.workers:
-                if wb := cls._create_binding(worker.provider_id, worker.model, providers):
-                    workers.append(wb)
-        return orchestrator, workers
+        return ProviderTopologyService._get_roles_from_schema(cfg, providers)
 
     @classmethod
     def _get_legacy_roles(cls, cfg: ProviderConfig, providers: Dict[str, ProviderEntry]) -> tuple[ProviderRoleBinding | None, list[ProviderRoleBinding]]:
-        orch_provider = cfg.orchestrator_provider or cfg.active
-        orch_model = cfg.orchestrator_model or cfg.model_id
-        orch = cls._create_binding(str(orch_provider or ""), orch_model, providers)
-        
-        if not orch and cfg.active in providers:
-            orch = cls._create_binding(cfg.active, None, providers)
-            
-        workers = []
-        if worker := cls._create_binding(str(cfg.worker_provider or ""), cfg.worker_model, providers):
-            workers.append(worker)
-            
-        return orch, workers
+        return ProviderTopologyService._get_legacy_roles(cfg, providers)
 
     @classmethod
     def _get_fallback_orchestrator(cls, cfg: ProviderConfig, providers: Dict[str, ProviderEntry]) -> ProviderRoleBinding | None:
-        fallback_provider = cfg.active if cfg.active in providers else next(iter(providers.keys()), "")
-        return cls._create_binding(fallback_provider, None, providers)
+        return ProviderTopologyService._get_fallback_orchestrator(cfg, providers)
 
     @classmethod
     def _deduplicate_workers(cls, orchestrator: ProviderRoleBinding | None, worker_bindings: list[ProviderRoleBinding]) -> list[ProviderRoleBinding]:
-        workers: list[ProviderRoleBinding] = []
-        seen_workers: set[tuple[str, str]] = set()
-        for candidate in worker_bindings:
-            key = (candidate.provider_id, candidate.model)
-            if key in seen_workers:
-                continue
-            if orchestrator and key == (orchestrator.provider_id, orchestrator.model):
-                continue
-            seen_workers.add(key)
-            workers.append(candidate)
-        return workers
+        return ProviderTopologyService._deduplicate_workers(orchestrator, worker_bindings)
 
     @classmethod
     def _normalize_roles(cls, cfg: ProviderConfig, providers: Dict[str, ProviderEntry]) -> ProviderRolesConfig:
-        orchestrator, worker_bindings = cls._get_roles_from_schema(cfg, providers)
-
-        if not orchestrator:
-            legacy_orch, legacy_workers = cls._get_legacy_roles(cfg, providers)
-            orchestrator = legacy_orch
-            worker_bindings.extend(legacy_workers)
-
-        if not orchestrator:
-            orchestrator = cls._get_fallback_orchestrator(cfg, providers)
-
-        if not orchestrator:
-            raise ValueError("Provider topology requires a valid orchestrator binding")
-
-        workers = cls._deduplicate_workers(orchestrator, worker_bindings)
-        return ProviderRolesConfig(orchestrator=orchestrator, workers=workers)
+        return ProviderTopologyService.normalize_roles(cfg, providers)
 
     @classmethod
     def get_config(cls) -> Optional[ProviderConfig]:
@@ -341,42 +253,35 @@ class ProviderService:
 
     @classmethod
     def _get_changed_provider_types(cls, before: Optional[ProviderConfig], cur_cfg: ProviderConfig) -> set[str]:
-        changed_types: set[str] = set()
-        if not before:
-            for entry in cur_cfg.providers.values():
-                changed_types.add(cls.normalize_provider_type(entry.provider_type or entry.type))
-            return changed_types
+        return ProviderConfigChangeService.get_changed_provider_types(
+            before=before,
+            current=cur_cfg,
+            normalize_provider_type=cls.normalize_provider_type,
+            invalidate_catalog_cache=cls._invalidate_catalog_cache,
+        )
 
-        all_ids = set(before.providers.keys()) | set(cur_cfg.providers.keys())
-        for pid in all_ids:
-            prev = before.providers.get(pid)
-            cur = cur_cfg.providers.get(pid)
-            cls._compare_provider(prev, cur, changed_types)
-        
-        return changed_types
+    @classmethod
+    def _invalidate_catalog_cache(cls, provider_type: str, reason: str) -> None:
+        from .provider_catalog_service import ProviderCatalogService
+
+        ProviderCatalogService.invalidate_cache(provider_type=provider_type, reason=reason)
 
     @classmethod
     def _compare_provider(cls, prev, cur, changed_types: set[str]):
-        prev_type = cls.normalize_provider_type(prev.provider_type or prev.type) if prev else None
-        cur_type = cls.normalize_provider_type(cur.provider_type or cur.type) if cur else None
-        
-        if prev_type:
-            changed_types.add(prev_type)
-        if cur_type:
-            changed_types.add(cur_type)
-        
-        if prev and cur and (prev.auth_ref != cur.auth_ref or prev.auth_mode != cur.auth_mode):
-            if cur_type:
-                from .provider_catalog_service import ProviderCatalogService
-                ProviderCatalogService.invalidate_cache(provider_type=cur_type, reason="credentials_changed")
+        ProviderConfigChangeService.compare_provider(
+            prev=prev,
+            cur=cur,
+            changed_types=changed_types,
+            normalize_provider_type=cls.normalize_provider_type,
+            invalidate_catalog_cache=cls._invalidate_catalog_cache,
+        )
 
     @classmethod
     def _invalidate_caches_on_config_change(cls, before: Optional[ProviderConfig], cur_cfg: ProviderConfig) -> None:
         try:
-            from .provider_catalog_service import ProviderCatalogService
             changed_types = cls._get_changed_provider_types(before, cur_cfg)
             for ctype in changed_types:
-                ProviderCatalogService.invalidate_cache(provider_type=ctype, reason="provider_config_updated")
+                cls._invalidate_catalog_cache(provider_type=ctype, reason="provider_config_updated")
         except Exception:
             pass
 

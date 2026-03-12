@@ -220,7 +220,7 @@ def _build_settings() -> Settings:
         audit_log_backup_count=audit_log_backup_count,
         ops_data_dir=ops_data_dir,
         ops_run_ttl=ops_run_ttl,
-        gics_daemon_script=base_dir.parent / "vendor" / "gics" / "dist" / "src" / "daemon" / "server.js",
+        gics_daemon_script=_resolve_gics_daemon_script(base_dir),
         gics_socket_path=ops_data_dir / "gics.sock",
         gics_token_path=ops_data_dir / "gics.token",
         data_dir=base_dir / "tools" / "gimo_server" / "data",
@@ -255,6 +255,26 @@ def _build_settings() -> Settings:
         runtime_guard_block_debugger=os.environ.get("ORCH_BLOCK_DEBUGGER", "false").lower()
         in ("true", "1", "yes"),
     )
+
+
+def _resolve_gics_daemon_script(base_dir: Path) -> Path:
+    """Resolve GICS daemon script location with strict local vendor contract.
+
+    Resolution order:
+    1) ORCH_GICS_DAEMON_SCRIPT (explicit override)
+    2) <repo_root>/vendor/gics/dist/src/daemon/server.js (canonical)
+
+    If canonical is missing, still return canonical path so diagnostics remain clear.
+    """
+    env_override = os.environ.get("ORCH_GICS_DAEMON_SCRIPT", "").strip()
+    if env_override:
+        return Path(env_override).resolve()
+
+    canonical = base_dir / "vendor" / "gics" / "dist" / "src" / "daemon" / "server.js"
+
+    if canonical.exists():
+        return canonical
+    return canonical
 
 
 _SETTINGS = _build_settings()
