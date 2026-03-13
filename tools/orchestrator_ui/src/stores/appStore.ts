@@ -123,7 +123,9 @@ export const useAppStore = create<AppState & AppActions>()((set) => ({
         try {
             const saved = localStorage.getItem('gimo_skills_dock_edge');
             if (saved && ['top', 'left', 'right', 'bottom'].includes(saved)) return saved as AppState['skillsDockEdge'];
-        } catch { }
+        } catch {
+            // localStorage may be unavailable in non-browser/test contexts
+        }
         return 'top';
     })(),
 

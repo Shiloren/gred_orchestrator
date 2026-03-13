@@ -129,6 +129,8 @@ async def _mcp_sampling_loop():
 async def _shutdown_services(logger, app, hw_monitor, run_worker, tasks):
     try:
         await hw_monitor.stop_monitoring()
+    except asyncio.CancelledError as exc:
+        logger.debug("Hardware monitor shutdown cancelled: %s", exc)
     except Exception as exc:
         logger.debug("Hardware monitor shutdown warning: %s", exc)
 
@@ -140,6 +142,8 @@ async def _shutdown_services(logger, app, hw_monitor, run_worker, tasks):
 
     try:
         await run_worker.stop()
+    except asyncio.CancelledError as exc:
+        logger.debug("Run worker shutdown cancelled: %s", exc)
     except Exception as exc:
         logger.debug("Run worker shutdown warning: %s", exc)
 
@@ -148,7 +152,7 @@ async def _shutdown_services(logger, app, hw_monitor, run_worker, tasks):
 
     results = await asyncio.gather(*tasks, return_exceptions=True)
     for result in results:
-        if isinstance(result, Exception):
+        if isinstance(result, BaseException):
             logger.debug("Cleanup task shutdown result: %s", type(result).__name__)
 
 @asynccontextmanager
@@ -312,6 +316,8 @@ async def lifespan(app: FastAPI):
             pass
     except Exception as exc:
         logger.debug("Lifespan shutdown suppressed exception: %s", exc)
+    except asyncio.CancelledError as exc:
+        logger.debug("Lifespan shutdown cancelled: %s", exc)
 
 
 

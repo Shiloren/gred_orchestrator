@@ -2,9 +2,18 @@
  * Firebase Admin SDK — Server-side only
  * Usado en API routes para leer/escribir Firestore y verificar tokens.
  */
-import { initializeApp, getApps, cert, App } from "firebase-admin/app";
+import { initializeApp, getApps, cert, App, ServiceAccount } from "firebase-admin/app";
 import { getFirestore, Firestore } from "firebase-admin/firestore";
 import { getAuth, Auth } from "firebase-admin/auth";
+
+type ServiceAccountInput = {
+  project_id?: string;
+  private_key?: string;
+  client_email?: string;
+  projectId?: string;
+  privateKey?: string;
+  clientEmail?: string;
+};
 
 function initAdmin(): App {
   if (getApps().length > 0) return getApps()[0];
@@ -14,18 +23,28 @@ function initAdmin(): App {
     throw new Error("FIREBASE_SERVICE_ACCOUNT_KEY env var not set");
   }
 
-  let serviceAccount: any;
+  let parsed: ServiceAccountInput;
   try {
     // Soporta JSON directo o base64-encoded
     const decoded = Buffer.from(serviceAccountEnv, "base64").toString("utf-8");
-    serviceAccount = JSON.parse(decoded);
+    parsed = JSON.parse(decoded) as ServiceAccountInput;
   } catch {
-    serviceAccount = JSON.parse(serviceAccountEnv);
+    parsed = JSON.parse(serviceAccountEnv) as ServiceAccountInput;
   }
 
+  const privateKeyRaw = parsed.privateKey ?? parsed.private_key;
+  const projectIdRaw = parsed.projectId ?? parsed.project_id;
+  const clientEmailRaw = parsed.clientEmail ?? parsed.client_email;
+
+  const serviceAccount: ServiceAccount = {
+    privateKey: privateKeyRaw,
+    projectId: projectIdRaw,
+    clientEmail: clientEmailRaw,
+  };
+
   // Normaliza PEM por si viene serializado en una sola línea o con espacios dañados.
-  if (typeof serviceAccount.private_key === "string") {
-    serviceAccount.private_key = serviceAccount.private_key
+  if (typeof serviceAccount.privateKey === "string") {
+    serviceAccount.privateKey = serviceAccount.privateKey
       .replace(/\\n/g, "\n")
       .replace("BEGINPRIVATEKEY", "BEGIN PRIVATE KEY")
       .replace("ENDPRIVATEKEY", "END PRIVATE KEY");
@@ -35,15 +54,15 @@ function initAdmin(): App {
     (process.env.FIREBASE_PROJECT_ID || process.env.NEXT_PUBLIC_FIREBASE_PROJECT_ID || "").trim();
   if (
     expectedProjectId &&
-    typeof serviceAccount.project_id === "string" &&
-    serviceAccount.project_id.trim() !== expectedProjectId
+    typeof serviceAccount.projectId === "string" &&
+    serviceAccount.projectId.trim() !== expectedProjectId
   ) {
     throw new Error(
-      `Firebase Admin project mismatch: service_account=${serviceAccount.project_id}, expected=${expectedProjectId}`
+      `Firebase Admin project mismatch: service_account=${serviceAccount.projectId}, expected=${expectedProjectId}`
     );
   }
 
-  return initializeApp({ credential: cert(serviceAccount as any) });
+  return initializeApp({ credential: cert(serviceAccount) });
 }
 
 // Lazy initialization — no lanza error en build time si la variable no está configurada

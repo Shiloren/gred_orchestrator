@@ -34,9 +34,10 @@ function previewForDraft(draft: ActionDraftUi): string {
 }
 
 export const AgentActionApproval: React.FC<Props> = ({ draft, onResolved }) => {
-    const [nowMs, setNowMs] = useState(Date.now());
+    const [nowMs, setNowMs] = useState(0);
 
     useEffect(() => {
+        setNowMs(Date.now());
         const timer = setInterval(() => setNowMs(Date.now()), 1000);
         return () => clearInterval(timer);
     }, []);

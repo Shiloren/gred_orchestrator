@@ -570,7 +570,6 @@ function EconomySettings({ config, onChange }: { readonly config: UserEconomyCon
                             <div className="flex gap-2">
                                 {config.alert_thresholds.map((t, i) => (
                                     <input
-                                        // eslint-disable-next-line react/no-array-index-key
                                         key={`threshold-${i}`}
                                         type="number"
                                         value={t}

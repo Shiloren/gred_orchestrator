@@ -29,7 +29,6 @@ export function GoogleAuthButton({ signedInLabel = "Conectado", className = "" }
         if (!auth) return;
 
         // Procesar resultado de redirect si viene de uno
-        setLoading(true);
         getRedirectResult(auth)
             .then((result) => {
                 if (result?.user) {

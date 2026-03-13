@@ -12,7 +12,6 @@ export function QuickSetupGuide({ licenseKey, keyPreview }: QuickSetupGuideProps
     const [copiedIdx, setCopiedIdx] = useState<number | null>(null);
 
     const key = licenseKey ?? "<tu-clave-aqui>";
-    const isWindows = typeof navigator !== "undefined" && navigator.userAgent.includes("Win");
 
     const commands = [
         {
