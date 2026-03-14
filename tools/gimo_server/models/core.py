@@ -1,0 +1,181 @@
+from __future__ import annotations
+from datetime import datetime, timezone
+from typing import Any, Dict, List, Literal, Optional, TYPE_CHECKING
+from pydantic import BaseModel, Field, ConfigDict, field_validator, model_validator
+
+if TYPE_CHECKING:
+    from .agent import AgentProfile
+    from .economy import UserEconomyConfig
+
+OpsRunStatus = Literal[
+    "pending",
+    "running",
+    "done",
+    "error",
+    "cancelled",
+    "MERGE_LOCKED",
+    "MERGE_CONFLICT",
+    "VALIDATION_FAILED_TESTS",
+    "VALIDATION_FAILED_LINT",
+    "RISK_SCORE_TOO_HIGH",
+    "BASELINE_TAMPER_DETECTED",
+    "PIPELINE_TIMEOUT",
+    "WORKTREE_CORRUPTED",
+    "ROLLBACK_EXECUTED",
+    "WORKER_CRASHED_RECOVERABLE",
+    "HUMAN_APPROVAL_REQUIRED",
+]
+
+class OpsCreateRunRequest(BaseModel):
+    approved_id: str
+
+class OpsTask(BaseModel):
+    id: str
+    title: str
+    scope: str
+    depends: List[str] = []
+    status: Literal["pending", "in_progress", "done", "blocked"] = "pending"
+    description: str
+    agent_assignee: Optional[AgentProfile] = None
+
+class OpsPlan(BaseModel):
+    id: str
+    title: str
+    workspace: str
+    created: str
+    objective: str
+    tasks: List[OpsTask]
+    constraints: List[str] = []
+
+class OpsDraft(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    prompt: str
+    context: Dict[str, Any] = Field(default_factory=dict)
+    provider: Optional[str] = None
+    content: Optional[str] = None
+    status: Literal["draft", "rejected", "approved", "error"] = "draft"
+    error: Optional[str] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class OpsApproved(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    draft_id: str
+    prompt: str
+    provider: Optional[str] = None
+    content: str
+    approved_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+    approved_by: Optional[str] = None
+
+class OpsRun(BaseModel):
+    model_config = ConfigDict(extra="ignore")
+    id: str
+    approved_id: str
+    status: OpsRunStatus = "pending"
+    repo_id: Optional[str] = None
+    draft_id: Optional[str] = None
+    commit_base: Optional[str] = None
+    commit_before: Optional[str] = None
+    commit_after: Optional[str] = None
+    stage: Optional[str] = None
+    run_key: Optional[str] = None
+    risk_score: Optional[float] = None
+    policy_decision_id: Optional[str] = None
+    lock_id: Optional[str] = None
+    lock_expires_at: Optional[datetime] = None
+    heartbeat_at: Optional[datetime] = None
+    log: List[Dict[str, Any]] = Field(default_factory=list)
+    started_at: Optional[datetime] = None
+    created_at: datetime = Field(default_factory=lambda: datetime.now(timezone.utc))
+
+class ExecutorReport(BaseModel):
+    run_id: str
+    agent_id: str
+    modified_files: List[str] = Field(default_factory=list)
+    safety_summary: str
+    rollback_plan: List[str]
+    timestamp: str
+
+    @field_validator("rollback_plan")
+    @classmethod
+    def must_have_rollback(cls, v: List[str]) -> List[str]:
+        if not v:
+            raise ValueError("rollback_plan required")
+        return v
+
+class RefactorConfig(BaseModel):
+    """Feature flags for the GIMO refactor phase."""
+    engine_v1_enabled: bool = False
+    tool_calling_artifacts_enabled: bool = False
+    journal_replay_enabled: bool = False
+    adaptive_risk_enabled: bool = False
+    self_healing_enabled: bool = False
+
+class OpsConfig(BaseModel):
+    default_auto_run: bool = False
+    draft_cleanup_ttl_days: int = 7
+    max_concurrent_runs: int = 3
+    operator_can_generate: bool = False
+    economy: Optional[UserEconomyConfig] = None
+    refactor: RefactorConfig = Field(default_factory=RefactorConfig)
+    ui_show_ids_events: bool = True
+    ui_enable_chat_investigation: bool = True
+
+
+class OpsCreateDraftRequest(BaseModel):
+    prompt: Optional[str] = None
+    context: Dict[str, Any] = Field(default_factory=dict)
+    objective: Optional[str] = None
+    constraints: List[str] = Field(default_factory=list)
+    acceptance_criteria: List[str] = Field(default_factory=list)
+    repo_context: Dict[str, Any] = Field(default_factory=dict)
+    execution: Dict[str, Any] = Field(default_factory=dict)
+
+    @model_validator(mode="after")
+    def _validate_phase1_contract(self) -> "OpsCreateDraftRequest":
+        if self.prompt and str(self.prompt).strip():
+            self._validate_legacy_intent()
+        else:
+            self._validate_contract_mode()
+        return self
+
+    def _validate_legacy_intent(self) -> None:
+        from .policy import PHASE4_INTENT_CLASSES
+        intent = str((self.context or {}).get("intent_class") or "").strip()
+        if intent and intent not in PHASE4_INTENT_CLASSES:
+            raise ValueError("context.intent_class is invalid")
+
+    def _validate_contract_mode(self) -> None:
+        from .policy import PHASE4_INTENT_CLASSES
+        if not self.objective or not str(self.objective).strip():
+            raise ValueError("objective is required when prompt is not provided")
+        if not isinstance(self.acceptance_criteria, list) or not self.acceptance_criteria:
+            raise ValueError("acceptance_criteria must be a non-empty list")
+        ex = self.execution or {}
+        intent = str(ex.get("intent_class") or "").strip()
+        if intent not in PHASE4_INTENT_CLASSES:
+            raise ValueError("execution.intent_class is missing or invalid")
+
+class OpsUpdateDraftRequest(BaseModel):
+    prompt: Optional[str] = None
+    content: Optional[str] = None
+    context: Optional[Dict[str, Any]] = None
+
+class OpsApproveResponse(BaseModel):
+    approved: OpsApproved
+    run: Optional[OpsRun] = None
+
+class RepoEntry(BaseModel):
+    name: str
+    path: str
+
+class RunEvent(BaseModel):
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    event: str
+    data: Dict[str, Any] = Field(default_factory=dict)
+
+class RunLogEntry(BaseModel):
+    ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
+    level: str
+    msg: str

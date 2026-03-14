@@ -191,9 +191,11 @@ async def run_slice0_pipeline(
     """Ejecuta el Pipeline estilo LangGraph E2E (Slice 0/Anexo A)."""
     _require_role(auth, "operator")
     OpsService.set_gics(getattr(request.app.state, "gics", None))
-    from tools.gimo_server.services.slice0_orchestrator import Slice0Orchestrator
+    from tools.gimo_server.services.engine_service import EngineService
     try:
-        draft = await Slice0Orchestrator.run_pipeline(prompt, repo_path)
+        # Create a draft first if needed, or assume a run is created
+        draft = OpsService.create_draft(prompt, context={"repo_path": repo_path, "intent_effective": "SLICE0"})
+        await EngineService.run_composition("slice0", draft.id, {"prompt": prompt, "repo_path": repo_path})
     except Exception as exc:
         # Fallback draft creation indicating error
         draft = OpsService.create_draft(

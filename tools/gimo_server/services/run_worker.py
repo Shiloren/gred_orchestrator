@@ -442,78 +442,13 @@ class RunWorker:
 
     async def _execute_run(self, run_id: str) -> None:
         try:
-            OpsService.update_run_status(run_id, "running", msg="Execution started")
-
-            # Fase 7 industrial merge gate is authoritative for run execution.
-            merged = await MergeGateService.execute_run(run_id)
-            if merged:
-                return
-
-            run = OpsService.get_run(run_id)
-            if not run:
-                return
-
-            approved = OpsService.get_approved(run.approved_id)
-            if not approved:
-                OpsService.update_run_status(run_id, "error", msg="Approved entry not found")
-                return
-
-            prompt = (
-                f"Execute the following approved operation:\n\n"
-                f"--- PROMPT ---\n{approved.prompt}\n\n"
-                f"--- CONTENT ---\n{approved.content}\n\n"
-                f"Provide the execution result."
-            )
-
-            context_payload = dict((draft.context if (draft := OpsService.get_draft(approved.draft_id)) else {}) or {})
-            intent_effective = str(context_payload.get("intent_effective") or "")
-            path_scope = list((context_payload.get("repo_context") or {}).get("path_scope") or [])
-
-            import json
+            from .engine_service import EngineService
+            await EngineService.execute_run(run_id)
+        except Exception:
+            logger.exception("Failed to execute run %s via EngineService", run_id)
             try:
-                plan_data = json.loads(approved.content)
-                if isinstance(plan_data, dict) and "tasks" in plan_data:
-                    await self._execute_structured_plan(run_id, plan_data, intent_effective, path_scope)
-                    return
+                OpsService.update_run_status(run_id, "error", msg="Internal engine error")
             except Exception:
                 pass
-
-            # For doc/file-creation intents without a structured plan (e.g. drafts
-            # created via /ops/drafts that carry only a prompt), try to extract a
-            # target path directly from the prompt and generate the file via LLM.
-            # This bridges the gap when the user describes a file in plain language.
-            _FILE_INTENTS = {"DOC_UPDATE", "DOC_WRITE", "DOC_CREATE", "DOCUMENTATION",
-                             "DOCS", "FILE_WRITE", "FILE_CREATE"}
-            if intent_effective.upper() in _FILE_INTENTS or not intent_effective:
-                _combined = f"{approved.prompt} {approved.content or ''}"
-                _target = self._extract_target_path(_combined)
-                if _target:
-                    OpsService.append_log(
-                        run_id, level="INFO",
-                        msg=f"Direct file-task: intent={intent_effective} target={_target}",
-                    )
-                    _system_prompt = (
-                        f"TARGET_FILE: {_target}\n\n"
-                        f"Generate the complete content for '{_target}' based on this request:\n"
-                        f"{approved.prompt}"
-                    )
-                    file_ok = await self._execute_file_task(
-                        run_id, "direct_file_task",
-                        approved.prompt[:120], approved.prompt,
-                        _system_prompt, "qwen2.5-coder:3b",
-                        intent_effective=intent_effective,
-                        path_scope=path_scope,
-                    )
-                    if file_ok:
-                        OpsService.update_run_status(run_id, "done", msg="File created via direct file task")
-                        return
-
-            await self._handle_legacy_execution(run_id, prompt, intent_effective, path_scope)
-        except Exception:
-            logger.exception("Failed to execute run %s", run_id)
-            try:
-                OpsService.update_run_status(run_id, "error", msg="Internal worker error")
-            except Exception:
-                logger.debug("Could not update error status for run %s", run_id)
         finally:
             self._running_ids.discard(run_id)

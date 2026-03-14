@@ -17,6 +17,10 @@ from tools.gimo_server.services.observability_service import ObservabilityServic
 from tools.gimo_server.services.confidence_service import ConfidenceService
 from tools.gimo_server.services.trust_engine import TrustEngine
 from tools.gimo_server.services.custom_plan_service import CustomPlanService
+from tools.gimo_server.services.engine_service import EngineService
+from tools.gimo_server.engine.journal import RunJournal
+from tools.gimo_server.engine.replay import ReplayEngine
+from tools.gimo_server.engine.pipeline import Pipeline
 from .common import _require_role, _actor_label, _WORKFLOW_ENGINES
 
 router = APIRouter()
@@ -35,7 +39,11 @@ async def list_action_drafts(
     return HitlGateService.list_drafts(status=status)
 
 
-@router.post("/action-drafts/{draft_id}/approve", response_model=ActionDraft)
+@router.post(
+    "/action-drafts/{draft_id}/approve", 
+    response_model=ActionDraft,
+    responses={404: {"description": "Action draft not found"}}
+)
 async def approve_action_draft(
     request: Request,
     draft_id: str,
@@ -52,7 +60,11 @@ async def approve_action_draft(
     return draft
 
 
-@router.post("/action-drafts/{draft_id}/reject", response_model=ActionDraft)
+@router.post(
+    "/action-drafts/{draft_id}/reject", 
+    response_model=ActionDraft,
+    responses={404: {"description": "Action draft not found"}}
+)
 async def reject_action_draft(
     request: Request,
     draft_id: str,
@@ -109,21 +121,20 @@ async def approve_draft(
     run = None
     if should_run:
         if custom_plan_id:
-            # Execute via CustomPlanService (unified pipeline)
-            import asyncio
-            asyncio.create_task(CustomPlanService.execute_plan(custom_plan_id))
-            audit_log("OPS", f"/ops/custom-plans/{custom_plan_id}/execute", custom_plan_id, operation="WRITE_AUTO", actor=actor)
-        else:
-            # Legacy: execute via RunWorker -> Update for Phase B to execution via MergeGateService
+            # Execute via EngineService (unified pipeline)
             try:
                 run = OpsService.create_run(approved.id)
                 audit_log("OPS", "/ops/runs", run.id, operation="WRITE_AUTO", actor=actor)
-                
-                # Execute MergeGateService in background
-                from tools.gimo_server.services.merge_gate_service import MergeGateService
-                import asyncio
-                asyncio.create_task(MergeGateService.execute_run(run.id))
-                
+                asyncio.create_task(EngineService.execute_run(run.id, composition="custom_plan"))
+                audit_log("OPS", f"/ops/custom-plans/{custom_plan_id}/execute", custom_plan_id, operation="WRITE_AUTO", actor=actor)
+            except (PermissionError, ValueError):
+                pass
+        else:
+            # Execute via EngineService (unified pipeline)
+            try:
+                run = OpsService.create_run(approved.id)
+                audit_log("OPS", "/ops/runs", run.id, operation="WRITE_AUTO", actor=actor)
+                asyncio.create_task(EngineService.execute_run(run.id))
             except (PermissionError, ValueError):
                 pass
     return OpsApproveResponse(approved=approved, run=run)
@@ -184,8 +195,7 @@ async def create_run(
     if run.status == "pending":
         try:
             run = OpsService.update_run_status(run.id, "running", msg="Execution started via /ops/runs")
-            from tools.gimo_server.services.merge_gate_service import MergeGateService
-            asyncio.create_task(MergeGateService.execute_run(run.id))
+            asyncio.create_task(EngineService.execute_run(run.id))
         except Exception:
             # Fallback to worker wake-up if direct launch fails for any reason.
             try:
@@ -223,6 +233,38 @@ async def get_run(
     if not run:
         raise HTTPException(status_code=404, detail=RUN_NOT_FOUND)
     return run
+
+
+@router.post(
+    "/runs/{run_id}/replay",
+    responses={404: {"description": RUN_NOT_FOUND}},
+)
+async def replay_run(
+    request: Request,
+    run_id: str,
+    auth: Annotated[AuthContext, Depends(verify_token)],
+    rl: Annotated[None, Depends(check_rate_limit)],
+    from_step: Annotated[str, Query(..., description="Stage step id to replay from")],
+):
+    _require_role(auth, "operator")
+    run = OpsService.get_run(run_id)
+    if not run:
+        raise HTTPException(status_code=404, detail=RUN_NOT_FOUND)
+
+    journal_path = str((OpsService.OPS_DIR / "run_journals" / f"{run_id}.jsonl"))
+    journal = RunJournal(storage_path=journal_path)
+    journal.load()
+    replay = ReplayEngine(journal)
+
+    # Replay currently returns deterministic journal slice. Pipeline provided for API contract.
+    output = await replay.replay_from(from_step, Pipeline(run_id=run_id, stages=[]))
+    return {
+        "run_id": run_id,
+        "from_step": from_step,
+        "status": output.status,
+        "artifacts": output.artifacts,
+        "error": output.error,
+    }
 
 
 @router.get("/runs/{run_id}/preview", responses={404: {"description": RUN_NOT_FOUND}})

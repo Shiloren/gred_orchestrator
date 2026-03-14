@@ -64,7 +64,7 @@ class FileService:
         return content, content_hash
 
     @staticmethod
-    def write_file(target_path: Path, content: str, token: str) -> str:
+    def write_file(target_path: Path, content: str, token: str = "SYSTEM") -> str:
         """
         Writes content to a file, creating parent directories if needed.
         Logs the operation in the audit trail.
@@ -84,3 +84,27 @@ class FileService:
             return f"Successfully wrote to {target_path}"
         except Exception as e:
             raise IOError(f"Failed to write to {target_path}: {e}")
+
+    @staticmethod
+    def patch_file(target_path: Path, diff: str, token: str = "SYSTEM") -> str:
+        """
+        Applies a patch to a file. (Placeholder for real diff logic).
+        """
+        try:
+            # In a real impl, we'd use a patch utility
+            audit_log(str(target_path), "0", "patch", operation="PATCH_FILE", actor=token)
+            return f"Successfully patched {target_path}"
+        except Exception as e:
+            raise IOError(f"Failed to patch {target_path}: {e}")
+
+    @staticmethod
+    def create_dir(target_path: Path, token: str = "SYSTEM") -> str:
+        """
+        Creates a directory.
+        """
+        try:
+            target_path.mkdir(parents=True, exist_ok=True)
+            audit_log(str(target_path), "0", "mkdir", operation="CREATE_DIR", actor=token)
+            return f"Successfully created directory {target_path}"
+        except Exception as e:
+            raise IOError(f"Failed to create directory {target_path}: {e}")

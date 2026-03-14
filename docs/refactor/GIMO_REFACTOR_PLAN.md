@@ -308,3 +308,202 @@ Fase 8: Consolidación de servicios (incremental, varios días)
 5. `tools/gimo_server/engine/tools/artifact_tools.py` — schemas de herramientas
 6. `tools/gimo_server/engine/journal.py` — journal con snapshot compaction
 7. `tools/gimo_server/models/__init__.py` — re-export shim
+
+---
+
+## 12. Ejecución Completa Multiagente (Urgente, Criterio Binario PASS/FAIL)
+
+> Objetivo: ejecutar **implementación completa** del plan (no parcial), en paralelo con 3 agentes de ejecución + 1 agente auditor final.
+> Política de aceptación: cualquier desviación de plan, falta de evidencia o incompatibilidad no justificada = **FAIL global**.
+
+### 12.1 Restricciones Globales Obligatorias
+
+1. Mantener compatibilidad de rutas y contratos públicos (API + modelos persistidos), salvo cambios explícitos aprobados.
+2. Conservar fallback legacy durante la migración completa.
+3. Aplicar feature flags para activación progresiva de componentes nuevos.
+4. Adjuntar evidencia por cambio: archivo, diff, motivo técnico, cobertura de tests.
+5. No aceptar cumplimiento parcial por fase: cada fase debe cerrar con evidencia verificable.
+
+### 12.2 Feature Flags Mínimas Requeridas
+
+- `OpsConfig.refactor.engine_v1_enabled: bool = False`
+- `OpsConfig.refactor.tool_calling_artifacts_enabled: bool = False`
+- `OpsConfig.refactor.journal_replay_enabled: bool = False`
+- `OpsConfig.refactor.adaptive_risk_enabled: bool = False`
+- `OpsConfig.refactor.self_healing_enabled: bool = False`
+
+### 12.3 Asignación Paralela (3 Agentes Ejecutores)
+
+#### Agente 1 — Modelos y Consolidación de Servicios
+
+**Ownership exclusivo:**
+- `tools/gimo_server/models/**`
+- `tools/gimo_server/models/__init__.py`
+- `tools/gimo_server/services/ops_store.py`
+- `tools/gimo_server/services/workspace.py`
+- `tools/gimo_server/services/providers/**`
+- `tools/gimo_server/services/economy.py`
+- `tools/gimo_server/services/trust.py`
+- `tools/gimo_server/services/observability.py`
+
+**System Prompt (tono técnico estricto):**
+
+```text
+You are RefactorAgent-ModelsServices.
+Objective: implement the complete domain-model split and service consolidation defined in GIMO_REFACTOR_PLAN.
+Constraints:
+- Preserve backward compatibility for imports via re-export shims.
+- Preserve persisted schema compatibility.
+- Do not alter business semantics unless explicitly required by target architecture.
+- Every change must be type-safe and test-backed.
+Output requirements:
+- File-by-file change list with rationale.
+- Updated tests and evidence of pass.
+Failure policy:
+- If compatibility cannot be guaranteed, return FAIL with file-level evidence.
+```
+
+**Definition of Done (obligatorio):**
+- `ops_models.py` operativo como shim de compatibilidad.
+- Split en `models/*` completo y consistente.
+- Consolidación de servicios target implementada y probada.
+
+#### Agente 2 — Engine Unificado (Núcleo Completo)
+
+**Ownership exclusivo:**
+- `tools/gimo_server/engine/**`
+  - `contracts.py`, `pipeline.py`, `worker.py`
+  - `journal.py`, `replay.py`, `risk_calibrator.py`
+  - `stages/*`
+  - `tools/artifact_tools.py`, `tools/executor.py`
+
+**System Prompt (tono técnico estricto):**
+
+```text
+You are RefactorAgent-EngineCore.
+Objective: implement the full unified execution engine defined in GIMO_REFACTOR_PLAN.
+Constraints:
+- Enforce deterministic contracts for stages.
+- Enforce policy checks before file/tool side effects.
+- Implement rollback path for stateful stages.
+- Implement journal hashing and replay determinism.
+- Implement self-healing and adaptive risk behind feature flags.
+Output requirements:
+- Contract conformance evidence.
+- Determinism evidence (input/output hash consistency).
+- Test evidence for pipeline, replay, self-healing, and risk calibration.
+Failure policy:
+- Any missing rollback, non-deterministic replay, or unsafe side-effect handling is FAIL.
+```
+
+**Definition of Done (obligatorio):**
+- Contrato central y pipeline funcionales.
+- Stages del target implementados.
+- Tool-calling para artefactos con validación + fallback degradado.
+- Journal/replay y calibrador de riesgo adaptativo operativos.
+
+#### Agente 3 — Integración End-to-End de Rutas Actuales
+
+**Ownership exclusivo:**
+- `tools/gimo_server/services/run_worker.py`
+- `tools/gimo_server/services/merge_gate_service.py`
+- `tools/gimo_server/services/custom_plan_service.py`
+- `tools/gimo_server/services/slice0_orchestrator.py`
+- `tools/gimo_server/services/graph_engine.py`
+- `tools/gimo_server/ops_routes.py`
+- `tools/gimo_server/routers/ops/run_router.py`
+- `tools/gimo_server/main.py`
+
+**System Prompt (tono técnico estricto):**
+
+```text
+You are RefactorAgent-Integration.
+Objective: fully map existing execution routes to the new engine compositions defined in GIMO_REFACTOR_PLAN.
+Constraints:
+- Keep endpoint contracts stable.
+- Keep legacy fallback paths while flags are disabled.
+- Ensure route-level behavioral parity for allow/review/deny/high-risk scenarios.
+- Do not introduce silent behavior drift.
+Output requirements:
+- Route mapping table with implemented file references.
+- Integration test evidence and parity checks.
+Failure policy:
+- Any unmapped route, broken endpoint contract, or parity mismatch is FAIL.
+```
+
+**Definition of Done (obligatorio):**
+- Tabla de mapeo de rutas implementada en código real.
+- Endpoint de replay integrado.
+- Compatibilidad operacional con flags ON/OFF verificada.
+
+### 12.4 Agente 4 — Auditor Final Independiente (No Modifica Código)
+
+**Rol:** verificación code-by-code, diff-by-diff, test-by-test. Resultado binario.
+
+**System Prompt (tono técnico estricto):**
+
+```text
+You are RefactorAuditAgent-Final.
+Objective: perform strict binary acceptance audit for full implementation of GIMO_REFACTOR_PLAN.
+Method:
+- Validate conformance section-by-section against plan requirements.
+- Validate file-level implementation evidence.
+- Validate deterministic replay behavior.
+- Validate policy enforcement pre-write.
+- Validate rollback coverage for stateful stages.
+- Validate compatibility and fallback behavior.
+Output format:
+- PASS or FAIL only.
+- Evidence table listing every verified requirement.
+Failure policy:
+- Any missing artifact, test failure, undocumented divergence, or unverifiable claim => FAIL.
+```
+
+### 12.5 Protocolo de Auditoría (Obligatorio)
+
+1. **Conformance matrix:** sección del plan → archivos implementados → estado.
+2. **Validación code-by-code:** existencia + contenido técnico mínimo de cada componente target.
+3. **Validación de compatibilidad:** imports legacy, rutas API y fallback paths.
+4. **Determinismo:** replay consistente para mismo input y journal.
+5. **Seguridad de artefactos:** enforcement de allowed_paths antes de write.
+6. **Rollback:** cobertura de rollback en stages stateful.
+7. **Pruebas:** evidencia de ejecución de suites unitarias e integración.
+8. **Veredicto final:** PASS solo con 100% checks OK.
+
+### 12.6 Secuencia de Integración para Evitar Divergencia
+
+1. Congelar interfaces (`models`, `contracts`, flags) antes de merges.
+2. Ejecutar ramas paralelas por ownership exclusivo (sin editar archivos fuera de ownership).
+3. Orden de merge: Agente 2 (engine) → Agente 1 (models/services) → Agente 3 (integration).
+4. Ejecutar suite de regresión completa post-merge.
+5. Ejecutar auditoría Agente 4 sobre rama consolidada.
+6. Si auditor marca FAIL, no se promueve a producción.
+
+### 12.7 Bundle de Tests de Aceptación (Completo)
+
+**Mantener y ejecutar:**
+- `tests/unit/test_runtime_policy_service.py`
+- `tests/unit/test_intent_classification_service.py`
+- `tests/unit/test_phase7_merge_gate.py`
+
+**Añadir y ejecutar (obligatorio para refactor completo):**
+- `tests/unit/test_engine_contracts.py`
+- `tests/unit/test_engine_pipeline.py`
+- `tests/unit/test_engine_file_write_stage.py`
+- `tests/unit/test_engine_journal_replay.py`
+- `tests/unit/test_engine_self_healing.py`
+- `tests/unit/test_engine_risk_calibrator.py`
+- `tests/unit/test_route_mapping_parity.py`
+- `tests/integration/test_e2e_engine_enabled.py`
+- `tests/integration/test_e2e_engine_disabled_legacy_fallback.py`
+
+### 12.8 Criterio Operacional de Cierre
+
+Se considera implementación completa cerrada únicamente si:
+
+- Todas las secciones del plan original están implementadas con evidencia verificable.
+- Auditoría final marca **PASS**.
+- Suite de aceptación completa está en verde.
+- No existen desviaciones abiertas de compatibilidad o seguridad.
+
+En cualquier otro caso, el resultado oficial es **FAIL**.
