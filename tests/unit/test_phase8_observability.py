@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+from datetime import datetime, timedelta, timezone
 from pathlib import Path
 
 from tools.gimo_server.ops_models import OpsApproved, OpsDraft
@@ -167,3 +168,42 @@ def test_phase8_alerts_endpoint_exposes_sev0_sev1(test_client, valid_token):
     codes = {item.get("code") for item in payload["items"]}
     assert "BASELINE_TAMPER_DETECTED" in codes
     assert "HIGH_FALLBACK_RATE" in codes
+
+
+def test_phase8_metrics_detect_stuck_runs(monkeypatch):
+    ObservabilityService.reset()
+
+    now = datetime.now(timezone.utc)
+    active_stuck = {
+        "id": "r_stuck",
+        "status": "running",
+        "created_at": now - timedelta(hours=2),
+        "started_at": now - timedelta(hours=2),
+        "heartbeat_at": now - timedelta(hours=2),
+    }
+    terminal_done = {
+        "id": "r_done",
+        "status": "done",
+        "created_at": now - timedelta(minutes=30),
+        "started_at": now - timedelta(minutes=25),
+        "heartbeat_at": now - timedelta(minutes=20),
+    }
+
+    class _Run:
+        def __init__(self, data):
+            self.id = data["id"]
+            self.status = data["status"]
+            self.created_at = data["created_at"]
+            self.started_at = data["started_at"]
+            self.heartbeat_at = data["heartbeat_at"]
+
+    monkeypatch.setattr(OpsService, "list_runs", lambda: [_Run(active_stuck), _Run(terminal_done)])
+
+    metrics = ObservabilityService.get_metrics()
+    assert metrics["active_runs"] == 1
+    assert metrics["terminal_runs"] == 1
+    assert metrics["stuck_runs"] == 1
+    assert "r_stuck" in metrics["stuck_run_ids"]
+
+    alerts = ObservabilityService.get_alerts()
+    assert any(a.get("code") == "STUCK_RUN_DETECTED" for a in alerts)

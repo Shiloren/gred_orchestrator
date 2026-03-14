@@ -105,6 +105,7 @@ class ObservabilityService:
     _nodes_failed_counter = None
     _tokens_counter = None
     _cost_counter = None
+    _stuck_run_threshold_seconds: int = 30 * 60
 
     _active_spans: Dict[str, trace.Span] = {}
 
@@ -374,6 +375,7 @@ class ObservabilityService:
         policy_block_rate = float(metrics.get("policy_block_rate", 0.0) or 0.0)
         human_approval_rate = float(metrics.get("human_approval_required_rate", 0.0) or 0.0)
         errors_by_category = dict(metrics.get("errors_by_category") or {})
+        stuck_runs = int(metrics.get("stuck_runs", 0) or 0)
 
         if errors_by_category.get("baseline", 0) > 0:
             alerts.append(
@@ -416,8 +418,63 @@ class ObservabilityService:
                     "message": f"Human approval required rate is high ({human_approval_rate:.2%})",
                 }
             )
+        if stuck_runs > 0:
+            alerts.append(
+                {
+                    "severity": "SEV-1",
+                    "code": "STUCK_RUN_DETECTED",
+                    "message": f"Detected {stuck_runs} active run(s) without heartbeat/progress",
+                }
+            )
 
         return alerts
+
+    @classmethod
+    def _compute_run_health_metrics(cls) -> Dict[str, Any]:
+        """Best-effort run-health snapshot used for P2 operational SLI/SLO monitoring."""
+        now = datetime.now(timezone.utc)
+        active_statuses = {"pending", "running", "awaiting_subagents"}
+
+        try:
+            from .ops_service import OpsService
+
+            runs = OpsService.list_runs()
+        except Exception:
+            return {
+                "active_runs": 0,
+                "terminal_runs": 0,
+                "stuck_runs": 0,
+                "stuck_run_ids": [],
+                "run_completion_ratio": 1.0,
+                "stuck_run_threshold_seconds": int(cls._stuck_run_threshold_seconds),
+            }
+
+        active_runs = [r for r in runs if str(getattr(r, "status", "")) in active_statuses]
+        terminal_runs = [r for r in runs if r not in active_runs]
+        stuck_run_ids: List[str] = []
+
+        for run in active_runs:
+            anchor = getattr(run, "heartbeat_at", None) or getattr(run, "started_at", None) or getattr(run, "created_at", None)
+            if not anchor:
+                continue
+            try:
+                age_s = (now - anchor).total_seconds()
+            except Exception:
+                continue
+            if age_s >= float(cls._stuck_run_threshold_seconds):
+                stuck_run_ids.append(str(run.id))
+
+        total = len(active_runs) + len(terminal_runs)
+        completion_ratio = float(len(terminal_runs)) / float(total) if total else 1.0
+
+        return {
+            "active_runs": len(active_runs),
+            "terminal_runs": len(terminal_runs),
+            "stuck_runs": len(stuck_run_ids),
+            "stuck_run_ids": stuck_run_ids,
+            "run_completion_ratio": completion_ratio,
+            "stuck_run_threshold_seconds": int(cls._stuck_run_threshold_seconds),
+        }
 
     @classmethod
     def get_metrics(cls) -> Dict[str, Any]:
@@ -459,7 +516,10 @@ class ObservabilityService:
                     "avg_latency_ms": avg_latency,
                 }
             )
-            return metrics
+
+        run_health = cls._compute_run_health_metrics()
+        metrics.update(run_health)
+        return metrics
 
     @classmethod
     def _group_spans(cls, raw_spans: List[Dict[str, Any]]) -> Dict[str, Dict[str, Any]]:

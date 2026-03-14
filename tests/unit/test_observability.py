@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import pytest
 from unittest.mock import AsyncMock, patch
+from types import SimpleNamespace
 from tools.gimo_server.services.observability_service import ObservabilityService
 from tools.gimo_server.services.provider_service import ProviderService
 
@@ -73,11 +74,22 @@ async def test_provider_service_returns_metrics():
         mock_build.return_value = adapter
 
         # Mock config
-        mock_cfg = AsyncMock()
-        mock_cfg.active = "test_provider"
-        mock_cfg.providers = {"test_provider": AsyncMock(model="claude-3-5-sonnet-20241022")}
+        mock_cfg = SimpleNamespace(
+            active="test_provider",
+            providers={
+                "test_provider": SimpleNamespace(
+                    model="claude-3-5-sonnet-20241022",
+                    provider_type="custom_openai_compatible",
+                    type="custom_openai_compatible",
+                )
+            },
+        )
+        mock_ops_cfg = SimpleNamespace(
+            economy=SimpleNamespace(cache_enabled=False, cache_ttl_hours=24)
+        )
 
-        with patch("tools.gimo_server.services.provider_service.ProviderService.get_config", return_value=mock_cfg):
+        with patch("tools.gimo_server.services.provider_service.ProviderService.get_config", return_value=mock_cfg), \
+             patch("tools.gimo_server.services.ops_service.OpsService.get_config", return_value=mock_ops_cfg):
             result = await ProviderService.static_generate("test prompt", {})
 
             assert result["content"] == "Hello world"
@@ -101,11 +113,22 @@ async def test_provider_service_handles_missing_usage_gracefully():
         adapter.model = "local"
         mock_build.return_value = adapter
 
-        mock_cfg = AsyncMock()
-        mock_cfg.active = "local"
-        mock_cfg.providers = {"local": AsyncMock(model="local")}
+        mock_cfg = SimpleNamespace(
+            active="local",
+            providers={
+                "local": SimpleNamespace(
+                    model="local",
+                    provider_type="ollama_local",
+                    type="ollama_local",
+                )
+            },
+        )
+        mock_ops_cfg = SimpleNamespace(
+            economy=SimpleNamespace(cache_enabled=False, cache_ttl_hours=24)
+        )
 
-        with patch("tools.gimo_server.services.provider_service.ProviderService.get_config", return_value=mock_cfg):
+        with patch("tools.gimo_server.services.provider_service.ProviderService.get_config", return_value=mock_cfg), \
+             patch("tools.gimo_server.services.ops_service.OpsService.get_config", return_value=mock_ops_cfg):
             result = await ProviderService.static_generate("test prompt", {})
 
             assert result["content"] == "Hello world"

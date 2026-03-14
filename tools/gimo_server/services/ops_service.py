@@ -51,8 +51,33 @@ class OpsService:
     _DRAFT_GLOB = "d_*.json"
     _APPROVED_GLOB = "a_*.json"
     _RUN_LOG_TAIL = 200
-    _ACTIVE_RUN_STATUSES = {"pending", "running", "awaiting_subagents"}
-    
+    _ACTIVE_RUN_STATUSES = {"pending", "running", "awaiting_subagents", "MERGE_LOCKED", "WORKER_CRASHED_RECOVERABLE"}
+    _TERMINAL_RUN_STATUSES = {"done", "error", "cancelled", "ROLLBACK_EXECUTED", "RISK_SCORE_TOO_HIGH", "BASELINE_TAMPER_DETECTED", "PIPELINE_TIMEOUT", "WORKTREE_CORRUPTED"}
+
+    VALID_TRANSITIONS: Dict[str, set[str]] = {
+        # NOTE: keep compatibility with legacy worker paths that may finalize directly from
+        # pending when execution starts and completes (or fails) in a single service hop.
+        "pending": {
+            "running", "cancelled", "error", "awaiting_subagents", "MERGE_LOCKED",
+            "MERGE_CONFLICT", "VALIDATION_FAILED_TESTS", "VALIDATION_FAILED_LINT",
+            "RISK_SCORE_TOO_HIGH", "BASELINE_TAMPER_DETECTED", "PIPELINE_TIMEOUT",
+            "WORKTREE_CORRUPTED", "ROLLBACK_EXECUTED", "WORKER_CRASHED_RECOVERABLE",
+            "HUMAN_APPROVAL_REQUIRED", "done"
+        },
+        "running": {
+            "done", "error", "cancelled", "awaiting_subagents", "MERGE_LOCKED", 
+            "MERGE_CONFLICT", "VALIDATION_FAILED_TESTS", "VALIDATION_FAILED_LINT",
+            "RISK_SCORE_TOO_HIGH", "BASELINE_TAMPER_DETECTED", "PIPELINE_TIMEOUT",
+            "WORKTREE_CORRUPTED", "ROLLBACK_EXECUTED", "WORKER_CRASHED_RECOVERABLE",
+            "HUMAN_APPROVAL_REQUIRED"
+        },
+        "awaiting_subagents": {"running", "error", "cancelled"},
+        "MERGE_LOCKED": {"running", "error", "cancelled", "MERGE_CONFLICT"},
+        "MERGE_CONFLICT": {"pending", "error", "cancelled"},
+        "HUMAN_APPROVAL_REQUIRED": {"running", "cancelled", "error"},
+        "WORKER_CRASHED_RECOVERABLE": {"pending", "error", "cancelled"},
+    }
+
     _gics: Optional[GicsService] = None
     _telemetry: Optional[AgentTelemetryService] = None
     _insights: Optional[AgentInsightService] = None
@@ -252,7 +277,22 @@ class OpsService:
 
     @classmethod
     def _append_run_log_entry(cls, run_id: str, *, level: str, msg: str) -> Dict[str, Any]:
-        entry = {"ts": _utcnow().isoformat(), "level": level, "msg": msg}
+        run_key = None
+        try:
+            # Best effort to get run_key without recursion
+            f = cls._run_path(run_id)
+            if f.exists():
+                data = json.loads(f.read_text(encoding="utf-8"))
+                run_key = data.get("run_key")
+        except Exception:
+            pass
+
+        entry = {
+            "ts": _utcnow().isoformat(),
+            "level": level,
+            "msg": msg,
+            "run_key": run_key
+        }
         log_path = cls._run_log_path(run_id)
         log_path.parent.mkdir(parents=True, exist_ok=True)
         with log_path.open("a", encoding="utf-8") as fh:
@@ -608,6 +648,19 @@ class OpsService:
 
             runs_for_key = cls._find_runs_by_run_key(run_key)
             active = next((item for item in runs_for_key if cls._is_run_active(item)), None)
+            
+            # STALE RUN RECOVERY: If a run is active but has no heartbeat for > 10 mins, treat it as orphaned
+            if active:
+                stale_threshold = _utcnow() - timedelta(minutes=10)
+                heartbeat = active.heartbeat_at or active.created_at
+                if heartbeat < stale_threshold:
+                    logger.warning("Recovering stale run %s for run_key %s", active.id, run_key)
+                    # Force move to error so it's no longer 'active'
+                    cls._append_run_log_entry(active.id, level="ERROR", msg="Marked as STALE by new run attempt")
+                    active.status = "error"
+                    cls._persist_run(active)
+                    active = None # Allow new run
+            
             if active:
                 raise RuntimeError(f"RUN_ALREADY_ACTIVE:{active.id}")
 
@@ -654,6 +707,10 @@ class OpsService:
         if not source:
             raise ValueError(f"Run {run_id} not found")
 
+        # Explicit rerun semantics: do not rerun a source run that is still active.
+        if cls._is_run_active(source):
+            raise RuntimeError(f"RERUN_SOURCE_ACTIVE:{source.id}")
+
         rerun = cls.create_run(source.approved_id)
         rerun.rerun_of = source.id
         cls._persist_run(rerun)
@@ -675,7 +732,17 @@ class OpsService:
             run = cls._load_run_metadata(run_id)
             if not run:
                 raise ValueError(f"Run {run_id} not found")
-            terminal_statuses = {"done", "error", "cancelled", "ROLLBACK_EXECUTED"}
+
+            # FSM Guard
+            current_status = str(run.status or "pending")
+            if current_status == status:
+                return run  # Idempotent
+
+            allowed = cls.VALID_TRANSITIONS.get(current_status, set())
+            if status not in allowed:
+                # Strictly enforce FSM in production
+                raise RuntimeError(f"INVALID_FSM_TRANSITION:{current_status}->{status}")
+
             started_at = None
             if status == "running" and not run.started_at:
                 started_at = _utcnow().isoformat()
@@ -686,11 +753,11 @@ class OpsService:
                 {
                     "ts": _utcnow().isoformat(),
                     "event": "status",
-                    "data": {"status": status, "started_at": started_at},
+                    "data": {"status": status, **({"started_at": started_at} if started_at else {})},
                 },
             )
             run = cls._materialize_run(run)
-            if status in terminal_statuses:
+            if status in cls._TERMINAL_RUN_STATUSES:
                 cls._persist_run(run)
             else:
                 cls._compact_run_events_if_needed(run)
@@ -757,11 +824,14 @@ class OpsService:
     # -----------------
 
     @classmethod
-    def recover_stale_lock(cls, repo_id: str) -> None:
-        """Remove a merge lock that is past its TTL."""
+    def recover_stale_lock(cls, repo_id: str) -> bool:
+        """Remove a merge lock that is past its TTL.
+
+        Returns True when a stale lock was removed, else False.
+        """
         lock_path = cls._merge_lock_path(repo_id)
         if not lock_path.exists():
-            return
+            return False
         try:
             data = json.loads(lock_path.read_text(encoding="utf-8"))
             expires_str = str(data.get("expires_at") or "")
@@ -770,8 +840,10 @@ class OpsService:
                 if _utcnow() > expires:
                     lock_path.unlink(missing_ok=True)
                     logger.info("Recovered stale merge lock for repo=%s", repo_id)
+                    return True
         except Exception as exc:
             logger.warning("recover_stale_lock error for repo=%s: %s", repo_id, exc)
+        return False
 
     @classmethod
     def acquire_merge_lock(cls, repo_id: str, run_id: str, *, ttl_seconds: int = 120) -> Dict[str, Any]:
@@ -818,7 +890,7 @@ class OpsService:
             logger.warning("release_merge_lock error for repo=%s: %s", repo_id, exc)
 
     @classmethod
-    def heartbeat_merge_lock(cls, repo_id: str, run_id: str, *, ttl_seconds: int = 120) -> None:
+    def heartbeat_merge_lock(cls, repo_id: str, run_id: str, *, ttl_seconds: int = 120) -> Dict[str, Any]:
         """Extend the TTL of the merge lock held by this run."""
         lock_path = cls._merge_lock_path(repo_id)
         if not lock_path.exists():
@@ -831,6 +903,7 @@ class OpsService:
                 )
             data["expires_at"] = (_utcnow() + timedelta(seconds=ttl_seconds)).isoformat()
             lock_path.write_text(_json_dump(data), encoding="utf-8")
+            return data
 
     @classmethod
     def cleanup_old_drafts(cls) -> int:
@@ -864,19 +937,42 @@ class OpsService:
         run = cls.get_run(run_id)
         if not run:
             return None
+
+        approved = cls.get_approved(run.approved_id) if run.approved_id else None
+        draft = cls.get_draft(approved.draft_id) if approved else None
+        context = dict((draft.context if draft else {}) or {})
+
+        diff_summary = "No diff summary available"
+        log_tail = cls._read_run_logs(run_id, tail=20)
+        if log_tail:
+            last_msg = str((log_tail[-1] or {}).get("msg") or "").strip()
+            if last_msg:
+                diff_summary = last_msg[:400]
+
+        model_attempted = str(context.get("model_attempted") or "")
+        final_model_used = str(context.get("final_model_used") or "")
+        model_used = final_model_used or model_attempted
+
         return {
             "run_id": run.id,
             "status": run.status,
             "final_status": run.status,
             "stage": run.stage,
-            "intent_effective": run.draft_id or "",
+            "intent_effective": str(context.get("intent_effective") or ""),
             "repo_id": run.repo_id,
-            "baseline_version": run.commit_base or "",
-            "model_attempted": "",
-            "final_model_used": "",
+            "baseline_version": str(context.get("baseline_version") or run.commit_base or ""),
+            "model_attempted": model_attempted,
+            "final_model_used": final_model_used,
+            "model_used": model_used,
+            "risk_score": float(context.get("risk_score") or run.risk_score or 0.0),
+            "policy_hash_expected": str(context.get("policy_hash_expected") or ""),
+            "policy_hash_runtime": str(context.get("policy_hash_runtime") or ""),
+            "commit_before": run.commit_before,
+            "commit_after": run.commit_after,
+            "diff_summary": diff_summary,
             "request_id": request_id,
             "trace_id": trace_id,
-            "log_tail": cls._read_run_logs(run_id, tail=20),
+            "log_tail": log_tail,
         }
 
     @classmethod

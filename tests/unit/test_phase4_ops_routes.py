@@ -113,7 +113,7 @@ def test_phase4_approve_disables_auto_run_when_not_eligible(monkeypatch):
         app.dependency_overrides.clear()
 
 
-def test_phase4_prompt_mode_requires_intent_class_in_context():
+def test_phase4_prompt_mode_allows_missing_intent_class_in_context():
     app.dependency_overrides[verify_token] = _override_auth
 
     body = {
@@ -124,7 +124,7 @@ def test_phase4_prompt_mode_requires_intent_class_in_context():
     try:
         with TestClient(app) as client:
             res = client.post("/ops/drafts", json=body)
-            assert res.status_code == 422
+            assert res.status_code == 201
     finally:
         app.dependency_overrides.clear()
 
@@ -174,5 +174,62 @@ def test_phase4_rerun_returns_201_and_links_source(monkeypatch):
             assert body["id"] == "r_new_1"
             assert body["rerun_of"] == "r_old_1"
             assert body["attempt"] == 2
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_phase4_rerun_returns_409_when_active_instance_exists(monkeypatch):
+    app.dependency_overrides[verify_token] = _override_auth
+
+    from tools.gimo_server.routers.ops import run_router
+
+    def _raise_active(_run_id: str):
+        raise RuntimeError("RUN_ALREADY_ACTIVE:r_active_1")
+
+    monkeypatch.setattr(run_router.OpsService, "rerun", _raise_active)
+
+    try:
+        with TestClient(app) as client:
+            res = client.post("/ops/runs/r_old_1/rerun")
+            assert res.status_code == 409
+            assert res.json()["detail"].startswith("RUN_ALREADY_ACTIVE")
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_phase4_rerun_returns_409_when_source_run_is_active(monkeypatch):
+    app.dependency_overrides[verify_token] = _override_auth
+
+    from tools.gimo_server.routers.ops import run_router
+
+    def _raise_source_active(_run_id: str):
+        raise RuntimeError("RERUN_SOURCE_ACTIVE:r_old_1")
+
+    monkeypatch.setattr(run_router.OpsService, "rerun", _raise_source_active)
+
+    try:
+        with TestClient(app) as client:
+            res = client.post("/ops/runs/r_old_1/rerun")
+            assert res.status_code == 409
+            assert res.json()["detail"].startswith("RERUN_SOURCE_ACTIVE")
+    finally:
+        app.dependency_overrides.clear()
+
+
+def test_phase4_create_run_maps_invalid_fsm_to_422(monkeypatch):
+    app.dependency_overrides[verify_token] = _override_auth
+
+    from tools.gimo_server.routers.ops import run_router
+
+    def _raise_invalid(_approved_id: str):
+        raise RuntimeError("INVALID_FSM_TRANSITION:running->pending")
+
+    monkeypatch.setattr(run_router.OpsService, "create_run", _raise_invalid)
+
+    try:
+        with TestClient(app) as client:
+            res = client.post("/ops/runs", json={"approved_id": "a_phase4"})
+            assert res.status_code == 422
+            assert res.json()["detail"].startswith("INVALID_FSM_TRANSITION")
     finally:
         app.dependency_overrides.clear()

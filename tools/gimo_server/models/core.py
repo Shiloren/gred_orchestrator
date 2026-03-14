@@ -192,6 +192,7 @@ class RunLogEntry(BaseModel):
     ts: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
     level: str
     msg: str
+    run_key: Optional[str] = None
 
 
 class StatusResponse(BaseModel):

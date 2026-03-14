@@ -110,7 +110,22 @@ def test_phase7_rerun_conflicts_when_source_key_has_active_instance(tmp_path):
     with pytest.raises(RuntimeError) as exc:
         OpsService.rerun(run1.id)
 
-    assert str(exc.value).startswith("RUN_ALREADY_ACTIVE")
+    assert str(exc.value).startswith("RERUN_SOURCE_ACTIVE")
+
+
+def test_phase7_cancel_then_rerun_creates_new_attempt(tmp_path):
+    _setup_ops_dirs(tmp_path)
+    _, approved = _seed_draft_and_approved(draft_id="d_cancel_rerun", approved_id="a_cancel_rerun")
+
+    run1 = OpsService.create_run(approved.id)
+    OpsService.update_run_status(run1.id, "cancelled", msg="operator cancelled")
+
+    run2 = OpsService.rerun(run1.id)
+
+    assert run2.id != run1.id
+    assert run2.rerun_of == run1.id
+    assert run2.attempt == run1.attempt + 1
+    assert run2.status == "pending"
 
 
 def test_phase7_merge_lock_ttl_heartbeat_and_recovery(tmp_path):
@@ -260,7 +275,7 @@ def test_phase7_merge_gate_policy_review_requires_human(tmp_path):
     assert updated.status == "HUMAN_APPROVAL_REQUIRED"
 
 
-def test_phase7_merge_gate_missing_intent_requires_human(tmp_path):
+def test_phase7_merge_gate_missing_intent_defaults_low_risk_path(tmp_path):
     _setup_ops_dirs(tmp_path)
     draft, approved = _seed_draft_and_approved(draft_id="d11", approved_id="a11")
     draft.context.pop("intent_effective", None)
@@ -268,10 +283,10 @@ def test_phase7_merge_gate_missing_intent_requires_human(tmp_path):
 
     run = OpsService.create_run(approved.id)
     ok = asyncio.run(MergeGateService.execute_run(run.id))
-    assert ok is True
+    assert ok is False
     updated = OpsService.get_run(run.id)
     assert updated is not None
-    assert updated.status == "HUMAN_APPROVAL_REQUIRED"
+    assert updated.status in ("pending", "running")
 
 
 def test_phase7_merge_gate_post_merge_failure_triggers_rollback(tmp_path, monkeypatch):

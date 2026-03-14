@@ -103,40 +103,44 @@ async def approve_draft(
     execution_decision = str(context.get("execution_decision") or "")
 
     if execution_decision == "RISK_SCORE_TOO_HIGH":
+        # Ensure draft is rejected if risk is too high and we try to approve
+        try:
+            OpsService.reject_draft(draft_id)
+        except Exception:
+            pass
         raise HTTPException(status_code=409, detail="RISK_SCORE_TOO_HIGH")
 
     try:
         approved = OpsService.approve_draft(draft_id, approved_by=actor)
-    except ValueError as exc:
-        raise HTTPException(status_code=404, detail=str(exc))
+    except (ValueError, RuntimeError) as exc:
+        raise HTTPException(status_code=409 if isinstance(exc, RuntimeError) else 404, detail=str(exc))
+    
     audit_log("OPS", f"/ops/drafts/{draft_id}/approve", approved.id, operation="WRITE", actor=actor)
 
-    # Check if draft has a linked CustomPlan — execute via unified engine
-    custom_plan_id = context.get("custom_plan_id")
-
-    should_run = auto_run if auto_run is not None else OpsService.get_config().default_auto_run
-    if should_run and execution_decision != "AUTO_RUN_ELIGIBLE":
-        should_run = False
-
     run = None
+    config = OpsService.get_config()
+    should_run = (auto_run if auto_run is not None else config.default_auto_run) and execution_decision == "AUTO_RUN_ELIGIBLE"
+
     if should_run:
-        if custom_plan_id:
-            # Execute via EngineService (unified pipeline)
-            try:
-                run = OpsService.create_run(approved.id)
-                audit_log("OPS", "/ops/runs", run.id, operation="WRITE_AUTO", actor=actor)
-                asyncio.create_task(EngineService.execute_run(run.id, composition="custom_plan"))
-                audit_log("OPS", f"/ops/custom-plans/{custom_plan_id}/execute", custom_plan_id, operation="WRITE_AUTO", actor=actor)
-            except (PermissionError, ValueError, RuntimeError):
+        try:
+            run = OpsService.create_run(approved.id)
+            audit_log("OPS", "/ops/runs", run.id, operation="WRITE_AUTO", actor=actor)
+            
+            composition = "custom_plan" if context.get("custom_plan_id") else None
+            asyncio.create_task(EngineService.execute_run(run.id, composition=composition))
+            
+            if composition:
+                audit_log("OPS", f"/ops/{composition}s/{context.get('custom_plan_id')}/execute", run.id, operation="WRITE_AUTO", actor=actor)
+        except RuntimeError as exc:
+            detail = str(exc)
+            if detail.startswith("RUN_ALREADY_ACTIVE:"):
+                existing_id = detail.split(":")[1]
+                run = OpsService.get_run(existing_id)
+            else:
                 pass
-        else:
-            # Execute via EngineService (unified pipeline)
-            try:
-                run = OpsService.create_run(approved.id)
-                audit_log("OPS", "/ops/runs", run.id, operation="WRITE_AUTO", actor=actor)
-                asyncio.create_task(EngineService.execute_run(run.id))
-            except (PermissionError, ValueError, RuntimeError):
-                pass
+        except Exception:
+            pass
+
     return OpsApproveResponse(approved=approved, run=run)
 
 @router.get("/approved", response_model=List[OpsApproved])
@@ -171,7 +175,9 @@ async def get_approved(
     status_code=201,
     responses={
         403: {"description": "Permission denied"},
-        404: {"description": "Approved plan not found"}
+        404: {"description": "Approved plan not found"},
+        409: {"description": "Active run conflict"},
+        422: {"description": "Invalid lifecycle transition"},
     }
 )
 async def create_run(
@@ -192,7 +198,9 @@ async def create_run(
         detail = str(exc)
         if detail.startswith("RUN_ALREADY_ACTIVE"):
             raise HTTPException(status_code=409, detail=detail)
-        raise HTTPException(status_code=500, detail="RUN_CREATE_FAILED")
+        if detail.startswith("INVALID_FSM_TRANSITION") or detail.startswith("CANNOT_TRANSITION"):
+            raise HTTPException(status_code=422, detail=detail)
+        raise HTTPException(status_code=409, detail=f"RUN_CONTRACT_VIOLATION:{detail[:120]}")
 
     # Deterministic immediate start from any channel (UI/MCP) when run is pending.
     # We intentionally start merge-gate directly and set status to running to avoid
@@ -279,6 +287,7 @@ async def replay_run(
     responses={
         404: {"description": RUN_NOT_FOUND},
         409: {"description": "Active run conflict"},
+        422: {"description": "Invalid lifecycle transition"},
     },
 )
 async def rerun(
@@ -295,9 +304,11 @@ async def rerun(
         raise HTTPException(status_code=404, detail=str(exc))
     except RuntimeError as exc:
         detail = str(exc)
-        if detail.startswith("RUN_ALREADY_ACTIVE"):
+        if detail.startswith("RUN_ALREADY_ACTIVE") or detail.startswith("RERUN_SOURCE_ACTIVE"):
             raise HTTPException(status_code=409, detail=detail)
-        raise HTTPException(status_code=500, detail="RUN_RERUN_FAILED")
+        if detail.startswith("INVALID_FSM_TRANSITION") or detail.startswith("CANNOT_TRANSITION"):
+            raise HTTPException(status_code=422, detail=detail)
+        raise HTTPException(status_code=409, detail=f"RUN_CONTRACT_VIOLATION:{detail[:120]}")
 
     if run.status == "pending":
         try:
